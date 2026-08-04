@@ -16,6 +16,9 @@
       </div>
     </div>
     <div>
+      {% if player['team_id'] %}
+        <a class="btn secondary" href="{{ url_for('lesson_calendar', team=player['team_id']) }}">{{ player['team_name'] }} Calendar</a>
+      {% endif %}
       <a class="btn secondary" href="{{ url_for('edit_player', player_id=player['id']) }}">Edit Info</a>
       <a class="btn secondary" href="{{ url_for('upload_video') }}">+ Add Video</a>
       <a class="btn secondary" href="{{ url_for('upload_csv', player=player['name']) }}">+ Import Stats</a>
