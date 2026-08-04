@@ -1,0 +1,7 @@
+{# One shared tab bar for the three import pages. Set `active` before including:
+   'csv', 'trackman', or 'video'. #}
+<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:18px;">
+  <a class="btn {% if active != 'csv' %}secondary{% endif %}" href="{{ url_for('upload_csv') }}">CSV Stats</a>
+  <a class="btn {% if active != 'trackman' %}secondary{% endif %}" href="{{ url_for('upload_trackman') }}">TrackMan</a>
+  <a class="btn {% if active != 'video' %}secondary{% endif %}" href="{{ url_for('upload_video') }}">Video</a>
+</div>

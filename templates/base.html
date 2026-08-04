@@ -18,9 +18,7 @@
       <a href="{{ url_for('index') }}">Player Page</a>
       <a href="{{ url_for('teams_page') }}">Teams</a>
       <a href="{{ url_for('lesson_calendar') }}">Calendar</a>
-      <a href="{{ url_for('upload_csv') }}">Import Stats</a>
-      <a href="{{ url_for('upload_trackman') }}">TrackMan</a>
-      <a href="{{ url_for('upload_video') }}">Add Video</a>
+      <a href="{{ url_for('upload_csv') }}">Import</a>
       <a href="{{ url_for('add_player') }}">Add Player</a>
       <a href="{{ url_for('manage_uploads') }}">Manage Uploads</a>
       {% if session.get('is_admin') %}<a href="{{ url_for('users_page') }}">Users</a>{% endif %}

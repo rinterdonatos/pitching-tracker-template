@@ -1,10 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Import Stats - Swarm Baseball{% endblock %}
 {% block content %}
-  <div class="page-title">
-    <h2>Import Stats CSV</h2>
-    <a class="btn secondary" href="{{ url_for('upload_trackman') }}">Have a TrackMan file? Import it here</a>
-  </div>
+  <div class="page-title"><h2>Import</h2></div>
+  {% with active = 'csv' %}{% include "_import_tabs.html" %}{% endwith %}
 
   {% if not players %}
     <div class="empty-state">
