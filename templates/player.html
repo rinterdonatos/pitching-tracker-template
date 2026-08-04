@@ -20,8 +20,7 @@
         <a class="btn secondary" href="{{ url_for('lesson_calendar', team=player['team_id']) }}">{{ player['team_name'] }} Calendar</a>
       {% endif %}
       <a class="btn secondary" href="{{ url_for('edit_player', player_id=player['id']) }}">Edit Info</a>
-      <a class="btn secondary" href="{{ url_for('upload_video') }}">+ Add Video</a>
-      <a class="btn secondary" href="{{ url_for('upload_csv', player=player['name']) }}">+ Import Stats</a>
+      <a class="btn secondary" href="{{ url_for('upload_csv', player=player['name']) }}">+ Add Stats/Video</a>
       {% if session.get('is_admin') %}
         <form method="POST" action="{{ url_for('delete_player', player_id=player['id']) }}" style="display:inline;" onsubmit="return confirm('Remove {{ player['name'] }} and all their data?');">
           <button class="btn danger" type="submit">Remove Player</button>
