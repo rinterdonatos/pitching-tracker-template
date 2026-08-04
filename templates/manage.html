@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Manage Uploads - Swarm Baseball{% endblock %}
+{% block content %}
+  <div class="page-title"><h2>Manage Uploads</h2></div>
+
+  <div class="section-title">CSV Imports</div>
+  {% if import_rows or manual_rows %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>File</th>
+          <th>Session Type</th>
+          <th>Imported</th>
+          <th>Dates Covered</th>
+          <th>Players</th>
+          <th>Stat Rows</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in import_rows %}
+          <tr>
+            <td>{{ r['source_file'] }}</td>
+            <td>{{ r['category'] }}</td>
+            <td>{{ r['imported_at'] | friendly_time }}</td>
+            <td>{{ r['earliest_date'] }}{% if r['earliest_date'] != r['latest_date'] %} &ndash; {{ r['latest_date'] }}{% endif %}</td>
+            <td>{{ r['player_count'] }}</td>
+            <td>{{ r['row_count'] }}</td>
+            <td>
+              <form method="POST" action="{{ url_for('delete_import') }}" onsubmit="return confirm('Remove all {{ r['row_count'] }} stat rows imported from {{ r['source_file'] }} ({{ r['category'] }}, {{ r['imported_at'] | friendly_time }})? This can\'t be undone.');">
+                <input type="hidden" name="source_file" value="{{ r['source_file'] }}">
+                <input type="hidden" name="imported_at" value="{{ r['imported_at'] }}">
+                <input type="hidden" name="category" value="{{ r['category'] }}">
+                <button class="btn danger" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        {% for r in manual_rows %}
+          <tr>
+            <td>&mdash;</td>
+            <td>{{ r['category'] }}</td>
+            <td colspan="2" style="color:#6b6564;">Entries with no source file on record</td>
+            <td>{{ r['player_count'] }}</td>
+            <td>{{ r['row_count'] }}</td>
+            <td></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty-state">
+      <p>No CSV imports yet.</p>
+      <a class="btn" href="{{ url_for('upload_csv') }}">Import Stats CSV</a>
+    </div>
+  {% endif %}
+
+  <div class="section-title">Videos</div>
+  {% if videos %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Player</th>
+          <th>Date</th>
+          <th>Title</th>
+          <th>Session Type</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in videos %}
+          <tr>
+            <td><a href="{{ url_for('player_detail', player_id=v['player_id']) }}#video-{{ v['id'] }}">{{ v['player_name'] }}</a></td>
+            <td>{{ v['entry_date'] }}</td>
+            <td>{{ v['title'] }}</td>
+            <td>{{ v['category'] or '—' }}</td>
+            <td>
+              <form method="POST" action="{{ url_for('delete_video', video_id=v['id']) }}" onsubmit="return confirm('Remove this video ({{ v['title'] }}) for {{ v['player_name'] }}? This can\'t be undone.');">
+                <input type="hidden" name="return_to" value="manage">
+                <button class="btn danger" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty-state">
+      <p>No videos uploaded yet.</p>
+      <a class="btn" href="{{ url_for('upload_video') }}">Add Video</a>
+    </div>
+  {% endif %}
+{% endblock %}

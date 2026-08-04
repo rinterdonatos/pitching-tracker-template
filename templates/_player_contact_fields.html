@@ -1,0 +1,72 @@
+{# Shared by add_player.html and edit_player.html. Expects:
+   - p: an existing player row (edit) or an empty dict (add)
+   - contacts: list of existing player_contacts rows (empty list on add) #}
+<div class="field" style="border-top:1px solid #eee; padding-top:14px;">
+  <label style="font-weight:700;">Player Contact</label>
+</div>
+<div class="field">
+  <label for="phone">Phone Number</label>
+  <input type="tel" id="phone" name="phone" placeholder="e.g. (555) 123-4567" value="{{ p['phone'] or '' }}">
+</div>
+<div class="field">
+  <label for="email">Email</label>
+  <input type="email" id="email" name="email" placeholder="e.g. player@example.com" value="{{ p['email'] or '' }}">
+</div>
+
+<div class="field" style="border-top:1px solid #eee; padding-top:14px;">
+  <label style="font-weight:700;">Recruiting Profiles</label>
+</div>
+<div class="field">
+  <label for="pg_url">Perfect Game Profile Link</label>
+  <input type="text" id="pg_url" name="pg_url" placeholder="e.g. https://www.perfectgame.org/Players/Playerprofile.aspx?ID=..." value="{{ p['pg_url'] or '' }}">
+</div>
+<div class="field">
+  <label for="pbr_url">PBR Profile Link</label>
+  <input type="text" id="pbr_url" name="pbr_url" placeholder="e.g. https://www.prepbaseballreport.com/profiles/..." value="{{ p['pbr_url'] or '' }}">
+</div>
+
+<div class="field" style="border-top:1px solid #eee; padding-top:14px;">
+  <label style="font-weight:700;">Other Contacts (coach, trainer, parent, etc.)</label>
+  <div class="hint">Add as many as you need. Empty rows are ignored.</div>
+</div>
+
+<datalist id="relationship-options">
+  <option value="Coach"></option>
+  <option value="Trainer"></option>
+  <option value="Parent"></option>
+  <option value="Guardian"></option>
+  <option value="Advisor"></option>
+</datalist>
+
+<div id="contact-rows">
+  {% for c in contacts %}
+    <div class="contact-row" style="border:1px solid #eee; border-radius:8px; padding:10px; margin-bottom:10px; display:grid; grid-template-columns:1fr 1fr; gap:8px; position:relative;">
+      <input type="text" name="contact_relationship" list="relationship-options" placeholder="Role (Coach, Trainer, Parent...)" value="{{ c['relationship'] or '' }}">
+      <input type="text" name="contact_name" placeholder="Name" value="{{ c['name'] or '' }}">
+      <input type="tel" name="contact_phone" placeholder="Phone" value="{{ c['phone'] or '' }}">
+      <input type="email" name="contact_email" placeholder="Email" value="{{ c['email'] or '' }}">
+      <button type="button" onclick="this.closest('.contact-row').remove()"
+              style="position:absolute; top:-8px; right:-8px; width:22px; height:22px; border-radius:50%; border:1px solid #ddd; background:#fff; color:var(--phx-red); cursor:pointer; line-height:1;"
+              title="Remove this contact">&times;</button>
+    </div>
+  {% endfor %}
+</div>
+
+<template id="contact-row-template">
+  <div class="contact-row" style="border:1px solid #eee; border-radius:8px; padding:10px; margin-bottom:10px; display:grid; grid-template-columns:1fr 1fr; gap:8px; position:relative;">
+    <input type="text" name="contact_relationship" list="relationship-options" placeholder="Role (Coach, Trainer, Parent...)">
+    <input type="text" name="contact_name" placeholder="Name">
+    <input type="tel" name="contact_phone" placeholder="Phone">
+    <input type="email" name="contact_email" placeholder="Email">
+    <button type="button" onclick="this.closest('.contact-row').remove()"
+            style="position:absolute; top:-8px; right:-8px; width:22px; height:22px; border-radius:50%; border:1px solid #ddd; background:#fff; color:var(--phx-red); cursor:pointer; line-height:1;"
+            title="Remove this contact">&times;</button>
+  </div>
+</template>
+
+<div class="field">
+  <button type="button" class="btn secondary" id="add-contact-btn"
+          onclick="document.getElementById('contact-rows').appendChild(document.getElementById('contact-row-template').content.cloneNode(true)); this.textContent = '+ Add Another Contact';">
+    {{ '+ Add Another Contact' if contacts else '+ Add a Contact' }}
+  </button>
+</div>

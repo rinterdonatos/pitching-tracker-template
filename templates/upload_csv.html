@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+{% block title %}Import Stats - Swarm Baseball{% endblock %}
+{% block content %}
+  <div class="page-title">
+    <h2>Import Stats CSV</h2>
+    <a class="btn secondary" href="{{ url_for('upload_trackman') }}">Have a TrackMan file? Import it here</a>
+  </div>
+
+  {% if not players %}
+    <div class="empty-state">
+      <p>Add players to your roster first, so CSV rows can be matched by name.</p>
+      <a class="btn" href="{{ url_for('add_player') }}">+ Add Player</a>
+    </div>
+  {% else %}
+
+  <details id="format-guide" style="margin-bottom:18px; background:#fff; border:1px solid var(--phx-border); border-radius:10px; padding:14px 18px;">
+    <summary style="cursor:pointer; font-weight:700; color:var(--phx-blue); font-size:0.95rem;">
+      How to format your CSV / Excel file (click to view)
+    </summary>
+    <div style="font-size:0.9rem; color:#444; margin-top:12px;">
+
+      <p style="margin-top:0;"><strong>Using Excel?</strong> Build your sheet normally, then use <em>File &rarr; Save As &rarr; CSV (Comma delimited)</em>. Only .csv files can be imported.</p>
+
+      <p><strong>Row 1 must be column headers.</strong> Each row below it is one player's stats for one date. Column names are matched case-insensitively, and spaces/underscores don't matter.</p>
+
+      <table class="csv-preview">
+        <thead><tr><th>Column</th><th>Required?</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Player</strong> (or Name)</td><td>Required</td><td>Must match a roster name exactly (capitalization doesn't matter). Rows with unrecognized names are skipped.</td></tr>
+          <tr><td><strong>Date</strong></td><td>Recommended</td><td>Accepted formats: 2026-08-04, 8/4/2026, 8/4/26, Aug 4, 2026. If missing, today's date is used.</td></tr>
+          <tr><td>Strikes + Pitches</td><td>Optional</td><td>Include both and <strong>Strike %</strong> is calculated automatically. ("Total Pitches" and "Pitch Count" also work.)</td></tr>
+          <tr><td>IP + ER</td><td>Optional</td><td>Include both and <strong>ERA</strong> is calculated automatically (scaled to 7-inning games). Use baseball IP notation: 5.1 = 5&#8531; innings. Don't add your own ERA column &mdash; it's recomputed.</td></tr>
+          <tr><td>IP + K (or SO)</td><td>Optional</td><td>Include both and <strong>K/7</strong> is calculated automatically.</td></tr>
+          <tr><td>Any other numeric column</td><td>Optional</td><td>BB, HBP, drill scores, spin rate &mdash; anything numeric gets tracked and charted automatically. % signs and commas are fine.</td></tr>
+        </tbody>
+      </table>
+
+      <p><strong>Pitch velocity:</strong> one column per pitch the player throws (only include pitches they actually throw). Any column name containing "Velo" gets charted on the player page, so "FB Velo", "FB Top Velo", and "Max Velo" all work:</p>
+      <table class="csv-preview">
+        <thead><tr><th>Pitch</th><th>Column name</th></tr></thead>
+        <tbody>
+          {% for abbr, full in pitch_types %}
+            <tr><td>{{ full }}</td><td>{{ abbr }} Velo</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <p><strong>Each session type has its own typical layout.</strong> Only Player and Date are always the same &mdash; the stat columns change with what you're tracking:</p>
+
+      <p style="margin-bottom:4px;"><strong>Bullpen</strong> &mdash; pitch counts, strikes, and the top velo on each pitch type thrown:</p>
+      <table class="csv-preview">
+        <thead><tr><th>Player</th><th>Date</th><th>Pitches</th><th>Strikes</th><th>FB Top Velo</th><th>SL Top Velo</th><th>CH Top Velo</th></tr></thead>
+        <tbody>
+          <tr><td>Jake Thompson</td><td>2026-08-04</td><td>32</td><td>21</td><td>84.2</td><td>74.5</td><td>77.1</td></tr>
+        </tbody>
+      </table>
+
+      <p style="margin-bottom:4px;"><strong>Pulldown</strong> &mdash; just the max velo:</p>
+      <table class="csv-preview">
+        <thead><tr><th>Player</th><th>Date</th><th>Max Velo</th></tr></thead>
+        <tbody>
+          <tr><td>Jake Thompson</td><td>2026-08-04</td><td>88.4</td></tr>
+        </tbody>
+      </table>
+
+      <p style="margin-bottom:4px;"><strong>Game</strong> &mdash; the box score line; ERA and K/7 get computed from IP + ER + K:</p>
+      <table class="csv-preview">
+        <thead><tr><th>Player</th><th>Date</th><th>IP</th><th>ER</th><th>K</th><th>BB</th><th>H</th><th>Pitches</th><th>Strikes</th><th>FB Velo</th></tr></thead>
+        <tbody>
+          <tr><td>Jake Thompson</td><td>2026-08-04</td><td>5.1</td><td>2</td><td>7</td><td>1</td><td>4</td><td>78</td><td>51</td><td>85.0</td></tr>
+        </tbody>
+      </table>
+
+      <p style="margin-bottom:4px;"><strong>Live ABs</strong> &mdash; like a bullpen but against hitters, so results count too:</p>
+      <table class="csv-preview">
+        <thead><tr><th>Player</th><th>Date</th><th>Pitches</th><th>Strikes</th><th>Outs</th><th>Hits</th><th>Walks</th><th>FB Velo</th><th>SL Velo</th></tr></thead>
+        <tbody>
+          <tr><td>Jake Thompson</td><td>2026-08-04</td><td>24</td><td>16</td><td>4</td><td>2</td><td>1</td><td>84.8</td><td>75.0</td></tr>
+        </tbody>
+      </table>
+
+      <p>Don't want to make the file yourself? Use the <strong>Build a CSV</strong> tool below the upload form &mdash; it sets up the right columns for each session type automatically.</p>
+
+      <p style="margin-bottom:0;">Blank cells (or NULL, N/A, -, none) are simply skipped &mdash; they won't record a zero. Sample files are in the <code>sample_data/</code> folder.</p>
+    </div>
+  </details>
+
+  <form class="card-form" method="POST" enctype="multipart/form-data">
+    <div class="field">
+      <label for="csv_file">CSV File *</label>
+      <input type="file" id="csv_file" name="csv_file" accept=".csv" required>
+      <div class="hint">
+        Must include a <strong>Player</strong> (or <strong>Name</strong>) column matching a roster name,
+        and ideally a <strong>Date</strong> column. Every other numeric column gets tracked automatically.
+        Not sure how to set up your file? <a href="#format-guide" onclick="document.getElementById('format-guide').open = true;">See the formatting guide above</a>.
+      </div>
+    </div>
+    <div class="field">
+      <label for="category">Session type</label>
+      <select id="category" name="category" onchange="document.getElementById('category-other-wrap').style.display = this.value === 'Other' ? 'block' : 'none';">
+        {% for opt in category_options %}
+          <option value="{{ opt }}" {% if opt == 'Bullpen' %}selected{% endif %}>{{ opt }}</option>
+        {% endfor %}
+      </select>
+      <div class="hint">Used to group these stats on the player page &mdash; e.g. Bullpen and Pulldown sessions stay separate from Game stats.</div>
+    </div>
+    <div class="field" id="category-other-wrap" style="display:none;">
+      <label for="category_other">Custom session type</label>
+      <input type="text" id="category_other" name="category_other" placeholder="e.g. Weighted Ball, Long Toss">
+    </div>
+    <button class="btn" type="submit">Upload &amp; Import</button>
+  </form>
+
+  <div class="section-title">Build a CSV right here</div>
+  <div style="background:#fff; border:1px solid var(--phx-border); border-radius:10px; padding:16px 18px; margin-bottom:24px;">
+    <p style="margin-top:0; color:#6b6564; font-size:0.9rem;">
+      Pick a session type and the right columns are set up for you. Fill in the table, then download the file or import it straight into the tracker.
+      Rename any column header, add your own, and leave cells blank if there's no data.
+    </p>
+
+    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin-bottom:12px;">
+      <div class="field" style="margin:0;">
+        <label for="builder-type">Session type</label>
+        <select id="builder-type" onchange="builderSetType()">
+          {% for opt in category_options %}<option value="{{ opt }}">{{ opt }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field" style="margin:0;" id="builder-other-wrap" hidden>
+        <label for="builder-other">Custom session type</label>
+        <input type="text" id="builder-other" placeholder="e.g. Weighted Ball">
+      </div>
+      <button class="btn secondary" type="button" onclick="builderAddColumn()">+ Add Column</button>
+      <button class="btn secondary" type="button" onclick="builderAddRow()">+ Add Row</button>
+    </div>
+
+    <datalist id="roster-list">
+      {% for p in players %}<option value="{{ p['name'] }}"></option>{% endfor %}
+    </datalist>
+
+    <div style="overflow-x:auto;">
+      <table class="csv-preview" id="builder-table" style="min-width:640px;">
+        <thead><tr id="builder-head"></tr></thead>
+        <tbody id="builder-body"></tbody>
+      </table>
+    </div>
+
+    <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="btn" type="button" onclick="builderImport()">Import into Tracker</button>
+      <button class="btn secondary" type="button" onclick="builderDownload()">Download CSV</button>
+      <span id="builder-status" style="align-self:center; color:#6b6564; font-size:0.85rem;"></span>
+    </div>
+  </div>
+
+  <div class="section-title">Roster names (must match your CSV exactly, case-insensitive)</div>
+  <table class="csv-preview">
+    <thead><tr><th>Name</th></tr></thead>
+    <tbody>
+      {% for p in players %}<tr><td>{{ p['name'] }}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+
+  <script>
+    const ROSTER = [{% for p in players %}{{ p['name'] | tojson }}{% if not loop.last %}, {% endif %}{% endfor %}];
+    const TODAY = new Date().toISOString().slice(0, 10);
+    // Coming from a player's page pre-fills that player in the builder.
+    const PRESET_PLAYER = new URLSearchParams(window.location.search).get('player') || '';
+
+    // Stat columns that fit each session type. Player + Date are always first.
+    const TYPE_COLUMNS = {
+      "Bullpen":     ["Pitches", "Strikes", "FB Top Velo", "SL Top Velo", "CB Top Velo", "CH Top Velo"],
+      "Pulldown":    ["Max Velo"],
+      "Game":        ["IP", "ER", "K", "BB", "H", "Pitches", "Strikes", "FB Velo"],
+      "Live ABs":    ["Pitches", "Strikes", "Outs", "Hits", "Walks", "FB Velo", "SL Velo", "CH Velo"],
+      "Flat Ground": ["Pitches", "Strikes"],
+      "Practice":    ["Score"],
+      "Other":       ["Stat 1", "Stat 2"]
+    };
+
+    const headRow = document.getElementById('builder-head');
+    const body = document.getElementById('builder-body');
+
+    function statColumnCount() { return headRow.children.length - 2; }
+
+    function makeHeaderCell(name) {
+      const th = document.createElement('th');
+      const inp = document.createElement('input');
+      inp.value = name;
+      inp.style.cssText = 'width:90px; border:none; background:transparent; font-weight:700; font-size:inherit;';
+      th.appendChild(inp);
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.textContent = '×';
+      del.title = 'Remove column';
+      del.style.cssText = 'border:none; background:none; color:var(--phx-red); cursor:pointer; font-size:0.9rem;';
+      del.onclick = () => {
+        const idx = Array.from(headRow.children).indexOf(th);
+        headRow.removeChild(th);
+        Array.from(body.children).forEach(tr => tr.removeChild(tr.children[idx]));
+      };
+      th.appendChild(del);
+      return th;
+    }
+
+    function builderSetType() {
+      const type = document.getElementById('builder-type').value;
+      document.getElementById('builder-other-wrap').hidden = type !== 'Other';
+      headRow.innerHTML = '';
+      const thP = document.createElement('th'); thP.textContent = 'Player'; headRow.appendChild(thP);
+      const thD = document.createElement('th'); thD.textContent = 'Date'; headRow.appendChild(thD);
+      (TYPE_COLUMNS[type] || []).forEach(c => headRow.appendChild(makeHeaderCell(c)));
+      body.innerHTML = '';
+      builderAddRow();
+      if (PRESET_PLAYER && ROSTER.some(n => n.toLowerCase() === PRESET_PLAYER.toLowerCase())) {
+        body.children[0].querySelector('input').value = PRESET_PLAYER;
+      } else {
+        builderAddRow();
+      }
+    }
+
+    function builderAddColumn() {
+      const name = prompt('Column name (e.g. Spin Rate, HBP, SWP Velo):');
+      if (!name) return;
+      headRow.appendChild(makeHeaderCell(name.trim()));
+      Array.from(body.children).forEach(tr => {
+        const td = document.createElement('td');
+        const inp = document.createElement('input');
+        inp.style.cssText = 'width:70px; border:none; background:transparent;';
+        td.appendChild(inp);
+        tr.appendChild(td);
+      });
+    }
+
+    function builderAddRow() {
+      const tr = document.createElement('tr');
+
+      const tdP = document.createElement('td');
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.setAttribute('list', 'roster-list');
+      inp.placeholder = 'Type a player name...';
+      inp.style.cssText = 'width:150px; border:none; background:transparent;';
+      // Flag names that don't match the roster (those rows would be skipped on import).
+      inp.addEventListener('blur', () => {
+        const v = inp.value.trim().toLowerCase();
+        const ok = !v || ROSTER.some(n => n.toLowerCase() === v);
+        inp.style.color = ok ? '' : 'var(--phx-red)';
+        inp.title = ok ? '' : 'Not on the roster - this row will be skipped';
+      });
+      tdP.appendChild(inp);
+      tr.appendChild(tdP);
+
+      const tdD = document.createElement('td');
+      const date = document.createElement('input');
+      date.type = 'date'; date.value = TODAY;
+      date.style.cssText = 'border:none; background:transparent;';
+      tdD.appendChild(date);
+      tr.appendChild(tdD);
+
+      for (let i = 0; i < statColumnCount(); i++) {
+        const td = document.createElement('td');
+        const inp = document.createElement('input');
+        inp.style.cssText = 'width:70px; border:none; background:transparent;';
+        td.appendChild(inp);
+        tr.appendChild(td);
+      }
+
+      tr.title = 'Leave the player blank to skip this row';
+      body.appendChild(tr);
+    }
+
+    function csvEscape(v) {
+      v = (v == null ? '' : String(v));
+      return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    }
+
+    function builderCSV() {
+      const headers = ['Player', 'Date'];
+      Array.from(headRow.children).slice(2).forEach(th => headers.push(th.querySelector('input').value.trim() || 'Column'));
+      const lines = [headers.map(csvEscape).join(',')];
+      let rows = 0;
+      Array.from(body.children).forEach(tr => {
+        const player = tr.children[0].querySelector('input').value.trim();
+        if (!player) return;
+        const vals = [player, tr.children[1].querySelector('input').value];
+        Array.from(tr.children).slice(2).forEach(td => vals.push(td.querySelector('input').value.trim()));
+        lines.push(vals.map(csvEscape).join(','));
+        rows++;
+      });
+      return rows ? lines.join('\r\n') : null;
+    }
+
+    function builderFilename() {
+      const type = document.getElementById('builder-type').value;
+      const label = type === 'Other' ? (document.getElementById('builder-other').value.trim() || 'stats') : type;
+      return label.toLowerCase().replace(/[^a-z0-9]+/g, '_') + '_' + TODAY + '.csv';
+    }
+
+    function builderDownload() {
+      const csv = builderCSV();
+      if (!csv) { document.getElementById('builder-status').textContent = 'Pick a player in at least one row first.'; return; }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      a.download = builderFilename();
+      a.click();
+      URL.revokeObjectURL(a.href);
+      document.getElementById('builder-status').textContent = 'Downloaded ' + a.download;
+    }
+
+    async function builderImport() {
+      const csv = builderCSV();
+      const status = document.getElementById('builder-status');
+      if (!csv) { status.textContent = 'Pick a player in at least one row first.'; return; }
+      const type = document.getElementById('builder-type').value;
+      const fd = new FormData();
+      fd.append('csv_file', new File([csv], builderFilename(), { type: 'text/csv' }));
+      fd.append('category', type);
+      fd.append('category_other', document.getElementById('builder-other').value.trim());
+      status.textContent = 'Importing...';
+      try {
+        const resp = await fetch('{{ url_for("upload_csv") }}', { method: 'POST', body: fd });
+        window.location = resp.url || '{{ url_for("upload_csv") }}';
+      } catch (err) {
+        status.textContent = 'Import failed - try Download CSV and upload it above instead.';
+      }
+    }
+
+    builderSetType();
+  </script>
+  {% endif %}
+{% endblock %}

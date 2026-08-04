@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ player['name'] }} - Swarm Baseball{% endblock %}
+{% block content %}
+  <div class="page-title"><h2>Edit {{ player['name'] }}</h2></div>
+  <form class="card-form" method="POST" enctype="multipart/form-data">
+    <div class="field">
+      <label for="name">Name *</label>
+      <input type="text" id="name" name="name" value="{{ player['name'] }}" required>
+    </div>
+    <div class="field">
+      <label for="jersey_number">Jersey Number</label>
+      <input type="text" id="jersey_number" name="jersey_number" value="{{ player['jersey_number'] or '' }}">
+    </div>
+    <div class="field">
+      <label for="position">Position</label>
+      <input type="text" id="position" name="position" placeholder="e.g. RHP, LHP" value="{{ player['position'] or '' }}">
+    </div>
+    <div class="field">
+      <label for="grad_year">Graduation Year</label>
+      <input type="text" id="grad_year" name="grad_year" placeholder="e.g. 2028" value="{{ player['grad_year'] or '' }}">
+    </div>
+    <div class="field">
+      <label for="team_id">Team</label>
+      <select id="team_id" name="team_id">
+        <option value="">No team</option>
+        {% for t in teams %}
+          <option value="{{ t['id'] }}" {% if player['team_id'] == t['id'] %}selected{% endif %}>{{ t['name'] }}</option>
+        {% endfor %}
+      </select>
+      <div class="hint">Manage teams on the <a href="{{ url_for('teams_page') }}">Teams page</a>.</div>
+    </div>
+    {% with p = player %}{% include "_player_contact_fields.html" %}{% endwith %}
+    <div class="field">
+      <label for="photo">Photo</label>
+      {% if player['photo_filename'] %}
+        <img src="{{ url_for('static', filename='uploads/photos/' ~ player['photo_filename']) }}" alt="{{ player['name'] }}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;display:block;margin-bottom:8px;">
+      {% endif %}
+      <input type="file" id="photo" name="photo" accept="image/*">
+      <div class="hint">Leave blank to keep the current photo.</div>
+    </div>
+    <div class="field">
+      <label for="notes">Notes</label>
+      <textarea id="notes" name="notes">{{ player['notes'] or '' }}</textarea>
+    </div>
+    <button class="btn" type="submit">Save Changes</button>
+    <a class="btn secondary" href="{{ url_for('player_detail', player_id=player['id']) }}">Cancel</a>
+  </form>
+{% endblock %}

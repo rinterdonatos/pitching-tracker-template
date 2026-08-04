@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enter Code - Swarm Baseball</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="icon" href="{{ url_for('static', filename='img/swarm-badge.png') }}">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <img src="{{ url_for('static', filename='img/swarm-badge.png') }}" alt="Swarm Baseball logo" class="login-logo">
+      <h1>Enter Your Code</h1>
+      <p class="login-sub">Type the 6-digit code you just received and pick a new password.</p>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="flash {{ category }}">{{ message }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <form method="POST">
+        <div class="field">
+          <label for="code">6-digit code</label>
+          <input type="text" id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autofocus required>
+        </div>
+        <div class="field">
+          <label for="password">New password</label>
+          <input type="password" id="password" name="password" autocomplete="new-password" required minlength="6">
+        </div>
+        <div class="field">
+          <label for="confirm">Confirm new password</label>
+          <input type="password" id="confirm" name="confirm" autocomplete="new-password" required minlength="6">
+        </div>
+        <button class="btn" type="submit" style="width:100%;">Reset Password &amp; Sign In</button>
+      </form>
+      <p style="margin-top:14px; font-size:0.85rem;"><a href="{{ url_for('forgot_password') }}">Didn't get a code? Send another</a></p>
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Import TrackMan - Swarm Baseball{% endblock %}
+{% block content %}
+  <div class="page-title"><h2>Import TrackMan Report</h2></div>
+
+  {% if not players %}
+    <div class="empty-state">
+      <p>Add players to your roster first, so TrackMan pitchers can be matched by name.</p>
+      <a class="btn" href="{{ url_for('add_player') }}">+ Add Player</a>
+    </div>
+  {% else %}
+
+  <p style="color:#6b6564; font-size:0.9rem; max-width:640px;">
+    Upload the raw TrackMan CSV export (one row per pitch) and it gets rolled up automatically into
+    session stats for each pitcher: <strong>Pitches, Strikes, Strike&nbsp;%</strong>, plus
+    <strong>top velo</strong> and <strong>average spin</strong> for every pitch type thrown.
+    Pitcher names like <code>Smith, Jake</code> are matched to your roster automatically.
+  </p>
+
+  <form class="card-form" method="POST" enctype="multipart/form-data">
+    <div class="field">
+      <label for="trackman_file">TrackMan CSV *</label>
+      <input type="file" id="trackman_file" name="trackman_file" accept=".csv" required>
+      <div class="hint">The unedited export works as-is &mdash; no cleanup needed.</div>
+    </div>
+    <div class="field">
+      <label for="category">Session type *</label>
+      <select id="category" name="category">
+        {% for opt in category_options %}
+          <option value="{{ opt }}">{{ opt }}</option>
+        {% endfor %}
+      </select>
+      <div class="hint">Was this a bullpen, live at-bats, or a game? Stats are grouped under this on the player page.</div>
+    </div>
+    <div class="field">
+      <label for="date_override">Date override (optional)</label>
+      <input type="date" id="date_override" name="date_override">
+      <div class="hint">Leave blank to use the dates inside the TrackMan file.</div>
+    </div>
+    <button class="btn" type="submit">Upload &amp; Import</button>
+  </form>
+
+  <div class="section-title">Roster names (TrackMan pitchers are matched to these)</div>
+  <table class="csv-preview">
+    <thead><tr><th>Name</th></tr></thead>
+    <tbody>
+      {% for p in players %}<tr><td>{{ p['name'] }}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+{% endblock %}

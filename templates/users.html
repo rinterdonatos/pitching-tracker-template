@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block title %}Users - Swarm Baseball{% endblock %}
+
+{% macro user_table(user_list) %}
+  <div class="spreadsheet-wrap">
+    <table class="spreadsheet-table">
+      <thead>
+        <tr><th>Name</th><th>Email</th><th>Phone</th><th>Status</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for u in user_list %}
+          {% set manageable = (not u['is_owner']) and (session.get('is_owner') or not u['is_admin']) %}
+          <tr>
+            <td>{{ u['name'] or '-' }}{% if u['id'] == session.get('user_id') %} <span style="color:#6b6564; font-size:0.85em;">(you)</span>{% endif %}</td>
+            <td>{{ u['email'] or '-' }}</td>
+            <td>{{ u['phone'] or '-' }}</td>
+            <td>{{ 'Active' if u['password_hash'] else 'Invited - no password yet' }}</td>
+            <td style="white-space:nowrap;">
+              {% if manageable %}
+                {% if u['password_hash'] %}
+                  <form method="POST" action="{{ url_for('reset_user_password', user_id=u['id']) }}" style="display:inline;"
+                        onsubmit="return confirm('Clear this password? They will create a new one at next sign-in.');">
+                    <button class="btn secondary" type="submit" style="font-size:0.75rem; padding:3px 8px;">Reset Password</button>
+                  </form>
+                {% endif %}
+                {% if session.get('is_owner') %}
+                  <form method="POST" action="{{ url_for('change_user_role', user_id=u['id']) }}" style="display:inline;">
+                    <button class="btn secondary" type="submit" style="font-size:0.75rem; padding:3px 8px;">
+                      {{ 'Remove Admin' if u['is_admin'] else 'Make Admin' }}
+                    </button>
+                  </form>
+                {% endif %}
+                <form method="POST" action="{{ url_for('delete_user', user_id=u['id']) }}" style="display:inline;"
+                      onsubmit="return confirm('Remove {{ u['name'] or u['email'] or u['phone'] }}? They will no longer be able to sign in.');">
+                  <button class="btn secondary" type="submit" style="font-size:0.75rem; padding:3px 8px; color:var(--phx-red);">Remove</button>
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endmacro %}
+
+{% block content %}
+  <div class="page-title"><h2>Users</h2></div>
+
+  <p style="color:#6b6564; font-size:0.9rem; max-width:640px;">
+    Anyone listed here can sign in with their email or phone number.
+    {% if session.get('is_owner') %}
+      As site owner you can manage everyone, including admins.
+    {% else %}
+      As an admin you can manage members; only the site owner can manage admins.
+    {% endif %}
+  </p>
+
+  <div class="section-title">Invite Someone</div>
+  <form class="card-form" method="POST" action="{{ url_for('add_user') }}">
+    <div class="field">
+      <label for="name">Name</label>
+      <input type="text" id="name" name="name" placeholder="e.g. Jake's mom, Coach Rivera">
+    </div>
+    <div class="field">
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email">
+    </div>
+    <div class="field">
+      <label for="phone">Phone number</label>
+      <input type="tel" id="phone" name="phone">
+      <div class="hint">Fill in at least one of email / phone &mdash; they'll sign in with whichever you add (or either, if both).</div>
+    </div>
+    {% if session.get('is_owner') %}
+      <div class="field">
+        <label style="font-weight:400;"><input type="checkbox" name="is_admin" value="1"> Make this person an admin (can manage members and imports)</label>
+      </div>
+    {% endif %}
+    <button class="btn" type="submit">Add User</button>
+  </form>
+
+  <div class="section-title">Invite Links</div>
+  <p style="color:#6b6564; font-size:0.9rem; max-width:640px;">
+    Or send people a link instead &mdash; anyone who opens it enters their own name, email/phone,
+    and password, and joins as a member. Links work for 7 days; deactivate one anytime.
+  </p>
+  <form method="POST" action="{{ url_for('create_invite') }}" style="margin-bottom:12px;">
+    <button class="btn" type="submit">+ Create Invite Link</button>
+  </form>
+  {% if invites %}
+    <div class="spreadsheet-wrap">
+      <table class="spreadsheet-table">
+        <thead><tr><th>Link</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          {% for inv in invites %}
+            {% set link = url_for('join', token=inv['token'], _external=True) %}
+            {% set expired = inv['expires_at'] and now > inv['expires_at'] %}
+            <tr>
+              <td style="font-family:monospace; font-size:0.78rem; word-break:break-all;">{{ link }}</td>
+              <td>{% if expired %}Expired{% else %}Active until {{ inv['expires_at'] }}{% endif %}</td>
+              <td style="white-space:nowrap;">
+                {% if not expired %}
+                  <button class="btn secondary" type="button" style="font-size:0.75rem; padding:3px 8px;"
+                          onclick="navigator.clipboard.writeText('{{ link }}').then(() => { this.textContent = 'Copied!'; setTimeout(() => this.textContent = 'Copy', 1500); })">Copy</button>
+                {% endif %}
+                <form method="POST" action="{{ url_for('delete_invite', invite_id=inv['id']) }}" style="display:inline;">
+                  <button class="btn secondary" type="submit" style="font-size:0.75rem; padding:3px 8px; color:var(--phx-red);">
+                    {{ 'Delete' if expired else 'Deactivate' }}
+                  </button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+  <div class="section-title">Site Owner</div>
+  {{ user_table(owners) }}
+
+  <div class="section-title">Admins</div>
+  {% if admins %}
+    {{ user_table(admins) }}
+  {% else %}
+    <p class="hint">No admins yet{% if session.get('is_owner') %} &mdash; promote a member with "Make Admin" or check the admin box when inviting{% endif %}.</p>
+  {% endif %}
+
+  <div class="section-title">Members</div>
+  {% if members %}
+    {{ user_table(members) }}
+  {% else %}
+    <p class="hint">No members yet &mdash; invite someone above or send them an invite link.</p>
+  {% endif %}
+{% endblock %}

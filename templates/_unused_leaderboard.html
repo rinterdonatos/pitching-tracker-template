@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Leaderboard - Swarm Baseball{% endblock %}
+{% block content %}
+  <div class="page-title"><h2>Leaderboard</h2></div>
+
+  {% if not categories %}
+    <div class="empty-state">
+      <p>No stats imported yet. Import a CSV to start ranking players.</p>
+      <a class="btn" href="{{ url_for('upload_csv') }}">Import Stats CSV</a>
+    </div>
+  {% else %}
+    <form class="card-form" method="GET" style="max-width:none;">
+      <div class="leaderboard-filters">
+        <div class="field">
+          <label for="category">Session type</label>
+          <select id="category" name="category" onchange="this.form.submit()">
+            {% for c in categories %}
+              <option value="{{ c }}" {% if c == selected.category %}selected{% endif %}>{{ c }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="stat">Stat</label>
+          <select id="stat" name="stat">
+            {% for s in stats %}
+              <option value="{{ s }}" {% if s == selected.stat %}selected{% endif %}>{{ s }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="metric">Ranked by</label>
+          <select id="metric" name="metric">
+            <option value="best" {% if selected.metric == 'best' %}selected{% endif %}>Season best</option>
+            <option value="recent" {% if selected.metric == 'recent' %}selected{% endif %}>Most recent</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="direction">Order</label>
+          <select id="direction" name="direction">
+            <option value="desc" {% if selected.direction == 'desc' %}selected{% endif %}>Highest first</option>
+            <option value="asc" {% if selected.direction == 'asc' %}selected{% endif %}>Lowest first</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn" type="submit" style="margin-top:14px;">Update Leaderboard</button>
+    </form>
+
+    {% if rows %}
+      <table class="leaderboard-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Player</th>
+            <th>Group</th>
+            <th>{{ selected.stat }}</th>
+            <th>{{ 'Date set' if selected.metric == 'best' else 'Date' }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+            <tr>
+              <td class="rank">{{ loop.index }}</td>
+              <td><a href="{{ url_for('player_detail', player_id=r['player_id']) }}">{{ r['name'] }}{% if r['jersey_number'] %} #{{ r['jersey_number'] }}{% endif %}</a></td>
+              <td>{{ r['group_number'] or '—' }}</td>
+              <td class="stat-value-cell">{{ r['stat_value'] }}</td>
+              <td>{{ r['entry_date'] }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="empty-state">
+        <p>No entries yet for {{ selected.stat }} under {{ selected.category }}.</p>
+      </div>
+    {% endif %}
+  {% endif %}
+{% endblock %}

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Join - Swarm Baseball</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="icon" href="{{ url_for('static', filename='img/swarm-badge.png') }}">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <img src="{{ url_for('static', filename='img/swarm-badge.png') }}" alt="Swarm Baseball logo" class="login-logo">
+      {% if invalid %}
+        <h1>Invite Not Valid</h1>
+        <p class="login-sub">This invite link has expired or been deactivated. Ask your coach for a new one.</p>
+        <p style="margin-top:14px; font-size:0.85rem;"><a href="{{ url_for('login') }}">Back to sign in</a></p>
+      {% else %}
+        <h1>Join Swarm Baseball</h1>
+        <p class="login-sub">You've been invited. Fill this out once and you're in &mdash; you'll sign in with your email or phone and this password from now on.</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <form method="POST">
+          <div class="field">
+            <label for="name">Your name *</label>
+            <input type="text" id="name" name="name" autofocus required>
+          </div>
+          <div class="field">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" autocomplete="email">
+          </div>
+          <div class="field">
+            <label for="phone">Phone number</label>
+            <input type="tel" id="phone" name="phone" autocomplete="tel">
+            <div class="hint">Fill in at least one &mdash; either can be used to sign in.</div>
+          </div>
+          <div class="field">
+            <label for="password">Password *</label>
+            <input type="password" id="password" name="password" autocomplete="new-password" required minlength="6">
+          </div>
+          <div class="field">
+            <label for="confirm">Confirm password *</label>
+            <input type="password" id="confirm" name="confirm" autocomplete="new-password" required minlength="6">
+          </div>
+          <button class="btn" type="submit" style="width:100%;">Create My Account</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

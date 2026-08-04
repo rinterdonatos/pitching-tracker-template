@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}Group {{ group_number }} Calendar - Swarm Baseball{% endblock %}
+{% block content %}
+  <div class="page-title">
+    <h2>Group {{ group_number }} &mdash; Throwing Calendar</h2>
+    <a class="btn secondary" href="{{ url_for('groups_list') }}">All Groups</a>
+  </div>
+
+  {% if players %}
+    <div class="group-players">
+      {% for p in players %}
+        <a class="group-player-chip" href="{{ url_for('player_detail', player_id=p['id']) }}">{{ p['name'] }}{% if p['jersey_number'] %} #{{ p['jersey_number'] }}{% endif %}</a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p style="color:#6b6564; font-size:0.9rem;">No players assigned to Group {{ group_number }} yet.</p>
+  {% endif %}
+
+  <div class="calendar-nav">
+    <a class="btn secondary" href="{{ url_for('group_calendar', group_number=group_number, year=prev_year, month=prev_month) }}">&larr; Prev</a>
+    <h3>{{ month_name }} {{ year }}</h3>
+    <a class="btn secondary" href="{{ url_for('group_calendar', group_number=group_number, year=next_year, month=next_month) }}">Next &rarr;</a>
+  </div>
+
+  <div class="calendar-grid">
+    {% for dow in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] %}
+      <div class="calendar-dow">{{ dow }}</div>
+    {% endfor %}
+
+    {% for week in weeks %}
+      {% for day in week %}
+        {% set iso = day.strftime('%Y-%m-%d') %}
+        <div class="calendar-day {% if day.month != month %}other-month{% endif %} {% if iso == today_iso %}is-today{% endif %}">
+          <div class="calendar-day-num">{{ day.day }}</div>
+          {% for entry in entries_by_date.get(iso, []) %}
+            <div class="calendar-entry" title="{{ entry['notes'] or '' }}">
+              <span>{{ entry['activity'] }}</span>
+              <form method="POST" action="{{ url_for('delete_throwing_entry', entry_id=entry['id']) }}" onsubmit="return confirm('Remove this throwing day?');">
+                <button type="submit" title="Remove">&times;</button>
+              </form>
+            </div>
+          {% endfor %}
+        </div>
+      {% endfor %}
+    {% endfor %}
+  </div>
+
+  <div class="section-title">Add a Throwing Day</div>
+  <form class="card-form" method="POST" action="{{ url_for('add_throwing_entry', group_number=group_number) }}">
+    <div class="field">
+      <label for="entry_date">Date</label>
+      <input type="date" id="entry_date" name="entry_date" value="{{ today_iso }}" required>
+    </div>
+    <div class="field">
+      <label for="activity">Activity</label>
+      <select id="activity" name="activity" onchange="document.getElementById('activity-other-wrap').style.display = this.value === 'Other' ? 'block' : 'none';">
+        {% for opt in activity_options %}
+          <option value="{{ opt }}">{{ opt }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field" id="activity-other-wrap" style="display:none;">
+      <label for="activity_other">Custom activity</label>
+      <input type="text" id="activity_other" name="activity_other" placeholder="e.g. Weighted Ball">
+    </div>
+    <div class="field">
+      <label for="notes">Notes</label>
+      <textarea id="notes" name="notes" placeholder="Anything to add (pitch count target, location, etc.)"></textarea>
+    </div>
+    <button class="btn" type="submit">Add to Calendar</button>
+  </form>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Throwing Calendars - Swarm Baseball{% endblock %}
+{% block content %}
+  <div class="page-title"><h2>Throwing Calendars</h2></div>
+
+  <form class="card-form" method="GET" action="" onsubmit="event.preventDefault(); var v=document.getElementById('jump_group').value.trim(); if(v){ window.location.href = '/groups/' + encodeURIComponent(v) + '/calendar'; }" style="max-width:420px; margin-bottom:28px;">
+    <div class="field">
+      <label for="jump_group">Jump to (or create) a group #</label>
+      <input type="text" id="jump_group" placeholder="e.g. 1, 2, 3">
+    </div>
+    <button class="btn" type="submit">View Calendar</button>
+  </form>
+
+  {% if group_list %}
+    <div class="roster-grid">
+      {% for group_number, player_count in group_list %}
+        <a class="player-card" href="{{ url_for('group_calendar', group_number=group_number) }}">
+          <div class="avatar">G{{ group_number }}</div>
+          <h3>Group {{ group_number }}</h3>
+          <div class="meta">{{ player_count }} player{{ 's' if player_count != 1 else '' }}</div>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <p>No groups yet. Set a Group # on a player (Add Player or Edit Info), or jump to a new group # above to start its calendar.</p>
+    </div>
+  {% endif %}
+{% endblock %}

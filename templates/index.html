@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Player Page - Swarm Baseball{% endblock %}
+{% block content %}
+  <div class="page-title">
+    <h2>Player Page</h2>
+    <div>
+      <a class="btn secondary" href="{{ url_for('upload_csv') }}">Import Stats CSV</a>
+      <a class="btn secondary" href="{{ url_for('upload_video') }}">Add Video</a>
+      <a class="btn" href="{{ url_for('add_player') }}">+ Add Player</a>
+    </div>
+  </div>
+
+  <form method="GET" action="{{ url_for('index') }}" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:18px;">
+    <input type="text" name="q" id="player-search" value="{{ q }}" autocomplete="off"
+           placeholder="Search players, teams, or grad year (e.g. 2027 - Red)"
+           style="flex:1; min-width:220px; padding:9px 12px; border:1px solid #ddd; border-radius:8px;">
+    <select name="team" onchange="this.form.submit()" style="padding:9px 12px; border:1px solid #ddd; border-radius:8px;">
+      <option value="">All teams</option>
+      {% for t in teams %}
+        <option value="{{ t['id'] }}" {% if team_filter == t['id']|string %}selected{% endif %}>{{ t['name'] }}</option>
+      {% endfor %}
+      <option value="none" {% if team_filter == 'none' %}selected{% endif %}>No team</option>
+    </select>
+    {% if q or team_filter %}
+      <a class="btn secondary" href="{{ url_for('index') }}">Clear</a>
+    {% endif %}
+  </form>
+
+  {% if players %}
+    <div class="roster-grid">
+      {% for p in players %}
+        <a class="player-card" href="{{ url_for('player_detail', player_id=p['id']) }}">
+          {% if p['photo_filename'] %}
+            <img class="avatar" src="{{ url_for('static', filename='uploads/photos/' ~ p['photo_filename']) }}" alt="{{ p['name'] }}">
+          {% else %}
+            <div class="avatar">{{ p['name'][:2] | upper }}</div>
+          {% endif %}
+          <h3>{{ p['name'] }}{% if p['jersey_number'] %} <span style="color:var(--phx-red);">#{{ p['jersey_number'] }}</span>{% endif %}</h3>
+          <div class="meta">
+            {{ p['position'] or 'Position not set' }}{% if p['grad_year'] %} &middot; Class of {{ p['grad_year'] }}{% endif %}
+          </div>
+          {% if p['team_name'] %}
+            <div class="meta" style="color:var(--phx-red); font-weight:600;">{{ p['team_name'] }}</div>
+          {% endif %}
+          <div class="counts">
+            <span>{{ p['stat_count'] }} stat entries</span>
+            <span>{{ p['video_count'] }} videos</span>
+          </div>
+        </a>
+      {% endfor %}
+    </div>
+  {% elif q or team_filter %}
+    <div class="empty-state">
+      <p>No players match that search.</p>
+      <a class="btn secondary" href="{{ url_for('index') }}">Clear search</a>
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <p>No players yet. Add your first player to start tracking progress.</p>
+      <a class="btn" href="{{ url_for('add_player') }}">+ Add Player</a>
+    </div>
+  {% endif %}
+
+  <div class="empty-state" id="live-no-match" hidden>
+    <p>No players match that search.</p>
+  </div>
+
+  <script>
+    // Search-as-you-type: filter the player cards instantly on each keystroke.
+    // Matches against everything on the card (name, jersey #, position,
+    // grad year, team). Pressing Enter still submits for a server-side
+    // search, which is what the URL/bookmarks use.
+    const searchBox = document.getElementById('player-search');
+    const cards = Array.from(document.querySelectorAll('.player-card'));
+    const noMatch = document.getElementById('live-no-match');
+    if (searchBox) {
+      searchBox.addEventListener('input', () => {
+        const q = searchBox.value.trim().toLowerCase();
+        let visible = 0;
+        cards.forEach(card => {
+          const hit = !q || card.textContent.toLowerCase().includes(q);
+          card.style.display = hit ? '' : 'none';
+          if (hit) visible++;
+        });
+        noMatch.hidden = visible > 0 || cards.length === 0;
+      });
+    }
+  </script>
+{% endblock %}

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Swarm Baseball{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="icon" href="{{ url_for('static', filename='img/swarm-badge.png') }}">
+</head>
+<body>
+  <header class="site-header">
+    <img class="logo" src="{{ url_for('static', filename='img/swarm-badge.png') }}" alt="Swarm Baseball logo">
+    <div class="brand">
+      <h1>Swarm Baseball</h1>
+      <span>Player Progress Tracker</span>
+    </div>
+    <nav>
+      <a href="{{ url_for('index') }}">Player Page</a>
+      <a href="{{ url_for('teams_page') }}">Teams</a>
+      <a href="{{ url_for('lesson_calendar') }}">Calendar</a>
+      <a href="{{ url_for('upload_csv') }}">Import Stats</a>
+      <a href="{{ url_for('upload_trackman') }}">TrackMan</a>
+      <a href="{{ url_for('upload_video') }}">Add Video</a>
+      <a href="{{ url_for('add_player') }}">Add Player</a>
+      <a href="{{ url_for('manage_uploads') }}">Manage Uploads</a>
+      {% if session.get('is_admin') %}<a href="{{ url_for('users_page') }}">Users</a>{% endif %}
+      <a href="{{ url_for('account') }}">Account</a>
+      <form method="POST" action="{{ url_for('logout') }}" style="display:inline;">
+        <button type="submit" class="nav-logout">Log Out</button>
+      </form>
+    </nav>
+  </header>
+  <main>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

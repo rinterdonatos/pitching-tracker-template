@@ -1,0 +1,19 @@
+# Database - contains player contact info, user accounts, and password hashes.
+# Never commit this; every deployment gets its own fresh one.
+pvtracker.db
+
+# Uploaded player photos and videos
+static/uploads/photos/*
+static/uploads/videos/*
+!static/uploads/photos/.gitkeep
+!static/uploads/videos/.gitkeep
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS noise
+.DS_Store
+Thumbs.db

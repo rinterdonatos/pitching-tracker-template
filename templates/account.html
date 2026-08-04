@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}My Account - Swarm Baseball{% endblock %}
+{% block content %}
+  <div class="page-title"><h2>My Account</h2></div>
+
+  <p style="color:#6b6564; font-size:0.9rem;">
+    Signed in as <strong>{{ user['name'] or user['email'] or user['phone'] }}</strong>
+    {% if user['email'] %} &middot; {{ user['email'] }}{% endif %}
+    {% if user['phone'] %} &middot; {{ user['phone'] }}{% endif %}
+    {% if user['is_admin'] %} &middot; Admin{% endif %}
+  </p>
+
+  <div class="section-title">Change Password</div>
+  <form class="card-form" method="POST">
+    <div class="field">
+      <label for="current_password">Current password</label>
+      <input type="password" id="current_password" name="current_password" autocomplete="current-password" required>
+    </div>
+    <div class="field">
+      <label for="password">New password</label>
+      <input type="password" id="password" name="password" autocomplete="new-password" required minlength="6">
+    </div>
+    <div class="field">
+      <label for="confirm">Confirm new password</label>
+      <input type="password" id="confirm" name="confirm" autocomplete="new-password" required minlength="6">
+    </div>
+    <button class="btn" type="submit">Change Password</button>
+  </form>
+{% endblock %}

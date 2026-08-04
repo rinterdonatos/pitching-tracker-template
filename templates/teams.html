@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Teams - Swarm Baseball{% endblock %}
+{% block content %}
+  <div class="page-title">
+    <h2>Teams</h2>
+  </div>
+
+  {% if teams %}
+    <div class="roster-grid">
+      {% for t in teams %}
+        <div class="player-card" style="cursor:default;">
+          <h3>{{ t['name'] }}</h3>
+          <div class="meta">{{ t['player_count'] }} player{{ 's' if t['player_count'] != 1 else '' }}</div>
+          <div class="counts" style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+            <a class="btn secondary" href="{{ url_for('index', team=t['id']) }}">View Players</a>
+            <a class="btn secondary" href="{{ url_for('lesson_calendar', team=t['id']) }}">Calendar</a>
+          </div>
+          <details style="margin-top:10px;">
+            <summary style="cursor:pointer; font-size:0.85em; color:#888;">Rename / Delete</summary>
+            <form method="POST" action="{{ url_for('rename_team', team_id=t['id']) }}" style="margin-top:8px; display:flex; gap:6px;">
+              <input type="text" name="name" value="{{ t['name'] }}" required style="flex:1; min-width:0;">
+              <button class="btn secondary" type="submit">Rename</button>
+            </form>
+            <form method="POST" action="{{ url_for('delete_team', team_id=t['id']) }}" style="margin-top:8px;"
+                  onsubmit="return confirm('Delete {{ t['name'] }}? Players stay but become unassigned, and its calendar entries move to the General calendar.');">
+              <button class="btn secondary" type="submit" style="color:var(--phx-red);">Delete Team</button>
+            </form>
+          </details>
+        </div>
+      {% endfor %}
+    </div>
+    {% if unassigned_count %}
+      <p class="hint" style="margin-top:12px;">
+        {{ unassigned_count }} player{{ 's' if unassigned_count != 1 else '' }} not assigned to any team &mdash;
+        <a href="{{ url_for('index', team='none') }}">view them</a>.
+      </p>
+    {% endif %}
+  {% else %}
+    <div class="empty-state">
+      <p>No teams yet. Create one below, then assign players to it from their Edit page.</p>
+    </div>
+  {% endif %}
+
+  <div class="section-title">Add a Team</div>
+  <form class="card-form" method="POST" action="{{ url_for('add_team') }}">
+    <div class="field">
+      <label for="name">Team Name</label>
+      <input type="text" id="name" name="name" placeholder="e.g. 2027 - Red" required>
+      <div class="hint">Use whatever naming you like &mdash; grad year + color works well (2027 - Red, 2028 - Black, etc).</div>
+    </div>
+    <button class="btn" type="submit">Add Team</button>
+  </form>
+{% endblock %}

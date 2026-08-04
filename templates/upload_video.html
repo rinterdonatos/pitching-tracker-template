@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Add Video - Swarm Baseball{% endblock %}
+{% block content %}
+  <div class="page-title"><h2>Add Video</h2></div>
+
+  {% if not players %}
+    <div class="empty-state">
+      <p>Add players to your roster first.</p>
+      <a class="btn" href="{{ url_for('add_player') }}">+ Add Player</a>
+    </div>
+  {% else %}
+  <form class="card-form" method="POST" enctype="multipart/form-data">
+    <div class="field">
+      <label for="player_id">Player *</label>
+      <select id="player_id" name="player_id" required>
+        <option value="" disabled selected>Choose a player</option>
+        {% for p in players %}<option value="{{ p['id'] }}">{{ p['name'] }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="entry_date">Date</label>
+      <input type="date" id="entry_date" name="entry_date">
+    </div>
+    <div class="field">
+      <label for="title">Title</label>
+      <input type="text" id="title" name="title" placeholder="e.g. Bullpen session, game outing, flat ground, pickoff move">
+    </div>
+    <div class="field">
+      <label for="category">Session type</label>
+      <select id="category" name="category" onchange="document.getElementById('category-other-wrap').style.display = this.value === 'Other' ? 'block' : 'none';">
+        {% for opt in category_options %}
+          <option value="{{ opt }}" {% if opt == 'Bullpen' %}selected{% endif %}>{{ opt }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field" id="category-other-wrap" style="display:none;">
+      <label for="category_other">Custom session type</label>
+      <input type="text" id="category_other" name="category_other" placeholder="e.g. Weighted Ball, Long Toss">
+    </div>
+    <div class="field">
+      <label for="notes">Notes</label>
+      <textarea id="notes" name="notes" placeholder="What to look for, coaching cues, context"></textarea>
+    </div>
+    <div class="field">
+      <label for="video_file">Video File(s) *</label>
+      <input type="file" id="video_file" name="video_file" accept="video/*" multiple required>
+      <div class="hint">MP4, MOV, M4V, WEBM, or AVI. Select more than one file to upload several clips from the same session at once &mdash; they'll share this date, title, session type, and notes.</div>
+    </div>
+    <button class="btn" type="submit">Upload Video</button>
+  </form>
+  {% endif %}
+{% endblock %}
