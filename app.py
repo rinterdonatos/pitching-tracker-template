@@ -568,12 +568,12 @@ def any_users_exist(conn):
 
 def post_login_url(user, requested=None):
     """Where someone lands after signing in: the page they were headed to,
-    their linked player's page (parents/players), or the dashboard."""
+    their linked player's page (parents/players), or the player roster."""
     if requested:
         return requested
     if user["player_id"] and not user["is_admin"]:
         return url_for("player_detail", player_id=user["player_id"])
-    return url_for("dashboard")
+    return url_for("index")
 
 
 def admin_required(f):
@@ -1069,44 +1069,6 @@ def change_user_role(user_id):
     return redirect(url_for("users_page"))
 
 
-# ---------- Routes: dashboard ----------
-
-@app.route("/")
-def dashboard():
-    conn = get_db()
-    today = date.today().strftime("%Y-%m-%d")
-    week_out = (date.today() + timedelta(days=7)).strftime("%Y-%m-%d")
-
-    upcoming = conn.execute(
-        """SELECT e.*, t.name AS team_name FROM throwing_entries e
-           LEFT JOIN teams t ON t.id = e.team_id
-           WHERE e.entry_date BETWEEN ? AND ?
-           ORDER BY e.entry_date ASC, e.id ASC LIMIT 12""",
-        (today, week_out),
-    ).fetchall()
-
-    recent_imports = conn.execute(
-        """SELECT source_file, imported_at, category,
-                  COUNT(*) AS row_count, COUNT(DISTINCT player_id) AS player_count
-           FROM stat_entries
-           WHERE source_file IS NOT NULL AND source_file != ''
-           GROUP BY source_file, imported_at, category
-           ORDER BY imported_at DESC LIMIT 5"""
-    ).fetchall()
-
-    recent_videos = conn.execute(
-        """SELECT v.entry_date, v.title, v.player_id, p.name AS player_name
-           FROM videos v JOIN players p ON p.id = v.player_id
-           ORDER BY v.uploaded_at DESC LIMIT 5"""
-    ).fetchall()
-
-    conn.close()
-    return render_template(
-        "dashboard.html", upcoming=upcoming, recent_imports=recent_imports,
-        recent_videos=recent_videos,
-    )
-
-
 # ---------- Routes: leaderboard ----------
 
 @app.route("/leaderboard")
@@ -1161,7 +1123,7 @@ def leaderboard():
 
 # ---------- Routes: player roster ----------
 
-@app.route("/players")
+@app.route("/")
 def index():
     # Optional filters: ?q= free-text search (matches player name, team name,
     # or grad year - so "2027 - Red" pulls up everyone on that team), and
