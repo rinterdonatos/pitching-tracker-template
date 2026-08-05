@@ -30,10 +30,7 @@
       <div class="hint">Manage teams on the <a href="{{ url_for('teams_page') }}">Teams page</a>.</div>
     </div>
     {% with p = {} %}{% include "_player_contact_fields.html" %}{% endwith %}
-    <div class="field">
-      <label for="photo">Photo (optional)</label>
-      <input type="file" id="photo" name="photo" accept="image/*">
-    </div>
+    {% with optional_label = True %}{% include "_photo_cropper.html" %}{% endwith %}
     <div class="field">
       <label for="notes">Notes</label>
       <textarea id="notes" name="notes" placeholder="Anything worth remembering about this player"></textarea>

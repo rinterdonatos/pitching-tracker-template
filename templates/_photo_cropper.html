@@ -1,0 +1,114 @@
+{# Profile photo picker with live circular preview: drag to reposition,
+   slider to zoom. On submit the visible circle is cropped to a square
+   image client-side, so the server just receives a normal photo upload. #}
+<div class="field">
+  <label for="photo-input">Photo{% if optional_label %} (optional){% endif %}</label>
+  <input type="file" id="photo-input" name="photo" accept="image/png,image/jpeg,image/gif">
+  <div id="cropper-wrap" style="display:none; margin-top:10px;">
+    <div id="cropper-box"
+         style="width:220px; height:220px; border-radius:50%; overflow:hidden; position:relative; border:3px solid var(--phx-orange); background:#eee; cursor:grab; touch-action:none; user-select:none;">
+      <img id="cropper-img" src="" alt="" draggable="false"
+           style="position:absolute; left:0; top:0; max-width:none; pointer-events:none;">
+    </div>
+    <div style="display:flex; align-items:center; gap:8px; margin-top:8px; max-width:220px;">
+      <span style="font-size:0.75rem; color:#6b6564;">Zoom</span>
+      <input type="range" id="cropper-zoom" min="1" max="3" step="0.01" value="1" style="flex:1;">
+    </div>
+    <div class="hint">Drag the photo to position it; the circle is what will show on the site.</div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    const BOX = 220, OUT = 400;
+    const input = document.getElementById('photo-input');
+    const wrap = document.getElementById('cropper-wrap');
+    const box = document.getElementById('cropper-box');
+    const imgEl = document.getElementById('cropper-img');
+    const zoomEl = document.getElementById('cropper-zoom');
+    const form = input.closest('form');
+
+    const img = new Image();
+    let natW = 0, natH = 0, minScale = 1, zoom = 1, offX = 0, offY = 0;
+    let cropActive = false, dragging = false, lastX = 0, lastY = 0;
+
+    function scale() { return minScale * zoom; }
+
+    function clamp() {
+      const s = scale();
+      offX = Math.min(0, Math.max(BOX - natW * s, offX));
+      offY = Math.min(0, Math.max(BOX - natH * s, offY));
+    }
+
+    function render() {
+      const s = scale();
+      imgEl.style.width = (natW * s) + 'px';
+      imgEl.style.height = (natH * s) + 'px';
+      imgEl.style.left = offX + 'px';
+      imgEl.style.top = offY + 'px';
+    }
+
+    input.addEventListener('change', function () {
+      const file = input.files && input.files[0];
+      if (!file) { wrap.style.display = 'none'; cropActive = false; return; }
+      img.onload = function () {
+        natW = img.naturalWidth; natH = img.naturalHeight;
+        if (!natW || !natH) { wrap.style.display = 'none'; cropActive = false; return; }
+        minScale = BOX / Math.min(natW, natH);
+        zoom = 1; zoomEl.value = 1;
+        offX = (BOX - natW * scale()) / 2;
+        offY = (BOX - natH * scale()) / 2;
+        imgEl.src = img.src;
+        wrap.style.display = 'block';
+        cropActive = true;
+        render();
+      };
+      img.onerror = function () { wrap.style.display = 'none'; cropActive = false; };
+      img.src = URL.createObjectURL(file);
+    });
+
+    box.addEventListener('pointerdown', function (e) {
+      if (!cropActive) return;
+      dragging = true; lastX = e.clientX; lastY = e.clientY;
+      box.setPointerCapture(e.pointerId);
+      box.style.cursor = 'grabbing';
+    });
+    box.addEventListener('pointermove', function (e) {
+      if (!dragging) return;
+      offX += e.clientX - lastX;
+      offY += e.clientY - lastY;
+      lastX = e.clientX; lastY = e.clientY;
+      clamp(); render();
+    });
+    box.addEventListener('pointerup', function () { dragging = false; box.style.cursor = 'grab'; });
+    box.addEventListener('pointercancel', function () { dragging = false; box.style.cursor = 'grab'; });
+
+    zoomEl.addEventListener('input', function () {
+      // Zoom around the center of the circle.
+      const sOld = scale();
+      const cx = (BOX / 2 - offX) / sOld;
+      const cy = (BOX / 2 - offY) / sOld;
+      zoom = parseFloat(zoomEl.value);
+      const sNew = scale();
+      offX = BOX / 2 - cx * sNew;
+      offY = BOX / 2 - cy * sNew;
+      clamp(); render();
+    });
+
+    form.addEventListener('submit', function (e) {
+      if (!cropActive) return;  // no new photo picked - submit normally
+      e.preventDefault();
+      const canvas = document.createElement('canvas');
+      canvas.width = OUT; canvas.height = OUT;
+      const f = OUT / BOX, s = scale();
+      canvas.getContext('2d').drawImage(img, offX * f, offY * f, natW * s * f, natH * s * f);
+      canvas.toBlob(function (blob) {
+        const dt = new DataTransfer();
+        dt.items.add(new File([blob], 'photo.jpg', { type: 'image/jpeg' }));
+        input.files = dt.files;
+        cropActive = false;
+        form.submit();
+      }, 'image/jpeg', 0.9);
+    });
+  })();
+</script>
