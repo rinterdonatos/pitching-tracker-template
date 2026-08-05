@@ -364,6 +364,12 @@ def init_db():
             conn.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT")
     conn.commit()
 
+    # Migration: a user account can be linked to a player (parents/players
+    # land on that player's page when they sign in).
+    if "player_id" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN player_id INTEGER REFERENCES players(id)")
+        conn.commit()
+
     # Migration: site-owner tier. Exactly one owner; if the column is new,
     # the earliest admin (the person who ran first-time setup) becomes owner.
     if "is_owner" not in user_cols:
@@ -560,6 +566,16 @@ def any_users_exist(conn):
     return conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] > 0
 
 
+def post_login_url(user, requested=None):
+    """Where someone lands after signing in: the page they were headed to,
+    their linked player's page (parents/players), or the dashboard."""
+    if requested:
+        return requested
+    if user["player_id"] and not user["is_admin"]:
+        return url_for("player_detail", player_id=user["player_id"])
+    return url_for("dashboard")
+
+
 def admin_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
@@ -612,6 +628,7 @@ def setup():
             session["user_name"] = name
             session["is_admin"] = True
             session["is_owner"] = True
+            session["player_id"] = None
             conn.close()
             flash("Site owner account created. Welcome!", "success")
             return redirect(url_for("index"))
@@ -653,8 +670,8 @@ def login():
         session["user_name"] = user["name"]
         session["is_admin"] = bool(user["is_admin"])
         session["is_owner"] = bool(user["is_owner"])
-        next_url = request.form.get("next") or url_for("index")
-        return redirect(next_url)
+        session["player_id"] = user["player_id"]
+        return redirect(post_login_url(user, request.form.get("next")))
 
     conn.close()
     return render_template("login.html", next=request.args.get("next", ""))
@@ -695,8 +712,9 @@ def set_password():
         session["user_name"] = user["name"]
         session["is_admin"] = bool(user["is_admin"])
         session["is_owner"] = bool(user["is_owner"])
+        session["player_id"] = user["player_id"]
         flash("Password set - you're in!", "success")
-        return redirect(request.form.get("next") or url_for("index"))
+        return redirect(post_login_url(user, request.form.get("next")))
 
     conn.close()
     return render_template("set_password.html", user=user, next=request.args.get("next", ""))
@@ -794,8 +812,9 @@ def forgot_verify():
         session["user_name"] = user["name"]
         session["is_admin"] = bool(user["is_admin"])
         session["is_owner"] = bool(user["is_owner"])
+        session["player_id"] = user["player_id"]
         flash("Password updated - you're signed in.", "success")
-        return redirect(url_for("index"))
+        return redirect(post_login_url(user))
 
     return render_template("forgot_verify.html")
 
@@ -857,9 +876,12 @@ def can_manage_user(target):
 def users_page():
     conn = get_db()
     users = conn.execute(
-        "SELECT * FROM users ORDER BY name COLLATE NOCASE ASC"
+        """SELECT u.*, p.name AS player_name FROM users u
+           LEFT JOIN players p ON p.id = u.player_id
+           ORDER BY u.name COLLATE NOCASE ASC"""
     ).fetchall()
     invites = conn.execute("SELECT * FROM invite_links ORDER BY created_at DESC").fetchall()
+    all_players = conn.execute("SELECT id, name FROM players ORDER BY name COLLATE NOCASE ASC").fetchall()
     conn.close()
     owners = [u for u in users if u["is_owner"]]
     admins = [u for u in users if u["is_admin"] and not u["is_owner"]]
@@ -867,8 +889,26 @@ def users_page():
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     return render_template(
         "users.html", owners=owners, admins=admins, members=members,
-        invites=invites, now=now,
+        invites=invites, now=now, all_players=all_players,
     )
+
+
+@app.route("/users/<int:user_id>/link-player", methods=["POST"])
+@admin_required
+def link_user_player(user_id):
+    conn = get_db()
+    target = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not can_manage_user(target):
+        conn.close()
+        flash("You don't have permission to edit that account.", "error")
+        return redirect(url_for("users_page"))
+    raw = request.form.get("player_id", "").strip()
+    player_id = int(raw) if raw.isdigit() else None
+    conn.execute("UPDATE users SET player_id = ? WHERE id = ?", (player_id, user_id))
+    conn.commit()
+    conn.close()
+    flash("Updated - they'll land on that player's page when they sign in." if player_id else "Player link removed.", "success")
+    return redirect(url_for("users_page"))
 
 
 @app.route("/invites/create", methods=["POST"])
@@ -935,6 +975,7 @@ def join(token):
                 session["user_name"] = name
                 session["is_admin"] = False
                 session["is_owner"] = False
+                session["player_id"] = None
                 conn.close()
                 flash(f"Welcome, {name}! Your account is ready.", "success")
                 return redirect(url_for("index"))
@@ -955,6 +996,8 @@ def add_user():
     phone = normalize_phone(request.form.get("phone", ""))
     # Only the site owner can create admins; anyone an admin invites is a member.
     is_admin = 1 if (request.form.get("is_admin") and session.get("is_owner")) else 0
+    raw_player = request.form.get("player_id", "").strip()
+    player_id = int(raw_player) if raw_player.isdigit() else None
 
     if not email and not phone:
         flash("Enter an email or a phone number (or both) so they can sign in.", "error")
@@ -963,8 +1006,8 @@ def add_user():
     conn = get_db()
     try:
         conn.execute(
-            "INSERT INTO users (name, email, phone, is_admin) VALUES (?, ?, ?, ?)",
-            (name, email, phone, is_admin),
+            "INSERT INTO users (name, email, phone, is_admin, player_id) VALUES (?, ?, ?, ?, ?)",
+            (name, email, phone, is_admin, player_id),
         )
         conn.commit()
         flash(f"Added {name or email or phone}. They can now sign in and create their password.", "success")
@@ -1029,6 +1072,96 @@ def change_user_role(user_id):
 # ---------- Routes: dashboard ----------
 
 @app.route("/")
+def dashboard():
+    conn = get_db()
+    today = date.today().strftime("%Y-%m-%d")
+    week_out = (date.today() + timedelta(days=7)).strftime("%Y-%m-%d")
+
+    upcoming = conn.execute(
+        """SELECT e.*, t.name AS team_name FROM throwing_entries e
+           LEFT JOIN teams t ON t.id = e.team_id
+           WHERE e.entry_date BETWEEN ? AND ?
+           ORDER BY e.entry_date ASC, e.id ASC LIMIT 12""",
+        (today, week_out),
+    ).fetchall()
+
+    recent_imports = conn.execute(
+        """SELECT source_file, imported_at, category,
+                  COUNT(*) AS row_count, COUNT(DISTINCT player_id) AS player_count
+           FROM stat_entries
+           WHERE source_file IS NOT NULL AND source_file != ''
+           GROUP BY source_file, imported_at, category
+           ORDER BY imported_at DESC LIMIT 5"""
+    ).fetchall()
+
+    recent_videos = conn.execute(
+        """SELECT v.entry_date, v.title, v.player_id, p.name AS player_name
+           FROM videos v JOIN players p ON p.id = v.player_id
+           ORDER BY v.uploaded_at DESC LIMIT 5"""
+    ).fetchall()
+
+    conn.close()
+    return render_template(
+        "dashboard.html", upcoming=upcoming, recent_imports=recent_imports,
+        recent_videos=recent_videos,
+    )
+
+
+# ---------- Routes: leaderboard ----------
+
+@app.route("/leaderboard")
+def leaderboard():
+    team_filter = request.args.get("team", "").strip()
+    conn = get_db()
+    all_teams = _all_teams(conn)
+
+    team_cond = ""
+    params = []
+    if team_filter.isdigit():
+        team_cond = " AND p.team_id = ?"
+        params.append(int(team_filter))
+
+    velo_leaders = conn.execute(
+        f"""SELECT p.id, p.name, t.name AS team_name, MAX(s.stat_value) AS value
+            FROM stat_entries s
+            JOIN players p ON p.id = s.player_id
+            LEFT JOIN teams t ON t.id = p.team_id
+            WHERE lower(s.stat_name) LIKE '%velo%'{team_cond}
+            GROUP BY p.id ORDER BY value DESC LIMIT 10""",
+        params,
+    ).fetchall()
+
+    strike_leaders = conn.execute(
+        f"""SELECT p.id, p.name, t.name AS team_name,
+                   ROUND(AVG(s.stat_value), 1) AS value, COUNT(*) AS sessions
+            FROM stat_entries s
+            JOIN players p ON p.id = s.player_id
+            LEFT JOIN teams t ON t.id = p.team_id
+            WHERE s.stat_name = 'Strike %'{team_cond}
+            GROUP BY p.id ORDER BY value DESC LIMIT 10""",
+        params,
+    ).fetchall()
+
+    k_leaders = conn.execute(
+        f"""SELECT p.id, p.name, t.name AS team_name, SUM(s.stat_value) AS value
+            FROM stat_entries s
+            JOIN players p ON p.id = s.player_id
+            LEFT JOIN teams t ON t.id = p.team_id
+            WHERE lower(s.stat_name) IN ('k', 'so', 'strikeouts', 'ks'){team_cond}
+            GROUP BY p.id ORDER BY value DESC LIMIT 10""",
+        params,
+    ).fetchall()
+
+    conn.close()
+    return render_template(
+        "leaderboard.html", velo_leaders=velo_leaders, strike_leaders=strike_leaders,
+        k_leaders=k_leaders, teams=all_teams, team_filter=team_filter,
+    )
+
+
+# ---------- Routes: player roster ----------
+
+@app.route("/players")
 def index():
     # Optional filters: ?q= free-text search (matches player name, team name,
     # or grad year - so "2027 - Red" pulls up everyone on that team), and
@@ -1392,6 +1525,73 @@ def player_detail(player_id):
     )
 
 
+@app.route("/players/<int:player_id>/report")
+def player_report(player_id):
+    conn = get_db()
+    player = conn.execute(
+        "SELECT p.*, t.name AS team_name FROM players p LEFT JOIN teams t ON t.id = p.team_id WHERE p.id = ?",
+        (player_id,),
+    ).fetchone()
+    if not player:
+        conn.close()
+        abort(404)
+
+    contacts = conn.execute(
+        "SELECT * FROM player_contacts WHERE player_id = ? ORDER BY id ASC", (player_id,)
+    ).fetchall()
+    stat_rows = conn.execute(
+        "SELECT entry_date, category, stat_name, stat_value FROM stat_entries WHERE player_id = ?",
+        (player_id,),
+    ).fetchall()
+    tm_types = conn.execute(
+        """SELECT pitch_type, COUNT(*) AS pitches, MAX(rel_speed) AS top_velo,
+                  ROUND(AVG(spin_rate)) AS avg_spin
+           FROM trackman_pitches
+           WHERE player_id = ? AND pitch_type IS NOT NULL
+           GROUP BY pitch_type ORDER BY pitches DESC""",
+        (player_id,),
+    ).fetchall()
+    conn.close()
+
+    # Career bests: highest value of every velo stat (chart-style name merge).
+    bests = {}
+    for row in stat_rows:
+        if "velo" in row["stat_name"].lower():
+            name = " ".join(w for w in row["stat_name"].split() if w.lower() != "top")
+            bests[name] = max(bests.get(name, 0), row["stat_value"])
+    bests = sorted(bests.items(), key=lambda kv: -kv[1])
+
+    # Game totals: sum the counting stats from Game sessions, then derive
+    # ERA / K/7 from the totals.
+    game_totals = {}
+    ip_vals = []
+    for row in stat_rows:
+        if row["category"] != "Game":
+            continue
+        sn = row["stat_name"]
+        if normalize_col(sn) in IP_COL_NAMES:
+            ip_vals.append(row["stat_value"])
+        elif is_cumulative_stat(sn):
+            game_totals[sn] = game_totals.get(sn, 0) + row["stat_value"]
+    if ip_vals:
+        game_totals["IP"] = sum_innings(ip_vals)
+        ip_true = sum(int(v) + ({1: 1/3, 2: 2/3}.get(round((v - int(v)) * 10), 0)) for v in ip_vals)
+        er = next((v for k, v in game_totals.items() if normalize_col(k) in ER_COL_NAMES), None)
+        k = next((v for k, v in game_totals.items() if normalize_col(k) in K_COL_NAMES), None)
+        if ip_true > 0 and er is not None:
+            game_totals["ERA"] = round(er / ip_true * INNINGS_PER_GAME, 2)
+        if ip_true > 0 and k is not None:
+            game_totals["K/7"] = round(k / ip_true * INNINGS_PER_GAME, 2)
+
+    session_count = len({(r["entry_date"], r["category"]) for r in stat_rows})
+
+    return render_template(
+        "report.html", player=player, contacts=contacts, bests=bests,
+        game_totals=game_totals, tm_types=tm_types, session_count=session_count,
+        today=date.today().strftime("%B %d, %Y"),
+    )
+
+
 @app.route("/players/<int:player_id>/edit", methods=["GET", "POST"])
 def edit_player(player_id):
     conn = get_db()
@@ -1624,6 +1824,7 @@ def add_video_comment(video_id):
 
 
 @app.route("/comments/<int:comment_id>/delete", methods=["POST"])
+@admin_required
 def delete_comment(comment_id):
     conn = get_db()
     comment = conn.execute("SELECT * FROM comments WHERE id = ?", (comment_id,)).fetchone()
@@ -2092,6 +2293,7 @@ def upload_video():
 
 
 @app.route("/videos/<int:video_id>/delete", methods=["POST"])
+@admin_required
 def delete_video(video_id):
     conn = get_db()
     video = conn.execute("SELECT * FROM videos WHERE id = ?", (video_id,)).fetchone()
@@ -2117,6 +2319,7 @@ def delete_video(video_id):
 # ---------- Routes: manage uploads (delete CSV imports / videos) ----------
 
 @app.route("/manage")
+@admin_required
 def manage_uploads():
     conn = get_db()
 
@@ -2154,6 +2357,7 @@ def manage_uploads():
 
 
 @app.route("/imports/delete", methods=["POST"])
+@admin_required
 def delete_import():
     source_file = request.form.get("source_file", "")
     imported_at = request.form.get("imported_at", "")

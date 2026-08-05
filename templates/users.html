@@ -5,7 +5,7 @@
   <div class="spreadsheet-wrap">
     <table class="spreadsheet-table">
       <thead>
-        <tr><th>Name</th><th>Email</th><th>Phone</th><th>Status</th><th></th></tr>
+        <tr><th>Name</th><th>Email</th><th>Phone</th><th>Linked Player</th><th>Status</th><th></th></tr>
       </thead>
       <tbody>
         {% for u in user_list %}
@@ -14,6 +14,20 @@
             <td>{{ u['name'] or '-' }}{% if u['id'] == session.get('user_id') %} <span style="color:#6b6564; font-size:0.85em;">(you)</span>{% endif %}</td>
             <td>{{ u['email'] or '-' }}</td>
             <td>{{ u['phone'] or '-' }}</td>
+            <td>
+              {% if manageable %}
+                <form method="POST" action="{{ url_for('link_user_player', user_id=u['id']) }}">
+                  <select name="player_id" onchange="this.form.submit()" style="font-size:0.78rem; padding:2px 4px;">
+                    <option value="">&mdash; none &mdash;</option>
+                    {% for p in all_players %}
+                      <option value="{{ p['id'] }}" {% if u['player_id'] == p['id'] %}selected{% endif %}>{{ p['name'] }}</option>
+                    {% endfor %}
+                  </select>
+                </form>
+              {% else %}
+                {{ u['player_name'] or '-' }}
+              {% endif %}
+            </td>
             <td>{{ 'Active' if u['password_hash'] else 'Invited - no password yet' }}</td>
             <td style="white-space:nowrap;">
               {% if manageable %}
@@ -69,6 +83,16 @@
       <label for="phone">Phone number</label>
       <input type="tel" id="phone" name="phone">
       <div class="hint">Fill in at least one of email / phone &mdash; they'll sign in with whichever you add (or either, if both).</div>
+    </div>
+    <div class="field">
+      <label for="player_id">Link to a player (optional)</label>
+      <select id="player_id" name="player_id">
+        <option value="">&mdash; none &mdash;</option>
+        {% for p in all_players %}
+          <option value="{{ p['id'] }}">{{ p['name'] }}</option>
+        {% endfor %}
+      </select>
+      <div class="hint">For a parent or player account &mdash; they'll land straight on that player's page when they sign in.</div>
     </div>
     {% if session.get('is_owner') %}
       <div class="field">

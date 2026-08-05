@@ -15,13 +15,16 @@
       <span>Player Progress Tracker</span>
     </div>
     <nav>
-      <a href="{{ url_for('index') }}">Player Page</a>
+      <a href="{{ url_for('dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('index') }}">Players</a>
+      <a href="{{ url_for('leaderboard') }}">Leaderboard</a>
       <a href="{{ url_for('teams_page') }}">Teams</a>
       <a href="{{ url_for('lesson_calendar') }}">Calendar</a>
       <a href="{{ url_for('upload_csv') }}">Add Stats/Video</a>
-      <a href="{{ url_for('add_player') }}">Add Player</a>
-      <a href="{{ url_for('manage_uploads') }}">Manage Uploads</a>
-      {% if session.get('is_admin') %}<a href="{{ url_for('users_page') }}">Users</a>{% endif %}
+      {% if session.get('is_admin') %}
+        <a href="{{ url_for('manage_uploads') }}">Manage Uploads</a>
+        <a href="{{ url_for('users_page') }}">Users</a>
+      {% endif %}
       <a href="{{ url_for('account') }}">Account</a>
       <form method="POST" action="{{ url_for('logout') }}" style="display:inline;">
         <button type="submit" class="nav-logout">Log Out</button>

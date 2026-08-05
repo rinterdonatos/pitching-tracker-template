@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}{{ player['name'] }} - Recruiting Report{% endblock %}
+{% block content %}
+  <style>
+    @media print {
+      .site-header, .no-print { display: none !important; }
+      main { padding: 0 !important; max-width: 100% !important; }
+    }
+  </style>
+
+  <div class="page-title no-print">
+    <h2>Recruiting Report</h2>
+    <div>
+      <button class="btn" type="button" onclick="window.print()">Print / Save as PDF</button>
+      <a class="btn secondary" href="{{ url_for('player_detail', player_id=player['id']) }}">Back to Profile</a>
+    </div>
+  </div>
+
+  <div style="background:#fff; border:1px solid var(--phx-border); border-radius:12px; padding:28px; max-width:760px;">
+    <div style="display:flex; gap:20px; align-items:center; border-bottom:2px solid var(--phx-orange); padding-bottom:16px; margin-bottom:16px;">
+      {% if player['photo_filename'] %}
+        <img src="{{ url_for('static', filename='uploads/photos/' ~ player['photo_filename']) }}" alt="{{ player['name'] }}"
+             style="width:96px; height:96px; border-radius:50%; object-fit:cover;">
+      {% endif %}
+      <div>
+        <h1 style="margin:0; font-size:1.6rem;">{{ player['name'] }}{% if player['jersey_number'] %} #{{ player['jersey_number'] }}{% endif %}</h1>
+        <div class="meta">
+          {{ player['position'] or 'Position not set' }}{% if player['grad_year'] %} &middot; Class of {{ player['grad_year'] }}{% endif %}
+          {% if player['team_name'] %} &middot; {{ player['team_name'] }}{% endif %}
+        </div>
+        <div class="meta" style="color:#6b6564;">Generated {{ today }}</div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:40px; flex-wrap:wrap; margin-bottom:20px;">
+      <div>
+        <div style="font-weight:700; margin-bottom:4px;">Contact</div>
+        {% if player['phone'] %}<div class="meta">{{ player['phone'] }}</div>{% endif %}
+        {% if player['email'] %}<div class="meta">{{ player['email'] }}</div>{% endif %}
+        {% if not player['phone'] and not player['email'] %}<div class="meta">&mdash;</div>{% endif %}
+      </div>
+      {% if player['pg_url'] or player['pbr_url'] %}
+        <div>
+          <div style="font-weight:700; margin-bottom:4px;">Recruiting Profiles</div>
+          {% if player['pg_url'] %}<div class="meta">Perfect Game: {{ player['pg_url'] }}</div>{% endif %}
+          {% if player['pbr_url'] %}<div class="meta">PBR: {{ player['pbr_url'] }}</div>{% endif %}
+        </div>
+      {% endif %}
+      {% for c in contacts %}
+        <div>
+          <div style="font-weight:700; margin-bottom:4px;">{{ c['relationship'] or 'Contact' }}{% if c['name'] %}: {{ c['name'] }}{% endif %}</div>
+          {% if c['phone'] %}<div class="meta">{{ c['phone'] }}</div>{% endif %}
+          {% if c['email'] %}<div class="meta">{{ c['email'] }}</div>{% endif %}
+        </div>
+      {% endfor %}
+    </div>
+
+    <div style="font-weight:700; margin-bottom:8px;">Career Bests</div>
+    {% if bests %}
+      <table class="csv-preview" style="margin-bottom:20px;">
+        <thead><tr>{% for name, val in bests %}<th>{{ name }}</th>{% endfor %}</tr></thead>
+        <tbody><tr>{% for name, val in bests %}<td>{{ val }}</td>{% endfor %}</tr></tbody>
+      </table>
+    {% else %}
+      <p class="hint" style="margin-top:0;">No velocity data recorded yet.</p>
+    {% endif %}
+
+    {% if game_totals %}
+      <div style="font-weight:700; margin-bottom:8px;">Game Totals</div>
+      <table class="csv-preview" style="margin-bottom:20px;">
+        <thead><tr>{% for k in game_totals.keys() %}<th>{{ k }}</th>{% endfor %}</tr></thead>
+        <tbody><tr>{% for v in game_totals.values() %}<td>{{ v }}</td>{% endfor %}</tr></tbody>
+      </table>
+    {% endif %}
+
+    {% if tm_types %}
+      <div style="font-weight:700; margin-bottom:8px;">TrackMan Summary</div>
+      <table class="csv-preview" style="margin-bottom:20px;">
+        <thead><tr><th>Pitch</th><th>Count</th><th>Top Velo</th><th>Avg Spin</th></tr></thead>
+        <tbody>
+          {% for t in tm_types %}
+            <tr><td>{{ t['pitch_type'] }}</td><td>{{ t['pitches'] }}</td>
+                <td>{{ t['top_velo'] | round(1) if t['top_velo'] is not none else '' }}</td>
+                <td>{{ t['avg_spin'] | int if t['avg_spin'] is not none else '' }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+
+    <div class="hint">Based on {{ session_count }} tracked session{{ 's' if session_count != 1 else '' }} of data.</div>
+  </div>
+{% endblock %}

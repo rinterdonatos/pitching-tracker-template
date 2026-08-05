@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Swarm Baseball{% endblock %}
+{% block content %}
+  <div class="page-title"><h2>Dashboard</h2></div>
+
+  <div class="section-title">This Week</div>
+  {% if upcoming %}
+    <div class="spreadsheet-wrap">
+      <table class="spreadsheet-table">
+        <thead><tr><th class="spreadsheet-date-col">Date</th><th>Team</th><th>Event</th></tr></thead>
+        <tbody>
+          {% for e in upcoming %}
+            <tr>
+              <td class="spreadsheet-date-col">{{ e['entry_date'] }}</td>
+              <td>{{ e['team_name'] or 'General' }}</td>
+              <td>{{ e['message'] }}{% if e['location'] %} <span style="color:#6b6564;">&middot; {{ e['location'] }}</span>{% endif %}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="hint">Nothing on the calendar in the next 7 days.</p>
+  {% endif %}
+  <p style="margin-top:8px;"><a href="{{ url_for('lesson_calendar') }}">Open the full calendar &rarr;</a></p>
+
+  <div class="section-title">Recently Added</div>
+  <div class="stat-grid">
+    <div class="stat-card">
+      <h4>Stat Imports</h4>
+      {% if recent_imports %}
+        {% for imp in recent_imports %}
+          <div class="meta" style="margin-bottom:6px;">
+            {{ imp['category'] }} &middot; {{ imp['row_count'] }} row{{ 's' if imp['row_count'] != 1 else '' }}
+            &middot; {{ imp['player_count'] }} player{{ 's' if imp['player_count'] != 1 else '' }}
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="hint" style="margin:0;">No stats imported yet.</p>
+      {% endif %}
+    </div>
+    <div class="stat-card">
+      <h4>Videos</h4>
+      {% if recent_videos %}
+        {% for v in recent_videos %}
+          <div class="meta" style="margin-bottom:6px;">
+            <a href="{{ url_for('player_detail', player_id=v['player_id']) }}">{{ v['player_name'] }}</a>
+            &middot; {{ v['title'] }} &middot; {{ v['entry_date'] }}
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="hint" style="margin:0;">No videos uploaded yet.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="section-title">Quick Links</div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a class="btn secondary" href="{{ url_for('index') }}">Players</a>
+    <a class="btn secondary" href="{{ url_for('leaderboard') }}">Leaderboard</a>
+    <a class="btn secondary" href="{{ url_for('upload_csv') }}">Add Stats/Video</a>
+    <a class="btn secondary" href="{{ url_for('lesson_calendar') }}">Calendar</a>
+  </div>
+{% endblock %}
