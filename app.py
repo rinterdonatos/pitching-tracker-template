@@ -383,6 +383,10 @@ def init_db():
             conn.execute("UPDATE users SET is_owner = 1 WHERE id = ?", (first_admin["id"],))
             conn.commit()
 
+    # Migration: admins/owner don't get a linked player - that's for parent/player accounts only.
+    conn.execute("UPDATE users SET player_id = NULL WHERE is_admin = 1 AND player_id IS NOT NULL")
+    conn.commit()
+
     # Migration: calendar entries now belong to a team (NULL = General calendar).
     throwing_cols = {row["name"] for row in conn.execute("PRAGMA table_info(throwing_entries)")}
     if "team_id" not in throwing_cols:
@@ -862,13 +866,11 @@ def logout():
 # ---------- Routes: user management (admin only) ----------
 
 def can_manage_user(target):
-    """Tiered permissions: the owner can manage anyone but the owner;
-    admins can only manage regular members."""
+    """Admins have near-full access, same as the site owner: anyone can be
+    managed except the owner, who can't be managed by anyone (including themselves)."""
     if target is None or target["is_owner"]:
         return False
-    if session.get("is_owner"):
-        return True
-    return not target["is_admin"]
+    return True
 
 
 @app.route("/users")
@@ -901,6 +903,10 @@ def link_user_player(user_id):
     if not can_manage_user(target):
         conn.close()
         flash("You don't have permission to edit that account.", "error")
+        return redirect(url_for("users_page"))
+    if target["is_admin"]:
+        conn.close()
+        flash("Admins don't have linked players.", "error")
         return redirect(url_for("users_page"))
     raw = request.form.get("player_id", "").strip()
     player_id = int(raw) if raw.isdigit() else None
@@ -995,9 +1001,10 @@ def add_user():
     email = request.form.get("email", "").strip().lower() or None
     phone = normalize_phone(request.form.get("phone", ""))
     # Only the site owner can create admins; anyone an admin invites is a member.
-    is_admin = 1 if (request.form.get("is_admin") and session.get("is_owner")) else 0
+    is_admin = 1 if request.form.get("is_admin") else 0
     raw_player = request.form.get("player_id", "").strip()
-    player_id = int(raw_player) if raw_player.isdigit() else None
+    # Admins don't get a linked player - that's for parent/player accounts only.
+    player_id = int(raw_player) if (raw_player.isdigit() and not is_admin) else None
 
     if not email and not phone:
         flash("Enter an email or a phone number (or both) so they can sign in.", "error")
@@ -1052,9 +1059,8 @@ def reset_user_password(user_id):
 @app.route("/users/<int:user_id>/role", methods=["POST"])
 @admin_required
 def change_user_role(user_id):
-    """Owner only: promote a member to admin or demote an admin to member."""
-    if not session.get("is_owner"):
-        abort(403)
+    """Any admin can promote a member to admin or demote an admin to member.
+    The site owner can't be touched by anyone, including themselves."""
     conn = get_db()
     target = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
     if not can_manage_user(target):
@@ -1062,7 +1068,11 @@ def change_user_role(user_id):
         flash("You can't change that account's role.", "error")
         return redirect(url_for("users_page"))
     new_role = 0 if target["is_admin"] else 1
-    conn.execute("UPDATE users SET is_admin = ? WHERE id = ?", (new_role, user_id))
+    # Admins don't have a linked player - clear it when promoting.
+    if new_role == 1:
+        conn.execute("UPDATE users SET is_admin = ?, player_id = NULL WHERE id = ?", (new_role, user_id))
+    else:
+        conn.execute("UPDATE users SET is_admin = ? WHERE id = ?", (new_role, user_id))
     conn.commit()
     conn.close()
     flash(f"{target['name'] or target['email'] or target['phone']} is now {'an admin' if new_role else 'a member'}.", "success")

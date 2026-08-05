@@ -9,13 +9,13 @@
       </thead>
       <tbody>
         {% for u in user_list %}
-          {% set manageable = (not u['is_owner']) and (session.get('is_owner') or not u['is_admin']) %}
+          {% set manageable = not u['is_owner'] %}
           <tr>
             <td>{{ u['name'] or '-' }}{% if u['id'] == session.get('user_id') %} <span style="color:#6b6564; font-size:0.85em;">(you)</span>{% endif %}</td>
             <td>{{ u['email'] or '-' }}</td>
             <td>{{ u['phone'] or '-' }}</td>
             <td>
-              {% if manageable %}
+              {% if manageable and not u['is_admin'] %}
                 <form method="POST" action="{{ url_for('link_user_player', user_id=u['id']) }}">
                   <select name="player_id" onchange="this.form.submit()" style="font-size:0.78rem; padding:2px 4px;">
                     <option value="">&mdash; none &mdash;</option>
@@ -24,6 +24,8 @@
                     {% endfor %}
                   </select>
                 </form>
+              {% elif u['is_admin'] %}
+                <span style="color:#6b6564;">&mdash;</span>
               {% else %}
                 {{ u['player_name'] or '-' }}
               {% endif %}
@@ -37,13 +39,11 @@
                     <button class="btn secondary" type="submit" style="font-size:0.75rem; padding:3px 8px;">Reset Password</button>
                   </form>
                 {% endif %}
-                {% if session.get('is_owner') %}
-                  <form method="POST" action="{{ url_for('change_user_role', user_id=u['id']) }}" style="display:inline;">
-                    <button class="btn secondary" type="submit" style="font-size:0.75rem; padding:3px 8px;">
-                      {{ 'Remove Admin' if u['is_admin'] else 'Make Admin' }}
-                    </button>
-                  </form>
-                {% endif %}
+                <form method="POST" action="{{ url_for('change_user_role', user_id=u['id']) }}" style="display:inline;">
+                  <button class="btn secondary" type="submit" style="font-size:0.75rem; padding:3px 8px;">
+                    {{ 'Remove Admin' if u['is_admin'] else 'Make Admin' }}
+                  </button>
+                </form>
                 <form method="POST" action="{{ url_for('delete_user', user_id=u['id']) }}" style="display:inline;"
                       onsubmit="return confirm('Remove {{ u['name'] or u['email'] or u['phone'] }}? They will no longer be able to sign in.');">
                   <button class="btn secondary" type="submit" style="font-size:0.75rem; padding:3px 8px; color:var(--phx-red);">Remove</button>
@@ -62,11 +62,7 @@
 
   <p style="color:#6b6564; font-size:0.9rem; max-width:640px;">
     Anyone listed here can sign in with their email or phone number.
-    {% if session.get('is_owner') %}
-      As site owner you can manage everyone, including admins.
-    {% else %}
-      As an admin you can manage members; only the site owner can manage admins.
-    {% endif %}
+    Admins can manage everyone except the site owner, who can't be removed or demoted.
   </p>
 
   <div class="section-title">Invite Someone</div>
@@ -84,7 +80,7 @@
       <input type="tel" id="phone" name="phone">
       <div class="hint">Fill in at least one of email / phone &mdash; they'll sign in with whichever you add (or either, if both).</div>
     </div>
-    <div class="field">
+    <div class="field" id="player-link-field">
       <label for="player_id">Link to a player (optional)</label>
       <select id="player_id" name="player_id">
         <option value="">&mdash; none &mdash;</option>
@@ -92,13 +88,11 @@
           <option value="{{ p['id'] }}">{{ p['name'] }}</option>
         {% endfor %}
       </select>
-      <div class="hint">For a parent or player account &mdash; they'll land straight on that player's page when they sign in.</div>
+      <div class="hint">For a parent or player account &mdash; they'll land straight on that player's page when they sign in. Admins don't get a linked player.</div>
     </div>
-    {% if session.get('is_owner') %}
-      <div class="field">
-        <label style="font-weight:400;"><input type="checkbox" name="is_admin" value="1"> Make this person an admin (can manage members and imports)</label>
-      </div>
-    {% endif %}
+    <div class="field">
+      <label style="font-weight:400;"><input type="checkbox" id="is-admin-check" name="is_admin" value="1" onchange="document.getElementById('player-link-field').style.display = this.checked ? 'none' : ''"> Make this person an admin (near-full access, same as site owner)</label>
+    </div>
     <button class="btn" type="submit">Add User</button>
   </form>
 
@@ -146,7 +140,7 @@
   {% if admins %}
     {{ user_table(admins) }}
   {% else %}
-    <p class="hint">No admins yet{% if session.get('is_owner') %} &mdash; promote a member with "Make Admin" or check the admin box when inviting{% endif %}.</p>
+    <p class="hint">No admins yet &mdash; promote a member with "Make Admin" or check the admin box when inviting.</p>
   {% endif %}
 
   <div class="section-title">Members</div>
