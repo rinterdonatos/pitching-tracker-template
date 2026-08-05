@@ -1,36 +1,45 @@
-{# Profile photo picker with live circular preview: drag to reposition,
-   slider to zoom. On submit the visible circle is cropped to a square
-   image client-side, so the server just receives a normal photo upload. #}
+{# Profile photo picker. Choosing a file opens a centered popup with a live
+   circular preview - drag to reposition, slider to zoom, Apply crops the
+   visible circle to a square image client-side. The server just receives a
+   normal photo upload. #}
 <div class="field">
   <label for="photo-input">Photo{% if optional_label %} (optional){% endif %}</label>
   <input type="file" id="photo-input" name="photo" accept="image/png,image/jpeg,image/gif">
-  <div id="cropper-wrap" style="display:none; margin-top:10px;">
+  <img id="crop-thumb" src="" alt="Cropped preview"
+       style="display:none; width:64px; height:64px; border-radius:50%; object-fit:cover; margin-top:8px; border:2px solid var(--phx-orange);">
+</div>
+
+<div id="crop-modal" style="display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,0.55); align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:12px; padding:22px; width:min(360px, 92vw); box-shadow:0 10px 30px rgba(0,0,0,0.35); text-align:center;">
+    <h3 style="margin:0 0 12px;">Position Your Photo</h3>
     <div id="cropper-box"
-         style="width:220px; height:220px; border-radius:50%; overflow:hidden; position:relative; border:3px solid var(--phx-orange); background:#eee; cursor:grab; touch-action:none; user-select:none;">
+         style="width:260px; height:260px; margin:0 auto; border-radius:50%; overflow:hidden; position:relative; border:3px solid var(--phx-orange); background:#eee; cursor:grab; touch-action:none; user-select:none;">
       <img id="cropper-img" src="" alt="" draggable="false"
            style="position:absolute; left:0; top:0; max-width:none; pointer-events:none;">
     </div>
-    <div style="display:flex; align-items:center; gap:8px; margin-top:8px; max-width:220px;">
+    <div style="display:flex; align-items:center; gap:8px; margin:12px auto 4px; max-width:260px;">
       <span style="font-size:0.75rem; color:#6b6564;">Zoom</span>
       <input type="range" id="cropper-zoom" min="1" max="3" step="0.01" value="1" style="flex:1;">
     </div>
-    <div class="hint">Drag the photo to position it; the circle is what will show on the site.</div>
+    <div class="hint" style="margin-bottom:14px;">Drag to position &mdash; the circle is what will show on the site.</div>
+    <button class="btn" type="button" id="crop-apply">Apply</button>
+    <button class="btn secondary" type="button" id="crop-cancel">Cancel</button>
   </div>
 </div>
 
 <script>
   (function () {
-    const BOX = 220, OUT = 400;
+    const BOX = 260, OUT = 400;
     const input = document.getElementById('photo-input');
-    const wrap = document.getElementById('cropper-wrap');
+    const modal = document.getElementById('crop-modal');
     const box = document.getElementById('cropper-box');
     const imgEl = document.getElementById('cropper-img');
     const zoomEl = document.getElementById('cropper-zoom');
-    const form = input.closest('form');
+    const thumb = document.getElementById('crop-thumb');
 
     const img = new Image();
     let natW = 0, natH = 0, minScale = 1, zoom = 1, offX = 0, offY = 0;
-    let cropActive = false, dragging = false, lastX = 0, lastY = 0;
+    let dragging = false, lastX = 0, lastY = 0;
 
     function scale() { return minScale * zoom; }
 
@@ -48,27 +57,32 @@
       imgEl.style.top = offY + 'px';
     }
 
+    function closeModal() { modal.style.display = 'none'; }
+
+    function cancelCrop() {
+      closeModal();
+      input.value = '';
+      thumb.style.display = 'none';
+    }
+
     input.addEventListener('change', function () {
       const file = input.files && input.files[0];
-      if (!file) { wrap.style.display = 'none'; cropActive = false; return; }
+      if (!file) { thumb.style.display = 'none'; return; }
       img.onload = function () {
         natW = img.naturalWidth; natH = img.naturalHeight;
-        if (!natW || !natH) { wrap.style.display = 'none'; cropActive = false; return; }
+        if (!natW || !natH) return;  // unreadable image - upload as-is
         minScale = BOX / Math.min(natW, natH);
         zoom = 1; zoomEl.value = 1;
         offX = (BOX - natW * scale()) / 2;
         offY = (BOX - natH * scale()) / 2;
         imgEl.src = img.src;
-        wrap.style.display = 'block';
-        cropActive = true;
+        modal.style.display = 'flex';
         render();
       };
-      img.onerror = function () { wrap.style.display = 'none'; cropActive = false; };
       img.src = URL.createObjectURL(file);
     });
 
     box.addEventListener('pointerdown', function (e) {
-      if (!cropActive) return;
       dragging = true; lastX = e.clientX; lastY = e.clientY;
       box.setPointerCapture(e.pointerId);
       box.style.cursor = 'grabbing';
@@ -95,9 +109,7 @@
       clamp(); render();
     });
 
-    form.addEventListener('submit', function (e) {
-      if (!cropActive) return;  // no new photo picked - submit normally
-      e.preventDefault();
+    document.getElementById('crop-apply').addEventListener('click', function () {
       const canvas = document.createElement('canvas');
       canvas.width = OUT; canvas.height = OUT;
       const f = OUT / BOX, s = scale();
@@ -106,9 +118,16 @@
         const dt = new DataTransfer();
         dt.items.add(new File([blob], 'photo.jpg', { type: 'image/jpeg' }));
         input.files = dt.files;
-        cropActive = false;
-        form.submit();
+        thumb.src = URL.createObjectURL(blob);
+        thumb.style.display = 'block';
+        closeModal();
       }, 'image/jpeg', 0.9);
+    });
+
+    document.getElementById('crop-cancel').addEventListener('click', cancelCrop);
+    modal.addEventListener('click', function (e) { if (e.target === modal) cancelCrop(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal.style.display === 'flex') cancelCrop();
     });
   })();
 </script>
