@@ -34,8 +34,34 @@
     <label for="sixty_time">60-Yard Dash</label>
     <input type="text" id="sixty_time" name="sixty_time" placeholder="e.g. 6.9s" value="{{ p['sixty_time'] or '' }}">
   </div>
+</div>
+
+<div class="field" style="border-top:1px solid #eee; padding-top:14px;">
+  <label style="font-weight:700;">Academics</label>
+</div>
+<div class="measurables-grid">
   <div class="field" style="margin-bottom:0;">
     <label for="gpa">GPA</label>
     <input type="text" id="gpa" name="gpa" placeholder="e.g. 3.8" value="{{ p['gpa'] or '' }}">
   </div>
+  <div class="field" style="margin-bottom:0;">
+    <label for="sat_score">SAT</label>
+    <input type="text" id="sat_score" name="sat_score" placeholder="e.g. 1350" value="{{ p['sat_score'] or '' }}">
+  </div>
+  <div class="field" style="margin-bottom:0;">
+    <label for="act_score">ACT</label>
+    <input type="text" id="act_score" name="act_score" placeholder="e.g. 28" value="{{ p['act_score'] or '' }}">
+  </div>
+  <div class="field" style="margin-bottom:0;">
+    <label for="intended_major">Intended Major</label>
+    <input type="text" id="intended_major" name="intended_major" placeholder="e.g. Business" value="{{ p['intended_major'] or '' }}">
+  </div>
+</div>
+
+<div class="field" style="border-top:1px solid #eee; padding-top:14px;">
+  <label style="font-weight:700;">Recruiting Status</label>
+</div>
+<div class="field">
+  <label for="committed_school">Committed To</label>
+  <input type="text" id="committed_school" name="committed_school" placeholder="Leave blank if uncommitted" value="{{ p['committed_school'] or '' }}">
 </div>

@@ -146,7 +146,10 @@ PLAYER_CONTACT_FIELDS = ["phone", "email", "pg_url", "pbr_url"]
 
 # Recruiting measurables a player/parent can fill in themselves - shown on
 # the profile and the printable Recruiting Report resume.
-PLAYER_MEASURABLE_FIELDS = ["height", "weight", "bats", "throws", "sixty_time", "gpa"]
+PLAYER_MEASURABLE_FIELDS = [
+    "height", "weight", "bats", "throws", "sixty_time",
+    "gpa", "sat_score", "act_score", "intended_major", "committed_school",
+]
 PLAYER_MEASURABLE_LABELS = {
     "height": "Height",
     "weight": "Weight",
@@ -154,6 +157,10 @@ PLAYER_MEASURABLE_LABELS = {
     "throws": "Throws",
     "sixty_time": "60-Yard Dash",
     "gpa": "GPA",
+    "sat_score": "SAT",
+    "act_score": "ACT",
+    "intended_major": "Intended Major",
+    "committed_school": "Committed To",
 }
 
 app = Flask(__name__)
@@ -298,6 +305,13 @@ def init_db():
         """
     )
     conn.commit()
+
+    # Migration: videos can be pinned so the most important clips float to
+    # the top of the timeline ahead of everything else.
+    video_cols = {row["name"] for row in conn.execute("PRAGMA table_info(videos)")}
+    if "pinned" not in video_cols:
+        conn.execute("ALTER TABLE videos ADD COLUMN pinned INTEGER DEFAULT 0")
+        conn.commit()
 
     # Migration: add group_number to a players table that existed before this column did.
     existing_cols = {row["name"] for row in conn.execute("PRAGMA table_info(players)")}
@@ -1365,8 +1379,10 @@ def player_detail(player_id):
         (player_id, *date_params),
     ).fetchall()
 
+    # Pinned clips float to the top of the timeline ahead of everything else,
+    # then it's newest-first as usual.
     videos = conn.execute(
-        f"SELECT * FROM videos WHERE player_id = ?{date_conds} ORDER BY entry_date DESC, id DESC",
+        f"SELECT * FROM videos WHERE player_id = ?{date_conds} ORDER BY pinned DESC, entry_date DESC, id DESC",
         (player_id, *date_params),
     ).fetchall()
 
@@ -2317,6 +2333,22 @@ def delete_video(video_id):
     if player_id:
         return redirect(url_for("player_detail", player_id=player_id))
     return redirect(url_for("index"))
+
+
+@app.route("/videos/<int:video_id>/pin", methods=["POST"])
+def toggle_video_pin(video_id):
+    conn = get_db()
+    video = conn.execute("SELECT * FROM videos WHERE id = ?", (video_id,)).fetchone()
+    if not video:
+        conn.close()
+        abort(404)
+    new_pinned = 0 if video["pinned"] else 1
+    conn.execute("UPDATE videos SET pinned = ? WHERE id = ?", (new_pinned, video_id))
+    conn.commit()
+    player_id = video["player_id"]
+    conn.close()
+    flash("Pinned to the top of the timeline." if new_pinned else "Unpinned.", "success")
+    return redirect(url_for("player_detail", player_id=player_id) + f"#video-{video_id}")
 
 
 # ---------- Routes: manage uploads (delete CSV imports / videos) ----------

@@ -13,6 +13,13 @@
         <div class="meta">
           {{ player['position'] or 'Position not set' }}{% if player['grad_year'] %} &middot; Class of {{ player['grad_year'] }}{% endif %}{% if player['team_name'] %} &middot; {{ player['team_name'] }}{% endif %}
         </div>
+        <div style="margin-top:6px;">
+          {% if player['committed_school'] %}
+            <span style="display:inline-block; background:var(--phx-orange); color:var(--phx-blue-dark); font-weight:700; font-size:0.78rem; padding:3px 10px; border-radius:12px;">Committed to {{ player['committed_school'] }}</span>
+          {% else %}
+            <span style="display:inline-block; background:var(--phx-bg); color:var(--phx-gray); font-weight:600; font-size:0.78rem; padding:3px 10px; border-radius:12px;">Uncommitted</span>
+          {% endif %}
+        </div>
       </div>
     </div>
     <div>
@@ -34,11 +41,26 @@
     <p style="color:#6b6564;">{{ player['notes'] }}</p>
   {% endif %}
 
-  {% set measurable_fields = [('height','Height'), ('weight','Weight'), ('bats','Bats'), ('throws','Throws'), ('sixty_time','60-Yard Dash'), ('gpa','GPA')] %}
-  {% if player['height'] or player['weight'] or player['bats'] or player['throws'] or player['sixty_time'] or player['gpa'] %}
+  {% set measurable_fields = [('height','Height'), ('weight','Weight'), ('bats','Bats'), ('throws','Throws'), ('sixty_time','60-Yard Dash')] %}
+  {% if player['height'] or player['weight'] or player['bats'] or player['throws'] or player['sixty_time'] %}
     <div class="section-title">Measurables</div>
     <div style="background:#fff; border:1px solid #eee; border-radius:10px; padding:14px 18px; margin-bottom:20px; display:flex; gap:28px; flex-wrap:wrap;">
       {% for key, label in measurable_fields %}
+        {% if player[key] %}
+          <div>
+            <div style="font-weight:700; margin-bottom:2px;">{{ label }}</div>
+            <div class="meta">{{ player[key] }}</div>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
+
+  {% set academic_fields = [('gpa','GPA'), ('sat_score','SAT'), ('act_score','ACT'), ('intended_major','Intended Major')] %}
+  {% if player['gpa'] or player['sat_score'] or player['act_score'] or player['intended_major'] %}
+    <div class="section-title">Academics</div>
+    <div style="background:#fff; border:1px solid #eee; border-radius:10px; padding:14px 18px; margin-bottom:20px; display:flex; gap:28px; flex-wrap:wrap;">
+      {% for key, label in academic_fields %}
         {% if player[key] %}
           <div>
             <div style="font-weight:700; margin-bottom:2px;">{{ label }}</div>
@@ -269,10 +291,14 @@
               <video controls preload="metadata" src="{{ url_for('static', filename='uploads/videos/' ~ v['filename']) }}"></video>
               <div class="info">
                 <span class="date-tag">{{ v['entry_date'] }}</span>
+                {% if v['pinned'] %}<span style="display:inline-block; background:var(--phx-orange); color:var(--phx-blue-dark); font-weight:700; font-size:0.72rem; padding:2px 8px; border-radius:10px; margin-left:6px;">Pinned</span>{% endif %}
                 <h4>{{ v['title'] }}{% if v['category'] %} <span style="color:#6b6564; font-weight:400;">&middot; {{ v['category'] }}</span>{% endif %}</h4>
                 {% if v['notes'] %}<p>{{ v['notes'] }}</p>{% endif %}
+                <form method="POST" action="{{ url_for('toggle_video_pin', video_id=v['id']) }}" style="display:inline;">
+                  <button class="btn secondary" type="submit" style="margin-top:6px;">{{ 'Unpin' if v['pinned'] else 'Pin to Top' }}</button>
+                </form>
                 {% if session.get('is_admin') %}
-                  <form method="POST" action="{{ url_for('delete_video', video_id=v['id']) }}" onsubmit="return confirm('Remove this video?');">
+                  <form method="POST" action="{{ url_for('delete_video', video_id=v['id']) }}" style="display:inline;" onsubmit="return confirm('Remove this video?');">
                     <button class="btn danger" type="submit" style="margin-top:6px;">Remove</button>
                   </form>
                 {% endif %}
