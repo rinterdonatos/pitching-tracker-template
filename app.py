@@ -1549,8 +1549,13 @@ def player_report(player_id):
     conn.close()
 
     # Career bests: highest value of every velo stat (chart-style name merge).
+    # Pulldown is excluded - it's a different kind of session, so its "Max
+    # Velo" doesn't count toward the report's velocity numbers. Only
+    # Bullpen / Live ABs / Game sessions feed this.
     bests = {}
     for row in stat_rows:
+        if row["category"] == "Pulldown":
+            continue
         if "velo" in row["stat_name"].lower():
             name = " ".join(w for w in row["stat_name"].split() if w.lower() != "top")
             bests[name] = max(bests.get(name, 0), row["stat_value"])
