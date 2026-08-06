@@ -40,27 +40,23 @@
 
 <div id="contact-rows">
   {% for c in contacts %}
-    <div class="contact-row" style="border:1px solid #eee; border-radius:8px; padding:10px; margin-bottom:10px; display:grid; grid-template-columns:1fr 1fr; gap:8px; position:relative;">
+    <div class="contact-row">
       <input type="text" name="contact_relationship" list="relationship-options" placeholder="Role (Coach, Trainer, Parent...)" value="{{ c['relationship'] or '' }}">
       <input type="text" name="contact_name" placeholder="Name" value="{{ c['name'] or '' }}">
       <input type="tel" name="contact_phone" placeholder="Phone" value="{{ c['phone'] or '' }}">
       <input type="email" name="contact_email" placeholder="Email" value="{{ c['email'] or '' }}">
-      <button type="button" onclick="this.closest('.contact-row').remove()"
-              style="position:absolute; top:-8px; right:-8px; width:22px; height:22px; border-radius:50%; border:1px solid #ddd; background:#fff; color:var(--phx-red); cursor:pointer; line-height:1;"
-              title="Remove this contact">&times;</button>
+      <button type="button" class="contact-row-remove" onclick="this.closest('.contact-row').remove()" title="Remove this contact">&times;</button>
     </div>
   {% endfor %}
 </div>
 
 <template id="contact-row-template">
-  <div class="contact-row" style="border:1px solid #eee; border-radius:8px; padding:10px; margin-bottom:10px; display:grid; grid-template-columns:1fr 1fr; gap:8px; position:relative;">
+  <div class="contact-row">
     <input type="text" name="contact_relationship" list="relationship-options" placeholder="Role (Coach, Trainer, Parent...)">
     <input type="text" name="contact_name" placeholder="Name">
     <input type="tel" name="contact_phone" placeholder="Phone">
     <input type="email" name="contact_email" placeholder="Email">
-    <button type="button" onclick="this.closest('.contact-row').remove()"
-            style="position:absolute; top:-8px; right:-8px; width:22px; height:22px; border-radius:50%; border:1px solid #ddd; background:#fff; color:var(--phx-red); cursor:pointer; line-height:1;"
-            title="Remove this contact">&times;</button>
+    <button type="button" class="contact-row-remove" onclick="this.closest('.contact-row').remove()" title="Remove this contact">&times;</button>
   </div>
 </template>
 
