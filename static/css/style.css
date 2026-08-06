@@ -265,6 +265,13 @@ form.card-form {
 .field textarea { resize: vertical; min-height: 70px; }
 .field .hint { color: var(--phx-gray); font-size: 0.8rem; margin-top: 5px; }
 
+.measurables-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px 16px;
+  margin-bottom: 16px;
+}
+
 .contact-row {
   border: 1px solid var(--phx-border);
   border-radius: 8px;
@@ -905,6 +912,7 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 
   /* One contact per row instead of a cramped 2-column grid. */
   .contact-row { grid-template-columns: 1fr; }
+  .measurables-grid { grid-template-columns: 1fr 1fr; }
 
   form.card-form { padding: 18px; }
   .login-card { padding: 28px 22px; }

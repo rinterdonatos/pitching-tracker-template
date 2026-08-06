@@ -34,6 +34,21 @@
     <p style="color:#6b6564;">{{ player['notes'] }}</p>
   {% endif %}
 
+  {% set measurable_fields = [('height','Height'), ('weight','Weight'), ('bats','Bats'), ('throws','Throws'), ('sixty_time','60-Yard Dash'), ('gpa','GPA')] %}
+  {% if player['height'] or player['weight'] or player['bats'] or player['throws'] or player['sixty_time'] or player['gpa'] %}
+    <div class="section-title">Measurables</div>
+    <div style="background:#fff; border:1px solid #eee; border-radius:10px; padding:14px 18px; margin-bottom:20px; display:flex; gap:28px; flex-wrap:wrap;">
+      {% for key, label in measurable_fields %}
+        {% if player[key] %}
+          <div>
+            <div style="font-weight:700; margin-bottom:2px;">{{ label }}</div>
+            <div class="meta">{{ player[key] }}</div>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  {% endif %}
+
   {% set has_contact = player['phone'] or player['email'] or player['pg_url'] or player['pbr_url'] or contacts %}
   {% if has_contact %}
     <div class="section-title">Contact &amp; Profiles</div>

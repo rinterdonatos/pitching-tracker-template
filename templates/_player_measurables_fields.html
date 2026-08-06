@@ -1,0 +1,41 @@
+{# Shared by add_player.html and edit_player.html. Expects:
+   - p: an existing player row (edit) or an empty dict (add) #}
+<div class="field" style="border-top:1px solid #eee; padding-top:14px;">
+  <label style="font-weight:700;">Measurables</label>
+  <div class="hint">For the player/parent to fill in &mdash; shows on the profile and the Recruiting Report.</div>
+</div>
+<div class="measurables-grid">
+  <div class="field" style="margin-bottom:0;">
+    <label for="height">Height</label>
+    <input type="text" id="height" name="height" placeholder="e.g. 6'2&quot;" value="{{ p['height'] or '' }}">
+  </div>
+  <div class="field" style="margin-bottom:0;">
+    <label for="weight">Weight</label>
+    <input type="text" id="weight" name="weight" placeholder="e.g. 185 lbs" value="{{ p['weight'] or '' }}">
+  </div>
+  <div class="field" style="margin-bottom:0;">
+    <label for="bats">Bats</label>
+    <select id="bats" name="bats">
+      <option value="" {% if not p['bats'] %}selected{% endif %}>&mdash;</option>
+      <option value="R" {% if p['bats'] == 'R' %}selected{% endif %}>Right</option>
+      <option value="L" {% if p['bats'] == 'L' %}selected{% endif %}>Left</option>
+      <option value="S" {% if p['bats'] == 'S' %}selected{% endif %}>Switch</option>
+    </select>
+  </div>
+  <div class="field" style="margin-bottom:0;">
+    <label for="throws">Throws</label>
+    <select id="throws" name="throws">
+      <option value="" {% if not p['throws'] %}selected{% endif %}>&mdash;</option>
+      <option value="R" {% if p['throws'] == 'R' %}selected{% endif %}>Right</option>
+      <option value="L" {% if p['throws'] == 'L' %}selected{% endif %}>Left</option>
+    </select>
+  </div>
+  <div class="field" style="margin-bottom:0;">
+    <label for="sixty_time">60-Yard Dash</label>
+    <input type="text" id="sixty_time" name="sixty_time" placeholder="e.g. 6.9s" value="{{ p['sixty_time'] or '' }}">
+  </div>
+  <div class="field" style="margin-bottom:0;">
+    <label for="gpa">GPA</label>
+    <input type="text" id="gpa" name="gpa" placeholder="e.g. 3.8" value="{{ p['gpa'] or '' }}">
+  </div>
+</div>

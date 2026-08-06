@@ -144,6 +144,18 @@ PITCH_TYPES = [
 # player can have any number of them.
 PLAYER_CONTACT_FIELDS = ["phone", "email", "pg_url", "pbr_url"]
 
+# Recruiting measurables a player/parent can fill in themselves - shown on
+# the profile and the printable Recruiting Report resume.
+PLAYER_MEASURABLE_FIELDS = ["height", "weight", "bats", "throws", "sixty_time", "gpa"]
+PLAYER_MEASURABLE_LABELS = {
+    "height": "Height",
+    "weight": "Weight",
+    "bats": "Bats",
+    "throws": "Throws",
+    "sixty_time": "60-Yard Dash",
+    "gpa": "GPA",
+}
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("PHX_SECRET_KEY", "phoenix-pitching-lab-tracker")
 app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024  # 1 GB max upload (videos)
@@ -300,6 +312,12 @@ def init_db():
 
     # Migration: player contact info and recruiting profile links.
     for col in PLAYER_CONTACT_FIELDS:
+        if col not in existing_cols:
+            conn.execute(f"ALTER TABLE players ADD COLUMN {col} TEXT")
+    conn.commit()
+
+    # Migration: recruiting measurables (height, weight, bats/throws, 60 time, GPA).
+    for col in PLAYER_MEASURABLE_FIELDS:
         if col not in existing_cols:
             conn.execute(f"ALTER TABLE players ADD COLUMN {col} TEXT")
     conn.commit()
@@ -1285,6 +1303,7 @@ def add_player():
         notes = request.form.get("notes", "").strip()
         team_id = _team_id_from_form()
         contact = {f: request.form.get(f, "").strip() for f in PLAYER_CONTACT_FIELDS}
+        measurables = {f: request.form.get(f, "").strip() for f in PLAYER_MEASURABLE_FIELDS}
 
         photo_filename = None
         photo = request.files.get("photo")
@@ -1296,11 +1315,14 @@ def add_player():
         conn = get_db()
         contact_cols = ", ".join(PLAYER_CONTACT_FIELDS)
         contact_marks = ", ".join("?" for _ in PLAYER_CONTACT_FIELDS)
+        measurable_cols = ", ".join(PLAYER_MEASURABLE_FIELDS)
+        measurable_marks = ", ".join("?" for _ in PLAYER_MEASURABLE_FIELDS)
         cur = conn.execute(
-            f"INSERT INTO players (name, jersey_number, position, grad_year, photo_filename, notes, team_id, {contact_cols}) "
-            f"VALUES (?, ?, ?, ?, ?, ?, ?, {contact_marks})",
+            f"INSERT INTO players (name, jersey_number, position, grad_year, photo_filename, notes, team_id, {contact_cols}, {measurable_cols}) "
+            f"VALUES (?, ?, ?, ?, ?, ?, ?, {contact_marks}, {measurable_marks})",
             (name, jersey_number, position, grad_year, photo_filename, notes, team_id,
-             *[contact[f] for f in PLAYER_CONTACT_FIELDS]),
+             *[contact[f] for f in PLAYER_CONTACT_FIELDS],
+             *[measurables[f] for f in PLAYER_MEASURABLE_FIELDS]),
         )
         _save_contacts(conn, cur.lastrowid, _contacts_from_form())
         conn.commit()
@@ -1585,6 +1607,7 @@ def edit_player(player_id):
         notes = request.form.get("notes", "").strip()
         team_id = _team_id_from_form()
         contact = {f: request.form.get(f, "").strip() for f in PLAYER_CONTACT_FIELDS}
+        measurables = {f: request.form.get(f, "").strip() for f in PLAYER_MEASURABLE_FIELDS}
 
         photo_filename = player["photo_filename"]
         photo = request.files.get("photo")
@@ -1594,11 +1617,13 @@ def edit_player(player_id):
             photo.save(os.path.join(PHOTO_DIR, photo_filename))
 
         contact_sets = ", ".join(f"{f} = ?" for f in PLAYER_CONTACT_FIELDS)
+        measurable_sets = ", ".join(f"{f} = ?" for f in PLAYER_MEASURABLE_FIELDS)
         conn.execute(
             f"""UPDATE players SET name = ?, jersey_number = ?, position = ?, grad_year = ?,
-               notes = ?, photo_filename = ?, team_id = ?, {contact_sets} WHERE id = ?""",
+               notes = ?, photo_filename = ?, team_id = ?, {contact_sets}, {measurable_sets} WHERE id = ?""",
             (name, jersey_number, position, grad_year, notes, photo_filename, team_id,
-             *[contact[f] for f in PLAYER_CONTACT_FIELDS], player_id),
+             *[contact[f] for f in PLAYER_CONTACT_FIELDS],
+             *[measurables[f] for f in PLAYER_MEASURABLE_FIELDS], player_id),
         )
         _save_contacts(conn, player_id, _contacts_from_form())
         conn.commit()

@@ -29,6 +29,7 @@
       </select>
       <div class="hint">Manage teams on the <a href="{{ url_for('teams_page') }}">Teams page</a>.</div>
     </div>
+    {% with p = player %}{% include "_player_measurables_fields.html" %}{% endwith %}
     {% with p = player %}{% include "_player_contact_fields.html" %}{% endwith %}
     {% if player['photo_filename'] %}
       <div class="field">

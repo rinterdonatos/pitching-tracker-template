@@ -5,6 +5,112 @@
     @media print {
       .site-header, .no-print { display: none !important; }
       main { padding: 0 !important; max-width: 100% !important; }
+      .resume { border: none !important; box-shadow: none !important; }
+    }
+
+    .resume {
+      background: #fff;
+      border: 1px solid var(--phx-border);
+      border-radius: 12px;
+      max-width: 820px;
+      overflow: hidden;
+    }
+
+    .resume-header {
+      background: var(--phx-blue-dark);
+      color: #fff;
+      padding: 26px 32px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      border-bottom: 4px solid var(--phx-orange);
+    }
+
+    .resume-header img.avatar-lg,
+    .resume-header .avatar-lg {
+      width: 84px;
+      height: 84px;
+      border: 2px solid var(--phx-orange);
+    }
+
+    .resume-header h1 {
+      margin: 0 0 4px;
+      font-size: 1.7rem;
+      letter-spacing: 0.01em;
+    }
+
+    .resume-header .resume-subtitle {
+      color: var(--phx-orange);
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+
+    .resume-header .resume-contact-line {
+      margin-top: 6px;
+      font-size: 0.85rem;
+      color: #dfe3ea;
+    }
+    .resume-header .resume-contact-line a { color: #dfe3ea; }
+
+    .resume-body {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+    }
+
+    .resume-sidebar {
+      background: var(--phx-bg);
+      padding: 24px 20px;
+      border-right: 1px solid var(--phx-border);
+    }
+
+    .resume-main {
+      padding: 24px 28px;
+    }
+
+    .resume-section {
+      margin-bottom: 22px;
+    }
+    .resume-section:last-child { margin-bottom: 0; }
+
+    .resume-section h3 {
+      margin: 0 0 10px;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--phx-blue-dark);
+      border-bottom: 2px solid var(--phx-orange);
+      padding-bottom: 6px;
+    }
+
+    .resume-fact { margin-bottom: 10px; }
+    .resume-fact .resume-fact-label {
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--phx-gray);
+    }
+    .resume-fact .resume-fact-value { font-size: 0.92rem; font-weight: 600; }
+
+    .resume-contact-block { margin-bottom: 14px; }
+    .resume-contact-block:last-child { margin-bottom: 0; }
+    .resume-contact-block .resume-contact-name { font-weight: 700; font-size: 0.88rem; margin-bottom: 2px; }
+    .resume-contact-block .meta { font-size: 0.84rem; }
+
+    .resume table.csv-preview { margin-bottom: 0; }
+
+    .resume-empty { color: var(--phx-gray); font-size: 0.85rem; margin: 0; }
+
+    .resume-footer {
+      padding: 14px 28px;
+      border-top: 1px solid var(--phx-border);
+      color: var(--phx-gray);
+      font-size: 0.8rem;
+    }
+
+    @media (max-width: 700px) {
+      .resume-body { grid-template-columns: 1fr; }
+      .resume-sidebar { border-right: none; border-bottom: 1px solid var(--phx-border); }
+      .resume-header { flex-direction: column; text-align: center; }
     }
   </style>
 
@@ -12,81 +118,140 @@
     <h2>Recruiting Report</h2>
     <div>
       <button class="btn" type="button" onclick="window.print()">Print / Save as PDF</button>
+      <a class="btn secondary" href="{{ url_for('edit_player', player_id=player['id']) }}">Edit Info</a>
       <a class="btn secondary" href="{{ url_for('player_detail', player_id=player['id']) }}">Back to Profile</a>
     </div>
   </div>
 
-  <div style="background:#fff; border:1px solid var(--phx-border); border-radius:12px; padding:28px; max-width:760px;">
-    <div style="display:flex; gap:20px; align-items:center; border-bottom:2px solid var(--phx-orange); padding-bottom:16px; margin-bottom:16px;">
+  <div class="resume">
+    <div class="resume-header player-header">
       {% if player['photo_filename'] %}
-        <img src="{{ url_for('static', filename='uploads/photos/' ~ player['photo_filename']) }}" alt="{{ player['name'] }}"
-             style="width:96px; height:96px; border-radius:50%; object-fit:cover;">
+        <img class="avatar-lg" src="{{ url_for('static', filename='uploads/photos/' ~ player['photo_filename']) }}" alt="{{ player['name'] }}">
+      {% else %}
+        <div class="avatar-lg">{{ player['name'][:2] | upper }}</div>
       {% endif %}
       <div>
-        <h1 style="margin:0; font-size:1.6rem;">{{ player['name'] }}{% if player['jersey_number'] %} #{{ player['jersey_number'] }}{% endif %}</h1>
-        <div class="meta">
-          {{ player['position'] or 'Position not set' }}{% if player['grad_year'] %} &middot; Class of {{ player['grad_year'] }}{% endif %}
-          {% if player['team_name'] %} &middot; {{ player['team_name'] }}{% endif %}
+        <h1>{{ player['name'] }}{% if player['jersey_number'] %} #{{ player['jersey_number'] }}{% endif %}</h1>
+        <div class="resume-subtitle">
+          {{ player['position'] or 'Position not set' }}{% if player['grad_year'] %} &middot; Class of {{ player['grad_year'] }}{% endif %}{% if player['team_name'] %} &middot; {{ player['team_name'] }}{% endif %}
         </div>
-        <div class="meta" style="color:#6b6564;">Generated {{ today }}</div>
+        <div class="resume-contact-line">
+          {% if player['phone'] %}{{ player['phone'] }}{% endif %}
+          {% if player['phone'] and player['email'] %} &middot; {% endif %}
+          {% if player['email'] %}{{ player['email'] }}{% endif %}
+          {% if not player['phone'] and not player['email'] %}Contact info not on file{% endif %}
+        </div>
       </div>
     </div>
 
-    <div style="display:flex; gap:40px; flex-wrap:wrap; margin-bottom:20px;">
-      <div>
-        <div style="font-weight:700; margin-bottom:4px;">Contact</div>
-        {% if player['phone'] %}<div class="meta">{{ player['phone'] }}</div>{% endif %}
-        {% if player['email'] %}<div class="meta">{{ player['email'] }}</div>{% endif %}
-        {% if not player['phone'] and not player['email'] %}<div class="meta">&mdash;</div>{% endif %}
+    <div class="resume-body">
+      <div class="resume-sidebar">
+        <div class="resume-section">
+          <h3>Measurables</h3>
+          {% set measurables = [('height','Height'), ('weight','Weight'), ('bats','Bats'), ('throws','Throws'), ('sixty_time','60-Yard Dash'), ('gpa','GPA')] %}
+          {% set any_measurable = player['height'] or player['weight'] or player['bats'] or player['throws'] or player['sixty_time'] or player['gpa'] %}
+          {% if any_measurable %}
+            {% for key, label in measurables %}
+              {% if player[key] %}
+                <div class="resume-fact">
+                  <div class="resume-fact-label">{{ label }}</div>
+                  <div class="resume-fact-value">{{ player[key] }}</div>
+                </div>
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            <p class="resume-empty">Not filled in yet &mdash; add these from Edit Info.</p>
+          {% endif %}
+        </div>
+
+        {% if player['pg_url'] or player['pbr_url'] %}
+          <div class="resume-section">
+            <h3>Recruiting Profiles</h3>
+            {% if player['pg_url'] %}
+              <div class="resume-fact">
+                <div class="resume-fact-label">Perfect Game</div>
+                <div class="resume-fact-value"><a href="{{ player['pg_url'] if player['pg_url'].startswith('http') else 'https://' ~ player['pg_url'] }}" target="_blank" rel="noopener">View Profile &nearr;</a></div>
+              </div>
+            {% endif %}
+            {% if player['pbr_url'] %}
+              <div class="resume-fact">
+                <div class="resume-fact-label">Prep Baseball Report</div>
+                <div class="resume-fact-value"><a href="{{ player['pbr_url'] if player['pbr_url'].startswith('http') else 'https://' ~ player['pbr_url'] }}" target="_blank" rel="noopener">View Profile &nearr;</a></div>
+              </div>
+            {% endif %}
+          </div>
+        {% endif %}
+
+        <div class="resume-section">
+          <h3>Contacts</h3>
+          {% if contacts %}
+            {% for c in contacts %}
+              <div class="resume-contact-block">
+                <div class="resume-contact-name">{{ c['relationship'] or 'Contact' }}{% if c['name'] %}: {{ c['name'] }}{% endif %}</div>
+                {% if c['phone'] %}<div class="meta">{{ c['phone'] }}</div>{% endif %}
+                {% if c['email'] %}<div class="meta">{{ c['email'] }}</div>{% endif %}
+              </div>
+            {% endfor %}
+          {% else %}
+            <p class="resume-empty">No additional contacts on file.</p>
+          {% endif %}
+        </div>
       </div>
-      {% if player['pg_url'] or player['pbr_url'] %}
-        <div>
-          <div style="font-weight:700; margin-bottom:4px;">Recruiting Profiles</div>
-          {% if player['pg_url'] %}<div class="meta">Perfect Game: {{ player['pg_url'] }}</div>{% endif %}
-          {% if player['pbr_url'] %}<div class="meta">PBR: {{ player['pbr_url'] }}</div>{% endif %}
+
+      <div class="resume-main">
+        {% if player['notes'] %}
+          <div class="resume-section">
+            <h3>Summary</h3>
+            <p style="margin:0; font-size:0.92rem; line-height:1.5;">{{ player['notes'] }}</p>
+          </div>
+        {% endif %}
+
+        <div class="resume-section">
+          <h3>Career Bests</h3>
+          {% if bests %}
+            <table class="csv-preview">
+              <thead><tr>{% for name, val in bests %}<th>{{ name }}</th>{% endfor %}</tr></thead>
+              <tbody><tr>{% for name, val in bests %}<td>{{ val }}</td>{% endfor %}</tr></tbody>
+            </table>
+          {% else %}
+            <p class="resume-empty">No velocity data recorded yet.</p>
+          {% endif %}
         </div>
-      {% endif %}
-      {% for c in contacts %}
-        <div>
-          <div style="font-weight:700; margin-bottom:4px;">{{ c['relationship'] or 'Contact' }}{% if c['name'] %}: {{ c['name'] }}{% endif %}</div>
-          {% if c['phone'] %}<div class="meta">{{ c['phone'] }}</div>{% endif %}
-          {% if c['email'] %}<div class="meta">{{ c['email'] }}</div>{% endif %}
-        </div>
-      {% endfor %}
+
+        {% if game_totals %}
+          <div class="resume-section">
+            <h3>Game Totals</h3>
+            <table class="csv-preview">
+              <thead><tr>{% for k in game_totals.keys() %}<th>{{ k }}</th>{% endfor %}</tr></thead>
+              <tbody><tr>{% for v in game_totals.values() %}<td>{{ v }}</td>{% endfor %}</tr></tbody>
+            </table>
+          </div>
+        {% endif %}
+
+        {% if tm_types %}
+          <div class="resume-section">
+            <h3>TrackMan Summary</h3>
+            <table class="csv-preview">
+              <thead><tr><th>Pitch</th><th>Count</th><th>Top Velo</th><th>Avg Spin</th></tr></thead>
+              <tbody>
+                {% for t in tm_types %}
+                  <tr><td>{{ t['pitch_type'] }}</td><td>{{ t['pitches'] }}</td>
+                      <td>{{ t['top_velo'] | round(1) if t['top_velo'] is not none else '' }}</td>
+                      <td>{{ t['avg_spin'] | int if t['avg_spin'] is not none else '' }}</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+
+        {% if not bests and not game_totals and not tm_types %}
+          <p class="resume-empty">No stats tracked yet &mdash; import CSV, TrackMan, or game data to fill this out.</p>
+        {% endif %}
+      </div>
     </div>
 
-    <div style="font-weight:700; margin-bottom:8px;">Career Bests</div>
-    {% if bests %}
-      <table class="csv-preview" style="margin-bottom:20px;">
-        <thead><tr>{% for name, val in bests %}<th>{{ name }}</th>{% endfor %}</tr></thead>
-        <tbody><tr>{% for name, val in bests %}<td>{{ val }}</td>{% endfor %}</tr></tbody>
-      </table>
-    {% else %}
-      <p class="hint" style="margin-top:0;">No velocity data recorded yet.</p>
-    {% endif %}
-
-    {% if game_totals %}
-      <div style="font-weight:700; margin-bottom:8px;">Game Totals</div>
-      <table class="csv-preview" style="margin-bottom:20px;">
-        <thead><tr>{% for k in game_totals.keys() %}<th>{{ k }}</th>{% endfor %}</tr></thead>
-        <tbody><tr>{% for v in game_totals.values() %}<td>{{ v }}</td>{% endfor %}</tr></tbody>
-      </table>
-    {% endif %}
-
-    {% if tm_types %}
-      <div style="font-weight:700; margin-bottom:8px;">TrackMan Summary</div>
-      <table class="csv-preview" style="margin-bottom:20px;">
-        <thead><tr><th>Pitch</th><th>Count</th><th>Top Velo</th><th>Avg Spin</th></tr></thead>
-        <tbody>
-          {% for t in tm_types %}
-            <tr><td>{{ t['pitch_type'] }}</td><td>{{ t['pitches'] }}</td>
-                <td>{{ t['top_velo'] | round(1) if t['top_velo'] is not none else '' }}</td>
-                <td>{{ t['avg_spin'] | int if t['avg_spin'] is not none else '' }}</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% endif %}
-
-    <div class="hint">Based on {{ session_count }} tracked session{{ 's' if session_count != 1 else '' }} of data.</div>
+    <div class="resume-footer">
+      Generated {{ today }} &middot; based on {{ session_count }} tracked session{{ 's' if session_count != 1 else '' }} of data.
+    </div>
   </div>
 {% endblock %}
