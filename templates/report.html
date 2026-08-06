@@ -215,12 +215,11 @@
       <h3>Pitch Shapes</h3>
       {% if tm_types %}
         <table class="resume-table">
-          <thead><tr><th>Pitch</th><th>Velo</th><th>Spin</th><th>IVB</th><th>HB</th></tr></thead>
+          <thead><tr><th>Pitch</th><th>Spin</th><th>IVB</th><th>HB</th></tr></thead>
           <tbody>
             {% for t in tm_types %}
               <tr>
                 <td>{{ t['pitch_type'] }}</td>
-                <td>{{ t['top_velo'] | round(1) if t['top_velo'] is not none else '' }}</td>
                 <td>{{ t['avg_spin'] | int if t['avg_spin'] is not none else '' }}</td>
                 <td>{{ t['avg_ivb'] if t['avg_ivb'] is not none else '' }}</td>
                 <td>{{ t['avg_hb'] if t['avg_hb'] is not none else '' }}</td>
