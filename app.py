@@ -1539,7 +1539,8 @@ def player_report(player_id):
     ).fetchall()
     tm_types = conn.execute(
         """SELECT pitch_type, COUNT(*) AS pitches, MAX(rel_speed) AS top_velo,
-                  ROUND(AVG(spin_rate)) AS avg_spin
+                  ROUND(AVG(spin_rate)) AS avg_spin,
+                  ROUND(AVG(ivb), 1) AS avg_ivb, ROUND(AVG(hb), 1) AS avg_hb
            FROM trackman_pitches
            WHERE player_id = ? AND pitch_type IS NOT NULL
            GROUP BY pitch_type ORDER BY pitches DESC""",

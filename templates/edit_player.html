@@ -40,8 +40,8 @@
     {% endif %}
     {% include "_photo_cropper.html" %}
     <div class="field">
-      <label for="notes">Notes</label>
-      <textarea id="notes" name="notes">{{ player['notes'] or '' }}</textarea>
+      <label for="notes">About Me</label>
+      <textarea id="notes" name="notes" placeholder="What do you want coaches and scouts to know about you? Shows on the Recruiting Report.">{{ player['notes'] or '' }}</textarea>
     </div>
     <button class="btn" type="submit">Save Changes</button>
     <a class="btn secondary" href="{{ url_for('player_detail', player_id=player['id']) }}">Cancel</a>
