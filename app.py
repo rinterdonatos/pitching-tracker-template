@@ -574,22 +574,6 @@ app.jinja_env.filters["friendly_time"] = format_comment_time
 app.jinja_env.filters["spaced"] = lambda v: re.sub(r"(?<!^)(?=[A-Z])", " ", v) if v else v
 
 
-def format_time_12h(value):
-    """A calendar event's optional time, stored as 24h 'HH:MM' from the
-    <input type=time>, shown friendly - '15:30' -> '3:30 PM'."""
-    if not value:
-        return ""
-    try:
-        h, m = value.split(":")
-        h, m = int(h), int(m)
-        period = "AM" if h < 12 else "PM"
-        h12 = h % 12 or 12
-        return f"{h12}:{m:02d} {period}"
-    except (ValueError, AttributeError):
-        return value
-
-
-app.jinja_env.filters["time12"] = format_time_12h
 
 
 # ---------- Accounts & login ----------

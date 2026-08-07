@@ -34,8 +34,8 @@
           {% for entry in entries_by_date.get(iso, []) %}
             <div class="calendar-entry {% if current_team and entry['team_id'] is none %}general-entry{% endif %}"
                  data-message="{{ entry['message'] }}{% if current_team and entry['team_id'] is none %} (General){% endif %}" data-date="{{ iso }}"
-                 data-location="{{ entry['location'] or '' }}" data-details="{{ entry['details'] or '' }}" data-time="{{ entry['event_time'] | time12 }}">
-              <span>{% if entry['event_time'] %}<strong>{{ entry['event_time'] | time12 }}</strong> &middot; {% endif %}{{ entry['message'] }}</span>
+                 data-location="{{ entry['location'] or '' }}" data-details="{{ entry['details'] or '' }}" data-time="{{ entry['event_time'] or '' }}">
+              <span>{% if entry['event_time'] %}<strong>{{ entry['event_time'] }}</strong> &middot; {% endif %}{{ entry['message'] }}</span>
               <form method="POST" action="{{ url_for('delete_calendar_entry', entry_id=entry['id']) }}" onsubmit="return confirm('Remove this lesson day?');">
                 <button type="submit" title="Remove">&times;</button>
               </form>
@@ -72,7 +72,7 @@
         </div>
         <div class="field">
           <label for="modal-time">Time (optional)</label>
-          <input type="time" id="modal-time" name="event_time">
+          <input type="text" id="modal-time" name="event_time" placeholder="e.g. 4pm, 3:30-4:30">
         </div>
         <div class="field">
           <label for="modal-location">Location (optional)</label>
@@ -170,7 +170,7 @@
     </div>
     <div class="field">
       <label for="event_time">Time (optional)</label>
-      <input type="time" id="event_time" name="event_time">
+      <input type="text" id="event_time" name="event_time" placeholder="e.g. 4pm, 3:30-4:30">
     </div>
     <div class="field">
       <label for="location">Location (optional)</label>
