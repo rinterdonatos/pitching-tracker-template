@@ -566,6 +566,17 @@ table.spreadsheet-table tr.avg-row td.spreadsheet-date-col {
   .video-slide { grid-template-columns: 1fr; }
 }
 
+.pinned-videos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.pinned-videos-grid .video-slide {
+  grid-template-columns: 1fr;
+}
+
 .roster-table-btn { margin-bottom: 20px; }
 
 table.csv-preview {

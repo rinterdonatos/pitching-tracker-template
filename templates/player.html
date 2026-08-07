@@ -275,6 +275,59 @@
     </p>
   {% endif %}
 
+  {% if pinned_videos %}
+    <div class="section-title">Pinned Videos</div>
+    <div class="pinned-videos-grid">
+      {% for v in pinned_videos %}
+        <div class="video-item">
+          <div class="video-slide" id="video-{{ v['id'] }}">
+            <video controls preload="metadata" src="{{ url_for('static', filename='uploads/videos/' ~ v['filename']) }}"></video>
+            <div class="info">
+              <span class="date-tag">{{ v['entry_date'] }}</span>
+              <h4>{{ v['title'] }}{% if v['category'] %} <span style="color:#6b6564; font-weight:400;">&middot; {{ v['category'] }}</span>{% endif %}</h4>
+              {% if v['notes'] %}<p>{{ v['notes'] }}</p>{% endif %}
+              <form method="POST" action="{{ url_for('toggle_video_pin', video_id=v['id']) }}" style="display:inline;">
+                <button class="btn secondary" type="submit" style="margin-top:6px;">Unpin</button>
+              </form>
+              {% if session.get('is_admin') %}
+                <form method="POST" action="{{ url_for('delete_video', video_id=v['id']) }}" style="display:inline;" onsubmit="return confirm('Remove this video?');">
+                  <button class="btn danger" type="submit" style="margin-top:6px;">Remove</button>
+                </form>
+              {% endif %}
+
+              {% set video_comments = comments_by_video.get(v['id'], []) %}
+              <details class="video-comments" {% if video_comments %}open{% endif %}>
+                <summary>Comments ({{ video_comments | length }})</summary>
+                {% if video_comments %}
+                  <div class="comment-list">
+                    {% for c in video_comments %}
+                      <div class="comment">
+                        <div class="comment-meta">{{ c['commenter_name'] }}<span class="comment-time">{{ c['created_at'] | friendly_time }}</span></div>
+                        <div class="comment-body">{{ c['body'] }}</div>
+                        {% if session.get('is_admin') %}
+                          <form method="POST" action="{{ url_for('delete_comment', comment_id=c['id']) }}" onsubmit="return confirm('Delete this comment?');">
+                            <button class="comment-delete" type="submit">Delete</button>
+                          </form>
+                        {% endif %}
+                      </div>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+                <form class="comment-form" method="POST" action="{{ url_for('add_video_comment', video_id=v['id']) }}">
+                  <div class="comment-form-row">
+                    <input type="text" name="commenter_name" placeholder="Your name" required>
+                  </div>
+                  <textarea name="body" placeholder="What do you see on this clip?" required></textarea>
+                  <button class="btn secondary" type="submit">Post Comment</button>
+                </form>
+              </details>
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
   <div class="section-title">Video Timeline</div>
   {% if video_groups %}
     <div class="video-list">

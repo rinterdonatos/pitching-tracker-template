@@ -1400,12 +1400,17 @@ def player_detail(player_id):
         (player_id, *date_params),
     ).fetchall()
 
+    # Pinned videos get their own side-by-side section up top, so they're
+    # pulled out of the timeline entirely rather than just sorted first.
+    pinned_videos = [v for v in videos if v["pinned"]]
+    timeline_videos = [v for v in videos if not v["pinned"]]
+
     # Group same-day videos into one timeline entry so multiple clips from a
     # single session can be flipped through instead of listed as separate
     # rows. Videos are already ordered entry_date DESC, so consecutive rows
     # with the same date land in the same group automatically.
     video_groups = []
-    for v in videos:
+    for v in timeline_videos:
         if video_groups and video_groups[-1]["date"] == v["entry_date"]:
             video_groups[-1]["videos"].append(v)
         else:
@@ -1544,6 +1549,7 @@ def player_detail(player_id):
         category_tables=category_tables,
         velocity_by_stat=velocity_by_stat,
         video_groups=video_groups,
+        pinned_videos=pinned_videos,
         comments_by_video=comments_by_video,
         general_comments=general_comments,
         contacts=contacts,
