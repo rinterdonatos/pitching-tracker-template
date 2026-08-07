@@ -165,7 +165,7 @@
               </tr>
             {% endfor %}
             <tr class="avg-row">
-              <td class="spreadsheet-date-col">TOT / AVG</td>
+              <td class="spreadsheet-date-col">TOT / BEST / AVG</td>
               {% for a in table.averages %}<td>{{ a if a is not none else '' }}</td>{% endfor %}
             </tr>
           </tbody>
@@ -180,7 +180,8 @@
     {% endfor %}
     <p class="hint" style="margin-top:4px;">
       Bottom row: counting stats (IP, H, K, BB, Pitches, Strikes, Outs...) are season totals;
-      rates (velo, Strike %, ERA, K/7) are averages. IP totals use baseball notation (.1 and .2 are thirds of an inning).
+      velocity readings show the best one ever recorded; other rates (Strike %, ERA, K/7, Avg Spin) are averages.
+      IP totals use baseball notation (.1 and .2 are thirds of an inning).
     </p>
   {% else %}
     <div class="empty-state">

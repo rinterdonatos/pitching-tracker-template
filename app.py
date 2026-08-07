@@ -479,6 +479,14 @@ CUMULATIVE_STAT_NAMES = {
 
 RATE_STAT_HINTS = ("velo", "%", "pct", "era", "avg", "rate", "k/7")
 
+# Velocity readings are each a single session's peak, so summarizing them
+# across sessions should take the best one ever seen, not blend them into an
+# average - "FB Top Velo" of 92, 93.1, 94 across three bullpens is a 94 mph
+# arm, not a 93.03 mph arm. Spin stats ("Avg Spin") are genuinely meant to be
+# averaged, so this only applies when "velo" is in the name.
+def is_max_stat(name):
+    return "velo" in (name or "").lower()
+
 # ---- TrackMan import ----
 # A TrackMan pitching export is one row PER PITCH. The importer rolls those
 # up per pitcher per date into session stats. These map TrackMan's
@@ -1505,7 +1513,9 @@ def player_detail(player_id):
             table_rows.append({"date": d, "values": [row_cells.get(sn) for sn in stat_names]})
 
         # Summary row: counting stats (IP, H, K, BB, Pitches, ...) are
-        # totaled like a season stat line; rates (velo, %, ERA) are averaged.
+        # totaled like a season stat line; velo readings take the best one
+        # ever recorded; everything else that's a rate (%, ERA, Avg Spin) is
+        # averaged.
         averages = []
         for sn in stat_names:
             vals = [bucket["cells"][d][sn] for d in dates if sn in bucket["cells"].get(d, {})]
@@ -1515,6 +1525,8 @@ def player_detail(player_id):
                 averages.append(sum_innings(vals))
             elif is_cumulative_stat(sn):
                 averages.append(round(sum(vals), 2))
+            elif is_max_stat(sn):
+                averages.append(round(max(vals), 2))
             else:
                 averages.append(round(sum(vals) / len(vals), 2))
 
