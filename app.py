@@ -2367,6 +2367,12 @@ def toggle_video_pin(video_id):
     if not video:
         conn.close()
         abort(404)
+    # Only admins/owners or the account linked to this exact player can pin
+    # that player's videos - one player's account shouldn't be able to pin
+    # videos on someone else's page.
+    if not session.get("is_admin") and session.get("player_id") != video["player_id"]:
+        conn.close()
+        abort(403)
     new_pinned = 0 if video["pinned"] else 1
     conn.execute("UPDATE videos SET pinned = ? WHERE id = ?", (new_pinned, video_id))
     conn.commit()

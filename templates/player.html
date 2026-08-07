@@ -34,6 +34,8 @@
     <p style="color:#6b6564;">{{ player['notes'] }}</p>
   {% endif %}
 
+  {% set can_pin = session.get('is_admin') or session.get('player_id') == player['id'] %}
+
   {% set measurable_fields = [('height','Height'), ('weight','Weight'), ('bats','Bats'), ('throws','Throws'), ('sixty_time','60-Yard Dash')] %}
   {% set has_measurables = player['height'] or player['weight'] or player['bats'] or player['throws'] or player['sixty_time'] %}
   {% set academic_fields = [('gpa','GPA'), ('sat_score','SAT'), ('act_score','ACT'), ('intended_major','Major')] %}
@@ -286,9 +288,11 @@
               <span class="date-tag">{{ v['entry_date'] }}</span>
               <h4>{{ v['title'] }}{% if v['category'] %} <span style="color:#6b6564; font-weight:400;">&middot; {{ v['category'] }}</span>{% endif %}</h4>
               {% if v['notes'] %}<p>{{ v['notes'] }}</p>{% endif %}
-              <form method="POST" action="{{ url_for('toggle_video_pin', video_id=v['id']) }}" style="display:inline;">
-                <button class="btn secondary" type="submit" style="margin-top:6px;">Unpin</button>
-              </form>
+              {% if can_pin %}
+                <form method="POST" action="{{ url_for('toggle_video_pin', video_id=v['id']) }}" style="display:inline;">
+                  <button class="btn secondary" type="submit" style="margin-top:6px;">Unpin</button>
+                </form>
+              {% endif %}
               {% if session.get('is_admin') %}
                 <form method="POST" action="{{ url_for('delete_video', video_id=v['id']) }}" style="display:inline;" onsubmit="return confirm('Remove this video?');">
                   <button class="btn danger" type="submit" style="margin-top:6px;">Remove</button>
@@ -349,9 +353,11 @@
                 {% if v['pinned'] %}<span style="display:inline-block; background:var(--phx-orange); color:var(--phx-blue-dark); font-weight:700; font-size:0.72rem; padding:2px 8px; border-radius:10px; margin-left:6px;">Pinned</span>{% endif %}
                 <h4>{{ v['title'] }}{% if v['category'] %} <span style="color:#6b6564; font-weight:400;">&middot; {{ v['category'] }}</span>{% endif %}</h4>
                 {% if v['notes'] %}<p>{{ v['notes'] }}</p>{% endif %}
-                <form method="POST" action="{{ url_for('toggle_video_pin', video_id=v['id']) }}" style="display:inline;">
-                  <button class="btn secondary" type="submit" style="margin-top:6px;">{{ 'Unpin' if v['pinned'] else 'Pin to Top' }}</button>
-                </form>
+                {% if can_pin %}
+                  <form method="POST" action="{{ url_for('toggle_video_pin', video_id=v['id']) }}" style="display:inline;">
+                    <button class="btn secondary" type="submit" style="margin-top:6px;">{{ 'Unpin' if v['pinned'] else 'Pin to Top' }}</button>
+                  </form>
+                {% endif %}
                 {% if session.get('is_admin') %}
                   <form method="POST" action="{{ url_for('delete_video', video_id=v['id']) }}" style="display:inline;" onsubmit="return confirm('Remove this video?');">
                     <button class="btn danger" type="submit" style="margin-top:6px;">Remove</button>
