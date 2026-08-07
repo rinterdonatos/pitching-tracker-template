@@ -568,13 +568,37 @@ table.spreadsheet-table tr.avg-row td.spreadsheet-date-col {
 
 .pinned-videos-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
   margin-bottom: 24px;
+}
+
+.pinned-videos-grid .video-item {
+  padding: 10px;
 }
 
 .pinned-videos-grid .video-slide {
   grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.pinned-videos-grid .video-item video {
+  max-height: 160px;
+}
+
+.pinned-videos-grid .video-item .info h4 {
+  font-size: 0.85rem;
+}
+
+.pinned-videos-grid .video-item .info .date-tag {
+  font-size: 0.68rem;
+  padding: 2px 7px;
+  margin-bottom: 5px;
+}
+
+.pinned-videos-grid .video-item .info p {
+  font-size: 0.78rem;
+  margin: 4px 0;
 }
 
 .roster-table-btn { margin-bottom: 20px; }
