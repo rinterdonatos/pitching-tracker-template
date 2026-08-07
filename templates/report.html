@@ -137,7 +137,9 @@
     <h2>Recruiting Report</h2>
     <div>
       <button class="btn" type="button" onclick="window.print()">Print / Save as PDF</button>
-      <a class="btn secondary" href="{{ url_for('edit_player', player_id=player['id']) }}">Edit Info</a>
+      {% if session.get('is_admin') or session.get('player_id') == player['id'] %}
+        <a class="btn secondary" href="{{ url_for('edit_player', player_id=player['id']) }}">Edit Info</a>
+      {% endif %}
       <a class="btn secondary" href="{{ url_for('player_detail', player_id=player['id']) }}">Back to Profile</a>
     </div>
   </div>

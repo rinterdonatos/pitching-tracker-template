@@ -1640,6 +1640,13 @@ def edit_player(player_id):
         conn.close()
         abort(404)
 
+    # A member can only edit the player account they're linked to - editing
+    # someone else's profile is admin/owner territory.
+    if not session.get("is_admin") and session.get("player_id") != player_id:
+        conn.close()
+        flash("You don't have permission to edit that player's info.", "error")
+        return redirect(url_for("player_detail", player_id=player_id))
+
     if request.method == "POST":
         name = request.form.get("name", "").strip()
         if not name:
