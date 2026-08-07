@@ -430,6 +430,11 @@ def init_db():
             conn.execute(f"ALTER TABLE throwing_entries ADD COLUMN {col} TEXT")
     conn.commit()
 
+    # Migration: events can carry an optional time (24h "HH:MM").
+    if "event_time" not in throwing_cols:
+        conn.execute("ALTER TABLE throwing_entries ADD COLUMN event_time TEXT")
+        conn.commit()
+
     conn.close()
 
 
@@ -567,6 +572,24 @@ app.jinja_env.filters["friendly_time"] = format_comment_time
 
 # "StrikeCalled" -> "Strike Called" for TrackMan pitch results.
 app.jinja_env.filters["spaced"] = lambda v: re.sub(r"(?<!^)(?=[A-Z])", " ", v) if v else v
+
+
+def format_time_12h(value):
+    """A calendar event's optional time, stored as 24h 'HH:MM' from the
+    <input type=time>, shown friendly - '15:30' -> '3:30 PM'."""
+    if not value:
+        return ""
+    try:
+        h, m = value.split(":")
+        h, m = int(h), int(m)
+        period = "AM" if h < 12 else "PM"
+        h12 = h % 12 or 12
+        return f"{h12}:{m:02d} {period}"
+    except (ValueError, AttributeError):
+        return value
+
+
+app.jinja_env.filters["time12"] = format_time_12h
 
 
 # ---------- Accounts & login ----------
@@ -1752,6 +1775,7 @@ def add_calendar_entry():
     message = request.form.get("message", "").strip()
     location = request.form.get("location", "").strip()
     details = request.form.get("details", "").strip()
+    event_time = request.form.get("event_time", "").strip()
     raw_team = request.form.get("team_id", "").strip()
     team_id = int(raw_team) if raw_team.isdigit() else None
 
@@ -1760,8 +1784,8 @@ def add_calendar_entry():
     else:
         conn = get_db()
         conn.execute(
-            "INSERT INTO throwing_entries (entry_date, message, team_id, location, details) VALUES (?, ?, ?, ?, ?)",
-            (entry_date, message, team_id, location, details),
+            "INSERT INTO throwing_entries (entry_date, message, team_id, location, details, event_time) VALUES (?, ?, ?, ?, ?, ?)",
+            (entry_date, message, team_id, location, details, event_time or None),
         )
         conn.commit()
         conn.close()
