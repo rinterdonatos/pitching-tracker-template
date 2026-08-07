@@ -272,6 +272,62 @@ form.card-form {
   margin-bottom: 16px;
 }
 
+/* Compact side-by-side profile cards on the player page: measurables +
+   academics on one side, contact info on the other, each rendered as small
+   wrapping chips instead of tall stacked blocks. */
+.profile-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.compact-card {
+  background: var(--phx-white);
+  border: 1px solid var(--phx-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.profile-columns .compact-card:only-child { grid-column: 1 / -1; }
+
+.compact-card .compact-card-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--phx-gray);
+  margin-bottom: 8px;
+}
+
+.compact-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+}
+
+.compact-fact {
+  background: var(--phx-bg);
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.compact-fact b { font-weight: 700; }
+.compact-fact .compact-fact-label { color: var(--phx-gray); font-weight: 400; }
+
+.compact-contact-block {
+  margin-bottom: 8px;
+}
+.compact-contact-block:last-child { margin-bottom: 0; }
+.compact-contact-block .compact-contact-name {
+  font-weight: 700;
+  font-size: 0.8rem;
+  margin-bottom: 1px;
+}
+.compact-contact-block .meta { font-size: 0.8rem; }
+
 .contact-row {
   border: 1px solid var(--phx-border);
   border-radius: 8px;
@@ -913,6 +969,7 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   /* One contact per row instead of a cramped 2-column grid. */
   .contact-row { grid-template-columns: 1fr; }
   .measurables-grid { grid-template-columns: 1fr 1fr; }
+  .profile-columns { grid-template-columns: 1fr; }
 
   form.card-form { padding: 18px; }
   .login-card { padding: 28px 22px; }
