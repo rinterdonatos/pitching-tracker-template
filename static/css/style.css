@@ -273,8 +273,8 @@ form.card-form {
 }
 
 /* Compact side-by-side profile cards on the player page: measurables +
-   academics on one side, contact info on the other, each rendered as small
-   wrapping chips instead of tall stacked blocks. */
+   academics stacked on the left, contact info on the right. Each keeps its
+   own section title and outlined card, just smaller than a full section. */
 .profile-columns {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -282,22 +282,22 @@ form.card-form {
   margin-bottom: 20px;
 }
 
+.profile-col .section-title {
+  font-size: 0.85rem;
+  margin: 0 0 8px;
+  padding-bottom: 6px;
+}
+
+.profile-col .compact-card {
+  margin-bottom: 16px;
+}
+.profile-col .compact-card:last-child { margin-bottom: 0; }
+
 .compact-card {
   background: var(--phx-white);
   border: 1px solid var(--phx-border);
   border-radius: 10px;
   padding: 12px 14px;
-}
-
-.profile-columns .compact-card:only-child { grid-column: 1 / -1; }
-
-.compact-card .compact-card-title {
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--phx-gray);
-  margin-bottom: 8px;
 }
 
 .compact-facts {

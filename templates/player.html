@@ -34,54 +34,73 @@
     <p style="color:#6b6564;">{{ player['notes'] }}</p>
   {% endif %}
 
-  {% set measurable_fields = [('height','Height'), ('weight','Weight'), ('bats','Bats'), ('throws','Throws'), ('sixty_time','60-Yard Dash'), ('gpa','GPA'), ('sat_score','SAT'), ('act_score','ACT'), ('intended_major','Major')] %}
-  {% set has_measurables = player['height'] or player['weight'] or player['bats'] or player['throws'] or player['sixty_time'] or player['gpa'] or player['sat_score'] or player['act_score'] or player['intended_major'] %}
+  {% set measurable_fields = [('height','Height'), ('weight','Weight'), ('bats','Bats'), ('throws','Throws'), ('sixty_time','60-Yard Dash')] %}
+  {% set has_measurables = player['height'] or player['weight'] or player['bats'] or player['throws'] or player['sixty_time'] %}
+  {% set academic_fields = [('gpa','GPA'), ('sat_score','SAT'), ('act_score','ACT'), ('intended_major','Major')] %}
+  {% set has_academics = player['gpa'] or player['sat_score'] or player['act_score'] or player['intended_major'] %}
   {% set has_contact = player['phone'] or player['email'] or player['pg_url'] or player['pbr_url'] or contacts %}
-  {% if has_measurables or has_contact %}
+  {% if has_measurables or has_academics or has_contact %}
     <div class="profile-columns">
-      {% if has_measurables %}
-        <div class="compact-card">
-          <div class="compact-card-title">Measurables &amp; Academics</div>
-          <div class="compact-facts">
-            {% for key, label in measurable_fields %}
-              {% if player[key] %}
-                <span class="compact-fact"><b>{{ player[key] }}</b> <span class="compact-fact-label">{{ label }}</span></span>
-              {% endif %}
+      <div class="profile-col">
+        {% if has_measurables %}
+          <div class="section-title">Measurables</div>
+          <div class="compact-card">
+            <div class="compact-facts">
+              {% for key, label in measurable_fields %}
+                {% if player[key] %}
+                  <span class="compact-fact"><b>{{ player[key] }}</b> <span class="compact-fact-label">{{ label }}</span></span>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+
+        {% if has_academics %}
+          <div class="section-title">Academics</div>
+          <div class="compact-card">
+            <div class="compact-facts">
+              {% for key, label in academic_fields %}
+                {% if player[key] %}
+                  <span class="compact-fact"><b>{{ player[key] }}</b> <span class="compact-fact-label">{{ label }}</span></span>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="profile-col">
+        {% if has_contact %}
+          <div class="section-title">Contact &amp; Profiles</div>
+          <div class="compact-card">
+            {% if player['phone'] or player['email'] %}
+              <div class="compact-contact-block">
+                <div class="compact-contact-name">Player</div>
+                {% if player['phone'] %}<div class="meta"><a href="tel:{{ player['phone'] }}">{{ player['phone'] }}</a></div>{% endif %}
+                {% if player['email'] %}<div class="meta"><a href="mailto:{{ player['email'] }}">{{ player['email'] }}</a></div>{% endif %}
+              </div>
+            {% endif %}
+            {% if player['pg_url'] or player['pbr_url'] %}
+              <div class="compact-contact-block">
+                <div class="compact-contact-name">Recruiting Profiles</div>
+                {% if player['pg_url'] %}
+                  <div class="meta"><a href="{{ player['pg_url'] if player['pg_url'].startswith('http') else 'https://' ~ player['pg_url'] }}" target="_blank" rel="noopener">Perfect Game &nearr;</a></div>
+                {% endif %}
+                {% if player['pbr_url'] %}
+                  <div class="meta"><a href="{{ player['pbr_url'] if player['pbr_url'].startswith('http') else 'https://' ~ player['pbr_url'] }}" target="_blank" rel="noopener">PBR &nearr;</a></div>
+                {% endif %}
+              </div>
+            {% endif %}
+            {% for c in contacts %}
+              <div class="compact-contact-block">
+                <div class="compact-contact-name">{{ c['relationship'] or 'Contact' }}{% if c['name'] %}: {{ c['name'] }}{% endif %}</div>
+                {% if c['phone'] %}<div class="meta"><a href="tel:{{ c['phone'] }}">{{ c['phone'] }}</a></div>{% endif %}
+                {% if c['email'] %}<div class="meta"><a href="mailto:{{ c['email'] }}">{{ c['email'] }}</a></div>{% endif %}
+              </div>
             {% endfor %}
           </div>
-        </div>
-      {% endif %}
-
-      {% if has_contact %}
-        <div class="compact-card">
-          <div class="compact-card-title">Contact &amp; Profiles</div>
-          {% if player['phone'] or player['email'] %}
-            <div class="compact-contact-block">
-              <div class="compact-contact-name">Player</div>
-              {% if player['phone'] %}<div class="meta"><a href="tel:{{ player['phone'] }}">{{ player['phone'] }}</a></div>{% endif %}
-              {% if player['email'] %}<div class="meta"><a href="mailto:{{ player['email'] }}">{{ player['email'] }}</a></div>{% endif %}
-            </div>
-          {% endif %}
-          {% if player['pg_url'] or player['pbr_url'] %}
-            <div class="compact-contact-block">
-              <div class="compact-contact-name">Recruiting Profiles</div>
-              {% if player['pg_url'] %}
-                <div class="meta"><a href="{{ player['pg_url'] if player['pg_url'].startswith('http') else 'https://' ~ player['pg_url'] }}" target="_blank" rel="noopener">Perfect Game &nearr;</a></div>
-              {% endif %}
-              {% if player['pbr_url'] %}
-                <div class="meta"><a href="{{ player['pbr_url'] if player['pbr_url'].startswith('http') else 'https://' ~ player['pbr_url'] }}" target="_blank" rel="noopener">PBR &nearr;</a></div>
-              {% endif %}
-            </div>
-          {% endif %}
-          {% for c in contacts %}
-            <div class="compact-contact-block">
-              <div class="compact-contact-name">{{ c['relationship'] or 'Contact' }}{% if c['name'] %}: {{ c['name'] }}{% endif %}</div>
-              {% if c['phone'] %}<div class="meta"><a href="tel:{{ c['phone'] }}">{{ c['phone'] }}</a></div>{% endif %}
-              {% if c['email'] %}<div class="meta"><a href="mailto:{{ c['email'] }}">{{ c['email'] }}</a></div>{% endif %}
-            </div>
-          {% endfor %}
-        </div>
-      {% endif %}
+        {% endif %}
+      </div>
     </div>
   {% endif %}
 
