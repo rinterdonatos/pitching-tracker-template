@@ -499,10 +499,15 @@
         Object.values(byCategory).flat().map(p => p.date)
       )).sort();
 
-      // All session types on one chart, one line each.
+      // All session types on one chart, one line each. If a date has more
+      // than one reading in the same category (two bullpens the same day, a
+      // re-import, etc.), plot that day's max instead of just whichever one
+      // happened to load last.
       const datasets = Object.keys(byCategory).sort().map(cat => {
         const byDate = {};
-        byCategory[cat].forEach(p => { byDate[p.date] = p.value; });
+        byCategory[cat].forEach(p => {
+          if (!(p.date in byDate) || p.value > byDate[p.date]) byDate[p.date] = p.value;
+        });
         return {
           label: cat,
           data: allDates.map(d => (d in byDate) ? byDate[d] : null),
