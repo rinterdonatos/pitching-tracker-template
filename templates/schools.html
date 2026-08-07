@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Schools - Swarm Baseball{% endblock %}
+{% block content %}
+  <div class="page-title">
+    <h2>Schools</h2>
+  </div>
+
+  <p style="color:#6b6564; font-size:0.9rem; max-width:640px;">
+    Schools on this list show a logo automatically next to a player's committed status (pulled from the school's
+    website domain). Add any school you need &mdash; it doesn't have to be on here to type it into "Committed To",
+    but it won't have a logo until it is.
+  </p>
+
+  {% if schools %}
+    <div class="roster-grid">
+      {% for s in schools %}
+        <div class="player-card" style="cursor:default;">
+          <div style="display:flex; align-items:center; gap:10px;">
+            {% if s['domain'] %}
+              <img src="https://logo.clearbit.com/{{ s['domain'] }}" alt="" style="width:32px; height:32px; border-radius:6px; object-fit:contain;" onerror="this.style.display='none';">
+            {% endif %}
+            <h3 style="margin:0;">{{ s['name'] }}</h3>
+          </div>
+          <div class="meta">{{ s['domain'] or 'No domain set — no logo yet' }}</div>
+          <form method="POST" action="{{ url_for('delete_school', school_id=s['id']) }}" style="margin-top:10px;"
+                onsubmit="return confirm('Remove {{ s['name'] }} from the list?');">
+            <button class="btn secondary" type="submit" style="color:var(--phx-red);">Remove</button>
+          </form>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty-state">
+      <p>No schools yet. Add one below.</p>
+    </div>
+  {% endif %}
+
+  <div class="section-title">Add a School</div>
+  <form class="card-form" method="POST" action="{{ url_for('add_school') }}">
+    <div class="field">
+      <label for="name">School Name</label>
+      <input type="text" id="name" name="name" placeholder="e.g. Duke University" required>
+    </div>
+    <div class="field">
+      <label for="domain">Website Domain</label>
+      <input type="text" id="domain" name="domain" placeholder="e.g. duke.edu">
+      <div class="hint">Used to pull the logo automatically. Leave blank if you're not sure &mdash; you can add it later.</div>
+    </div>
+    <button class="btn" type="submit">Add School</button>
+  </form>
+{% endblock %}

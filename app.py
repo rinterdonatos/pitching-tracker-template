@@ -148,7 +148,7 @@ PLAYER_CONTACT_FIELDS = ["phone", "email", "pg_url", "pbr_url"]
 # the profile and the printable Recruiting Report resume.
 PLAYER_MEASURABLE_FIELDS = [
     "height", "weight", "bats", "throws", "sixty_time",
-    "gpa", "sat_score", "act_score", "intended_major", "committed_school",
+    "gpa", "sat_score", "act_score", "intended_major",
 ]
 PLAYER_MEASURABLE_LABELS = {
     "height": "Height",
@@ -160,7 +160,6 @@ PLAYER_MEASURABLE_LABELS = {
     "sat_score": "SAT",
     "act_score": "ACT",
     "intended_major": "Intended Major",
-    "committed_school": "Committed To",
 }
 
 app = Flask(__name__)
