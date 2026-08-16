@@ -32,7 +32,7 @@
           {% if p['photo_filename'] %}
             <img class="avatar" src="{{ url_for('static', filename='uploads/photos/' ~ p['photo_filename']) }}" alt="{{ p['name'] }}">
           {% else %}
-            <div class="avatar">{{ p['name'][:2] | upper }}</div>
+            <div class="avatar">{{ p['name'] | initials }}</div>
           {% endif %}
           <h3>{{ p['name'] }}{% if p['jersey_number'] %} <span style="color:var(--phx-red);">#{{ p['jersey_number'] }}</span>{% endif %}</h3>
           <div class="meta">

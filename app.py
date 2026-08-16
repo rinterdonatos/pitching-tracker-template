@@ -244,6 +244,15 @@ def init_db():
             created_at TEXT DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS calendar_entry_comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entry_id INTEGER NOT NULL,
+            commenter_name TEXT NOT NULL,
+            body TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (entry_id) REFERENCES throwing_entries (id) ON DELETE CASCADE
+        );
+
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
@@ -567,6 +576,31 @@ def parse_date(value):
     return datetime.today().strftime("%Y-%m-%d")
 
 
+def parse_event_time_minutes(value):
+    """Best-effort parse of a free-text calendar time (e.g. '4pm', '4:00 PM',
+    '3:30-4:30', '16:00') into minutes-since-midnight, so a day's entries can
+    be sorted chronologically. Returns None when nothing time-shaped is
+    found, and those entries just sort after the ones that do."""
+    if not value:
+        return None
+    text = value.strip()
+    # 12-hour clock with am/pm, e.g. "4pm", "4:30 PM", "4:30p.m."
+    m = re.search(r"\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*([aApP])\.?[mM]?\.?", text)
+    if m:
+        hour = int(m.group(1))
+        minute = int(m.group(2)) if m.group(2) else 0
+        if m.group(3).lower() == "p" and hour != 12:
+            hour += 12
+        elif m.group(3).lower() == "a" and hour == 12:
+            hour = 0
+        return hour * 60 + minute
+    # 24-hour clock or a bare "H:MM" with no am/pm, e.g. "16:00", "3:30-4:30"
+    m = re.search(r"\b([01]?\d|2[0-3]):([0-5]\d)\b", text)
+    if m:
+        return int(m.group(1)) * 60 + int(m.group(2))
+    return None
+
+
 def format_comment_time(value):
     """SQLite datetime('now') gives UTC 'YYYY-MM-DD HH:MM:SS'; show something friendlier."""
     try:
@@ -580,6 +614,21 @@ app.jinja_env.filters["friendly_time"] = format_comment_time
 
 # "StrikeCalled" -> "Strike Called" for TrackMan pitch results.
 app.jinja_env.filters["spaced"] = lambda v: re.sub(r"(?<!^)(?=[A-Z])", " ", v) if v else v
+
+
+def player_initials(name):
+    """Avatar fallback letters: first name initial + last name initial
+    ("Reed Interdonato" -> "RI"), not just the first two characters of the
+    full name. Single-word names fall back to their first two letters."""
+    parts = (name or "").split()
+    if not parts:
+        return ""
+    if len(parts) == 1:
+        return parts[0][:2].upper()
+    return (parts[0][0] + parts[-1][0]).upper()
+
+
+app.jinja_env.filters["initials"] = player_initials
 
 
 
@@ -1215,6 +1264,17 @@ def index():
     players = conn.execute(sql, params).fetchall()
     all_teams = conn.execute("SELECT * FROM teams ORDER BY name COLLATE NOCASE ASC").fetchall()
     conn.close()
+
+    # Roster convention: alphabetize by last name (then first name to break
+    # ties), not just the raw "First Last" string the SQL sort above gives.
+    def _last_name_key(p):
+        parts = (p["name"] or "").split()
+        last = parts[-1] if parts else ""
+        first = parts[0] if parts else ""
+        return (last.lower(), first.lower())
+
+    players = sorted(players, key=_last_name_key)
+
     return render_template("index.html", players=players, teams=all_teams, q=q, team_filter=team_filter)
 
 
@@ -1393,6 +1453,16 @@ def player_detail(player_id):
         (player_id, *date_params),
     ).fetchall()
 
+    # Same-day stat snapshot for the video timeline: if a player has, say,
+    # Pulldown data recorded the same day as a video, that day's numbers show
+    # up right alongside the clip instead of only living in the tables above.
+    stats_by_date = {}
+    for row in stat_rows:
+        cat = row["category"] or "General"
+        stats_by_date.setdefault(row["entry_date"], {}).setdefault(cat, []).append(
+            {"stat_name": row["stat_name"], "stat_value": row["stat_value"]}
+        )
+
     # Pinned clips float to the top of the timeline ahead of everything else,
     # then it's newest-first as usual.
     videos = conn.execute(
@@ -1549,6 +1619,7 @@ def player_detail(player_id):
         category_tables=category_tables,
         velocity_by_stat=velocity_by_stat,
         video_groups=video_groups,
+        stats_by_date=stats_by_date,
         pinned_videos=pinned_videos,
         comments_by_video=comments_by_video,
         general_comments=general_comments,
@@ -1747,11 +1818,42 @@ def lesson_calendar():
                ORDER BY entry_date ASC, id ASC""",
             (month_start, month_end),
         ).fetchall()
+
+    # Comments on each lesson day, keyed by entry id, with the delete URL
+    # baked in so the calendar's click-to-view popup (built from data-*
+    # attributes, not server-rendered HTML) doesn't need to construct routes
+    # itself in JS.
+    comments_by_entry = {}
+    entry_ids = [e["id"] for e in entries]
+    if entry_ids:
+        placeholders = ",".join("?" * len(entry_ids))
+        comment_rows = conn.execute(
+            f"SELECT * FROM calendar_entry_comments WHERE entry_id IN ({placeholders}) ORDER BY created_at ASC",
+            entry_ids,
+        ).fetchall()
+        for c in comment_rows:
+            comments_by_entry.setdefault(c["entry_id"], []).append({
+                "id": c["id"],
+                "commenter_name": c["commenter_name"],
+                "body": c["body"],
+                "created_at": format_comment_time(c["created_at"]),
+                "delete_url": url_for("delete_calendar_comment", comment_id=c["id"]) if session.get("is_admin") else None,
+            })
     conn.close()
 
     entries_by_date = {}
     for e in entries:
         entries_by_date.setdefault(e["entry_date"], []).append(e)
+
+    # Within a day, show entries in time order - whichever ones have a
+    # recognizable time first (earliest to latest), then anything with no
+    # time (or unparseable text) after, in the order they were added.
+    def _entry_sort_key(e):
+        minutes = parse_event_time_minutes(e["event_time"])
+        return (minutes is None, minutes or 0)
+
+    for day_entries in entries_by_date.values():
+        day_entries.sort(key=_entry_sort_key)
 
     cal = calendar_module.Calendar(firstweekday=6)  # weeks start Sunday
     weeks = cal.monthdatescalendar(year, month)
@@ -1775,6 +1877,7 @@ def lesson_calendar():
         today_iso=today.strftime("%Y-%m-%d"),
         teams=all_teams,
         current_team=current_team,
+        comments_by_entry=comments_by_entry,
     )
 
 
@@ -1894,6 +1997,64 @@ def delete_comment(comment_id):
     if video_id:
         return redirect(url_for("player_detail", player_id=player_id) + f"#video-{video_id}")
     return redirect(url_for("player_detail", player_id=player_id) + "#feedback")
+
+
+def _calendar_redirect(request_form, entry_id):
+    """Bounce back to the exact month/team view the calendar comment form was
+    opened from, with ?entry=<id> so the page reopens that event's popup."""
+    raw_year = request_form.get("year", "").strip()
+    raw_month = request_form.get("month", "").strip()
+    raw_team = request_form.get("team_id", "").strip()
+    return redirect(url_for(
+        "lesson_calendar",
+        year=int(raw_year) if raw_year.isdigit() else None,
+        month=int(raw_month) if raw_month.isdigit() else None,
+        team=int(raw_team) if raw_team.isdigit() else None,
+        entry=entry_id,
+    ))
+
+
+@app.route("/calendar/<int:entry_id>/comments/add", methods=["POST"])
+def add_calendar_comment(entry_id):
+    commenter_name = request.form.get("commenter_name", "").strip()
+    body = request.form.get("body", "").strip()
+
+    conn = get_db()
+    entry = conn.execute("SELECT * FROM throwing_entries WHERE id = ?", (entry_id,)).fetchone()
+    if not entry:
+        conn.close()
+        abort(404)
+
+    if not commenter_name or not body:
+        flash("Name and comment are both required.", "error")
+        conn.close()
+        return _calendar_redirect(request.form, entry_id)
+
+    conn.execute(
+        "INSERT INTO calendar_entry_comments (entry_id, commenter_name, body) VALUES (?, ?, ?)",
+        (entry_id, commenter_name, body),
+    )
+    conn.commit()
+    conn.close()
+    flash("Comment added.", "success")
+    return _calendar_redirect(request.form, entry_id)
+
+
+@app.route("/calendar/comments/<int:comment_id>/delete", methods=["POST"])
+@admin_required
+def delete_calendar_comment(comment_id):
+    conn = get_db()
+    comment = conn.execute("SELECT * FROM calendar_entry_comments WHERE id = ?", (comment_id,)).fetchone()
+    if not comment:
+        conn.close()
+        abort(404)
+
+    entry_id = comment["entry_id"]
+    conn.execute("DELETE FROM calendar_entry_comments WHERE id = ?", (comment_id,))
+    conn.commit()
+    conn.close()
+    flash("Comment deleted.", "success")
+    return _calendar_redirect(request.form, entry_id)
 
 
 # ---------- Routes: CSV stat upload ----------

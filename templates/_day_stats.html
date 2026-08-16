@@ -1,0 +1,21 @@
+{# Shared by player.html: a compact same-day stat snapshot shown next to a
+   video, so if a player has stat data (bullpen, pulldown, game, etc.) from
+   the same day a video was recorded, that session's numbers show up right
+   alongside the clip instead of only living in the spreadsheet tables above.
+   Expects: day_stats - a dict of {category: [{stat_name, stat_value}, ...]},
+   or None/empty when nothing was recorded that day. #}
+{% if day_stats %}
+  <div class="day-stats-card">
+    <div class="day-stats-title">Stats from this day</div>
+    {% for cat, stat_list in day_stats.items() %}
+      <div class="day-stats-category">
+        <span class="day-stats-cat-label">{{ cat }}</span>
+        <div class="compact-facts">
+          {% for s in stat_list %}
+            <span class="compact-fact"><b>{{ s.stat_value if s.stat_value is not none else '' }}</b> <span class="compact-fact-label">{{ s.stat_name }}</span></span>
+          {% endfor %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}

@@ -15,6 +15,7 @@
       max-width: 620px;
       margin: 0 auto;
       overflow: hidden;
+      box-shadow: var(--shadow-md);
     }
 
     .resume-header {
@@ -40,7 +41,8 @@
 
     .resume-name {
       margin: 0;
-      font-size: 1.4rem;
+      font-family: var(--font-display);
+      font-size: 1.9rem;
       font-weight: 700;
       letter-spacing: 0.01em;
       color: var(--phx-black);
@@ -62,6 +64,7 @@
     .resume-section {
       padding: 16px 28px;
       border-bottom: 1px solid var(--phx-border);
+      page-break-inside: avoid;
     }
     .resume-section:last-child { border-bottom: none; }
 
@@ -136,7 +139,8 @@
   <div class="page-title no-print">
     <h2>Recruiting Report</h2>
     <div>
-      <button class="btn" type="button" onclick="window.print()">Print / Save as PDF</button>
+      <button class="btn" type="button" id="download-pdf-btn">Download PDF</button>
+      <button class="btn secondary" type="button" onclick="window.print()">Print</button>
       {% if session.get('is_admin') or session.get('player_id') == player['id'] %}
         <a class="btn secondary" href="{{ url_for('edit_player', player_id=player['id']) }}">Edit Info</a>
       {% endif %}
@@ -149,7 +153,7 @@
       {% if player['photo_filename'] %}
         <img class="resume-avatar" src="{{ url_for('static', filename='uploads/photos/' ~ player['photo_filename']) }}" alt="{{ player['name'] }}">
       {% else %}
-        <div class="resume-avatar">{{ player['name'][:2] | upper }}</div>
+        <div class="resume-avatar">{{ player['name'] | initials }}</div>
       {% endif %}
       <p class="resume-name">{{ player['name'] }}</p>
       <p class="resume-subtitle">
@@ -272,4 +276,79 @@
       Generated {{ today }} &middot; based on {{ session_count }} tracked session{{ 's' if session_count != 1 else '' }} of data.
     </div>
   </div>
+
+  <script>
+    // PDF generation is loaded from a CDN, and CDNs occasionally get blocked
+    // or rate-limited on school/work networks. Try a couple of mirrors
+    // before giving up so a single bad host doesn't break the button.
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+
+    const HTML2PDF_SOURCES = [
+      'https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js',
+      'https://unpkg.com/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
+    ];
+
+    async function loadHtml2Pdf() {
+      if (window.html2pdf) return true;
+      for (const src of HTML2PDF_SOURCES) {
+        try {
+          await loadScript(src);
+          if (window.html2pdf) return true;
+        } catch (e) {
+          console.warn('html2pdf.js failed to load from', src, '- trying next source.');
+        }
+      }
+      return false;
+    }
+
+    function safeFilePart(str) {
+      return (str || 'Player').trim().replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, '_');
+    }
+
+    const downloadBtn = document.getElementById('download-pdf-btn');
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', async function () {
+        const original = downloadBtn.textContent;
+        downloadBtn.disabled = true;
+        downloadBtn.textContent = 'Preparing PDF…';
+
+        const ready = await loadHtml2Pdf();
+        if (!ready) {
+          alert('Could not load the PDF generator - check your connection and try again, or use Print instead.');
+          downloadBtn.disabled = false;
+          downloadBtn.textContent = original;
+          return;
+        }
+
+        const el = document.querySelector('.resume');
+        const filename = safeFilePart({{ player['name'] | tojson }}) + '_Recruiting_Report.pdf';
+
+        html2pdf().set({
+          margin: 24,
+          filename: filename,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+          jsPDF: { unit: 'pt', format: 'letter', orientation: 'portrait' },
+          pagebreak: { mode: ['css', 'avoid-all'] },
+        }).from(el).save().then(function () {
+          downloadBtn.disabled = false;
+          downloadBtn.textContent = original;
+        }).catch(function (err) {
+          console.error(err);
+          alert('Something went wrong generating the PDF. Try Print instead.');
+          downloadBtn.disabled = false;
+          downloadBtn.textContent = original;
+        });
+      });
+    }
+  </script>
 {% endblock %}

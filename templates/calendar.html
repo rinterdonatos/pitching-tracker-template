@@ -34,7 +34,11 @@
           {% for entry in entries_by_date.get(iso, []) %}
             <div class="calendar-entry {% if current_team and entry['team_id'] is none %}general-entry{% endif %}"
                  data-message="{{ entry['message'] }}{% if current_team and entry['team_id'] is none %} (General){% endif %}" data-date="{{ iso }}"
-                 data-location="{{ entry['location'] or '' }}" data-details="{{ entry['details'] or '' }}" data-time="{{ entry['event_time'] or '' }}">
+                 data-location="{{ entry['location'] or '' }}" data-details="{{ entry['details'] or '' }}" data-time="{{ entry['event_time'] or '' }}"
+                 data-entry-id="{{ entry['id'] }}"
+                 data-comments="{{ (comments_by_entry.get(entry['id']) or []) | tojson }}"
+                 data-comment-url="{{ url_for('add_calendar_comment', entry_id=entry['id']) }}"
+                 data-delete-url="{{ url_for('delete_calendar_entry', entry_id=entry['id']) }}">
               <span>{% if entry['event_time'] %}<strong>{{ entry['event_time'] }}</strong> &middot; {% endif %}{{ entry['message'] }}</span>
               <form method="POST" action="{{ url_for('delete_calendar_entry', entry_id=entry['id']) }}" onsubmit="return confirm('Remove this lesson day?');">
                 <button type="submit" title="Remove">&times;</button>
@@ -72,7 +76,11 @@
         </div>
         <div class="field">
           <label for="modal-time">Time (optional)</label>
-          <input type="text" id="modal-time" name="event_time" placeholder="e.g. 4pm, 3:30-4:30">
+          <div class="time-combo">
+            <input type="text" id="modal-time" name="event_time" placeholder="e.g. 4:00 PM" autocomplete="off">
+            <div class="time-combo-list" hidden></div>
+          </div>
+          <div class="hint">Start typing to filter, scroll to browse, or just type your own (e.g. "3:30-4:30").</div>
         </div>
         <div class="field">
           <label for="modal-location">Location (optional)</label>
@@ -85,6 +93,52 @@
         <button class="btn" type="submit">Add Event</button>
         <button class="btn secondary" type="button" onclick="closeDayModal()">Cancel</button>
       </form>
+    </div>
+  </div>
+
+  <!-- Click-an-event popup: full details, directions, and comments -->
+  <div id="event-view-modal" style="display:none; position:fixed; inset:0; z-index:999; background:rgba(0,0,0,0.45); align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:12px; padding:22px; width:min(460px, 92vw); max-height:86vh; overflow-y:auto; box-shadow:0 10px 30px rgba(0,0,0,0.3);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3 style="margin:0;" id="view-date-label"></h3>
+        <button type="button" onclick="closeViewModal()" style="background:none; border:none; font-size:1.4rem; cursor:pointer; color:#888;" title="Close">&times;</button>
+      </div>
+      <p id="view-time-line" style="margin:0 0 8px; font-weight:700; color:var(--phx-blue-dark);"></p>
+      <p id="view-message" style="margin:0 0 14px; white-space:pre-wrap;"></p>
+
+      <div id="view-location-block" style="margin-bottom:14px;">
+        <div class="hint" style="margin-bottom:3px;">Location</div>
+        <p id="view-location-text" style="margin:0 0 6px; font-weight:600;"></p>
+        <div style="display:flex; gap:14px;">
+          <a id="view-location-google" href="#" target="_blank" rel="noopener" class="maps-link">Directions &middot; Google Maps</a>
+          <a id="view-location-apple" href="#" target="_blank" rel="noopener" class="maps-link">Directions &middot; Apple Maps</a>
+        </div>
+      </div>
+
+      <div id="view-details-block" style="margin-bottom:14px;">
+        <div class="hint" style="margin-bottom:3px;">Other Info</div>
+        <p id="view-details-text" style="margin:0; white-space:pre-wrap;"></p>
+      </div>
+
+      <div class="section-title" style="margin:18px 0 10px; font-size:0.95rem;">Comments</div>
+      <div id="view-comment-list" class="comment-list"></div>
+      <form id="view-comment-form" class="comment-form" method="POST" action="">
+        <input type="hidden" name="year" id="view-comment-year">
+        <input type="hidden" name="month" id="view-comment-month">
+        <input type="hidden" name="team_id" id="view-comment-team">
+        <div class="comment-form-row">
+          <input type="text" name="commenter_name" placeholder="Your name" required>
+        </div>
+        <textarea name="body" placeholder="Leave a note about this lesson day..." required></textarea>
+        <button class="btn secondary" type="submit">Post Comment</button>
+      </form>
+
+      <div style="margin-top:16px; display:flex; gap:8px;">
+        <form id="view-delete-form" method="POST" action="" onsubmit="return confirm('Remove this lesson day?');">
+          <button class="btn danger" type="submit">Remove Event</button>
+        </form>
+        <button class="btn secondary" type="button" onclick="closeViewModal()">Close</button>
+      </div>
     </div>
   </div>
 
@@ -154,6 +208,210 @@
       el.addEventListener('mousemove', positionTip);
       el.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
     });
+
+    // --- Click an event to see the full popup: address with directions, and comments ---
+    const CAL_YEAR = {{ year }};
+    const CAL_MONTH = {{ month }};
+    const CAL_TEAM = {{ (current_team['id'] if current_team else '') | tojson }};
+
+    const viewModal = document.getElementById('event-view-modal');
+    function closeViewModal() { viewModal.style.display = 'none'; }
+    viewModal.addEventListener('click', (e) => { if (e.target === viewModal) closeViewModal(); });
+
+    function openViewModal(entryEl) {
+      const d = new Date(entryEl.dataset.date + 'T00:00:00');
+      document.getElementById('view-date-label').textContent = d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+
+      const timeLine = document.getElementById('view-time-line');
+      if (entryEl.dataset.time) {
+        timeLine.textContent = entryEl.dataset.time;
+        timeLine.style.display = 'block';
+      } else {
+        timeLine.style.display = 'none';
+      }
+
+      document.getElementById('view-message').textContent = entryEl.dataset.message;
+
+      const locBlock = document.getElementById('view-location-block');
+      if (entryEl.dataset.location) {
+        document.getElementById('view-location-text').textContent = entryEl.dataset.location;
+        const encoded = encodeURIComponent(entryEl.dataset.location);
+        document.getElementById('view-location-google').href = 'https://www.google.com/maps/search/?api=1&query=' + encoded;
+        document.getElementById('view-location-apple').href = 'https://maps.apple.com/?q=' + encoded;
+        locBlock.style.display = 'block';
+      } else {
+        locBlock.style.display = 'none';
+      }
+
+      const detBlock = document.getElementById('view-details-block');
+      if (entryEl.dataset.details) {
+        document.getElementById('view-details-text').textContent = entryEl.dataset.details;
+        detBlock.style.display = 'block';
+      } else {
+        detBlock.style.display = 'none';
+      }
+
+      // Comments (rendered server-side into a data attribute so no extra request is needed)
+      const listEl = document.getElementById('view-comment-list');
+      listEl.innerHTML = '';
+      let commentsData = [];
+      try { commentsData = JSON.parse(entryEl.dataset.comments || '[]'); } catch (e) { commentsData = []; }
+      commentsData.forEach(c => {
+        const item = document.createElement('div');
+        item.className = 'comment';
+
+        const meta = document.createElement('div');
+        meta.className = 'comment-meta';
+        meta.textContent = c.commenter_name;
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'comment-time';
+        timeSpan.textContent = c.created_at;
+        meta.appendChild(timeSpan);
+        item.appendChild(meta);
+
+        const body = document.createElement('div');
+        body.className = 'comment-body';
+        body.textContent = c.body;
+        item.appendChild(body);
+
+        if (c.delete_url) {
+          const delForm = document.createElement('form');
+          delForm.method = 'POST';
+          delForm.action = c.delete_url;
+          delForm.onsubmit = function () { return confirm('Delete this comment?'); };
+          [['year', CAL_YEAR], ['month', CAL_MONTH], ['team_id', CAL_TEAM]].forEach(([name, val]) => {
+            const inp = document.createElement('input');
+            inp.type = 'hidden';
+            inp.name = name;
+            inp.value = val;
+            delForm.appendChild(inp);
+          });
+          const delBtn = document.createElement('button');
+          delBtn.type = 'submit';
+          delBtn.className = 'comment-delete';
+          delBtn.textContent = 'Delete';
+          delForm.appendChild(delBtn);
+          item.appendChild(delForm);
+        }
+
+        listEl.appendChild(item);
+      });
+
+      const commentForm = document.getElementById('view-comment-form');
+      commentForm.action = entryEl.dataset.commentUrl;
+      document.getElementById('view-comment-year').value = CAL_YEAR;
+      document.getElementById('view-comment-month').value = CAL_MONTH;
+      document.getElementById('view-comment-team').value = CAL_TEAM;
+
+      document.getElementById('view-delete-form').action = entryEl.dataset.deleteUrl;
+
+      viewModal.style.display = 'flex';
+    }
+
+    document.querySelectorAll('.calendar-entry').forEach(el => {
+      el.addEventListener('click', (e) => {
+        // The inline remove "x" lives in its own form - let that submit normally.
+        if (e.target.closest('form')) return;
+        openViewModal(el);
+      });
+    });
+
+    // Reopen the popup for whichever event we just commented on/deleted a
+    // comment from, so the page doesn't just dump you back on the grid.
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      const entryId = params.get('entry');
+      if (!entryId) return;
+      const el = document.querySelector('.calendar-entry[data-entry-id="' + entryId + '"]');
+      if (el) openViewModal(el);
+    })();
+
+    // --- Time field: type-to-filter, scrollable list (like Google Calendar's
+    // time picker), but it's still a plain text field underneath so you can
+    // type whatever you want (a range, "TBD", etc.) instead of only picking
+    // from the list. ---
+    const TIME_OPTIONS = (function () {
+      const out = [];
+      for (let mins = 0; mins < 24 * 60; mins += 15) {
+        let hour = Math.floor(mins / 60);
+        const minute = mins % 60;
+        const ampm = hour < 12 ? 'AM' : 'PM';
+        let hour12 = hour % 12;
+        if (hour12 === 0) hour12 = 12;
+        out.push(hour12 + ':' + String(minute).padStart(2, '0') + ' ' + ampm);
+      }
+      return out;
+    })();
+
+    // Strips colons/spaces so "430" or "430pm" still matches "4:30 PM" even
+    // though the person didn't type the colon (or the space before AM/PM).
+    function normalizeTimeText(s) {
+      return (s || '').replace(/[:\s]/g, '').toLowerCase();
+    }
+
+    function initTimeCombo(wrap) {
+      const input = wrap.querySelector('input');
+      const list = wrap.querySelector('.time-combo-list');
+      let activeIndex = -1;
+
+      function setActive(options, index) {
+        options.forEach((o, i) => o.classList.toggle('active', i === index));
+        if (options[index]) options[index].scrollIntoView({ block: 'nearest' });
+      }
+
+      function render(filterText) {
+        const q = normalizeTimeText(filterText);
+        const matches = q ? TIME_OPTIONS.filter(t => normalizeTimeText(t).includes(q)) : TIME_OPTIONS;
+        list.innerHTML = '';
+        activeIndex = -1;
+        if (!matches.length) {
+          list.hidden = true;
+          return;
+        }
+        matches.forEach(t => {
+          const opt = document.createElement('div');
+          opt.className = 'time-combo-option';
+          opt.textContent = t;
+          // mousedown (not click) fires before the input's blur hides the list.
+          opt.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            input.value = t;
+            list.hidden = true;
+          });
+          list.appendChild(opt);
+        });
+        list.hidden = false;
+      }
+
+      input.addEventListener('focus', () => render(input.value));
+      input.addEventListener('input', () => render(input.value));
+      input.addEventListener('blur', () => { setTimeout(() => { list.hidden = true; }, 120); });
+
+      input.addEventListener('keydown', (e) => {
+        if (list.hidden) return;
+        const options = Array.from(list.children);
+        if (!options.length) return;
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          activeIndex = Math.min(activeIndex + 1, options.length - 1);
+          setActive(options, activeIndex);
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          activeIndex = Math.max(activeIndex - 1, 0);
+          setActive(options, activeIndex);
+        } else if (e.key === 'Enter') {
+          if (activeIndex >= 0 && options[activeIndex]) {
+            e.preventDefault();
+            input.value = options[activeIndex].textContent;
+            list.hidden = true;
+          }
+        } else if (e.key === 'Escape') {
+          list.hidden = true;
+        }
+      });
+    }
+
+    document.querySelectorAll('.time-combo').forEach(initTimeCombo);
   </script>
 
   <div class="section-title">Add a Lesson Day{% if current_team %} ({{ current_team['name'] }}){% else %} (General){% endif %}</div>
@@ -170,7 +428,11 @@
     </div>
     <div class="field">
       <label for="event_time">Time (optional)</label>
-      <input type="text" id="event_time" name="event_time" placeholder="e.g. 4pm, 3:30-4:30">
+      <div class="time-combo">
+        <input type="text" id="event_time" name="event_time" placeholder="e.g. 4:00 PM" autocomplete="off">
+        <div class="time-combo-list" hidden></div>
+      </div>
+      <div class="hint">Start typing to filter, scroll to browse, or just type your own (e.g. "3:30-4:30").</div>
     </div>
     <div class="field">
       <label for="location">Location (optional)</label>

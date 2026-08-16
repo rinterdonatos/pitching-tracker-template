@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Swarm Baseball{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="icon" href="{{ url_for('static', filename='img/swarm-badge.png') }}">
 </head>
@@ -18,16 +21,17 @@
       <span></span><span></span><span></span>
     </button>
     <nav id="site-nav">
-      <a href="{{ url_for('index') }}">Players</a>
-      <a href="{{ url_for('leaderboard') }}">Leaderboard</a>
-      <a href="{{ url_for('teams_page') }}">Teams</a>
-      <a href="{{ url_for('lesson_calendar') }}">Calendar</a>
-      <a href="{{ url_for('upload_csv') }}">Add Stats/Video</a>
+      {% set player_endpoints = ['index', 'player_detail', 'add_player', 'edit_player', 'player_report'] %}
+      <a href="{{ url_for('index') }}" class="{{ 'active' if request.endpoint in player_endpoints }}">Players</a>
+      <a href="{{ url_for('leaderboard') }}" class="{{ 'active' if request.endpoint == 'leaderboard' }}">Leaderboard</a>
+      <a href="{{ url_for('teams_page') }}" class="{{ 'active' if request.endpoint == 'teams_page' }}">Teams</a>
+      <a href="{{ url_for('lesson_calendar') }}" class="{{ 'active' if request.endpoint == 'lesson_calendar' }}">Calendar</a>
+      <a href="{{ url_for('upload_csv') }}" class="{{ 'active' if request.endpoint in ['upload_csv', 'upload_video'] }}">Add Stats/Video</a>
       {% if session.get('is_admin') %}
-        <a href="{{ url_for('manage_uploads') }}">Manage Uploads</a>
-        <a href="{{ url_for('users_page') }}">Users</a>
+        <a href="{{ url_for('manage_uploads') }}" class="{{ 'active' if request.endpoint == 'manage_uploads' }}">Manage Uploads</a>
+        <a href="{{ url_for('users_page') }}" class="{{ 'active' if request.endpoint == 'users_page' }}">Users</a>
       {% endif %}
-      <a href="{{ url_for('account') }}">Account</a>
+      <a href="{{ url_for('account') }}" class="{{ 'active' if request.endpoint == 'account' }}">Account</a>
       <form method="POST" action="{{ url_for('logout') }}" style="display:inline;">
         <button type="submit" class="nav-logout">Log Out</button>
       </form>
