@@ -171,6 +171,22 @@ os.makedirs(VIDEO_DIR, exist_ok=True)
 os.makedirs(PHOTO_DIR, exist_ok=True)
 
 
+def static_url(filename):
+    """Cache-busted static asset URL: appends the file's last-modified time
+    as a query string, so browsers fetch a fresh copy the moment a deploy
+    changes style.css/app.js instead of serving a stale cached version until
+    someone remembers to hard-refresh."""
+    path = os.path.join(app.static_folder, filename)
+    try:
+        version = int(os.path.getmtime(path))
+    except OSError:
+        version = 0
+    return url_for("static", filename=filename) + f"?v={version}"
+
+
+app.jinja_env.globals["static_url"] = static_url
+
+
 # ---------- Database helpers ----------
 
 def get_db():
