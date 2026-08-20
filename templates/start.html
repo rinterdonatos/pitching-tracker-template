@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Get Started - {{ platform_name }}</title>
+  <title>Start Your Program - {{ platform_name }}</title>
+  <meta name="description" content="Set up your program's private, branded space on {{ platform_name }} in about a minute. Free to set up, no credit card required.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -20,59 +21,156 @@
   </style>
 </head>
 <body>
-  <div class="login-wrap">
-    <div class="login-card">
-      <a href="{{ url_for('landing') }}"><img src="{{ static_url('img/default-badge.svg') }}" alt="{{ platform_name }} logo" class="login-logo"></a>
-      <h1>Create Your Organization</h1>
-      <p class="login-sub">Set up your team or facility on {{ platform_name }} in about a minute. You'll be able to invite coaches, players, and staff once you're in.</p>
 
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          {% for category, message in messages %}
-            <div class="flash {{ category }}">{{ message }}</div>
-          {% endfor %}
-        {% endif %}
-      {% endwith %}
+  <header class="signup-topbar">
+    <div class="signup-topbar-inner">
+      <a class="signup-brand" href="{{ url_for('landing') }}">
+        <img src="{{ static_url('img/default-badge.svg') }}" alt="{{ platform_name }} logo">
+        <span>{{ platform_name }}</span>
+      </a>
+      <div class="signup-topbar-link">Already have a program? <a href="{{ url_for('org_picker') }}">Log in</a></div>
+    </div>
+  </header>
 
-      <form method="POST" enctype="multipart/form-data">
-        <div class="field">
-          <label for="org_name">Organization / team name</label>
-          <input type="text" id="org_name" name="org_name" autofocus required>
-          <div class="hint">This becomes part of your site's URL, e.g. yourapp.com/your-team-name.</div>
-        </div>
-        <div class="field">
-          <label for="logo">Logo (optional)</label>
-          <input type="file" id="logo" name="logo" accept="image/png,image/jpeg,image/gif">
-          <div class="hint">We'll pull colors from it to theme your site automatically. Skip this and you'll get a neutral gray theme instead.</div>
-        </div>
-        <div class="field">
-          <label for="name">Your name</label>
-          <input type="text" id="name" name="name" required>
-        </div>
-        <div class="field">
-          <label for="email">Email</label>
-          <input type="email" id="email" name="email" autocomplete="email">
-        </div>
-        <div class="field">
-          <label for="phone">Phone number</label>
-          <input type="tel" id="phone" name="phone" autocomplete="tel">
-          <div class="hint">Fill in at least one of email / phone &mdash; either can be used to sign in.</div>
-        </div>
-        <div class="field">
-          <label for="password">Password</label>
-          <input type="password" id="password" name="password" autocomplete="new-password" required minlength="6">
-        </div>
-        <div class="field">
-          <label for="confirm">Confirm password</label>
-          <input type="password" id="confirm" name="confirm" autocomplete="new-password" required minlength="6">
-        </div>
-        <button class="btn" type="submit" style="width:100%;">Create My Organization</button>
-      </form>
+  <div class="signup-shell">
+    <div class="signup-wrap">
 
-      <p class="login-sub" style="margin-top:16px; margin-bottom:0;">
-        Already have an account? <a href="{{ url_for('org_picker') }}">Log in</a>
-      </p>
+      <div class="signup-aside">
+        <span class="eyebrow">Get Started</span>
+        <h1>Set up your program in minutes.</h1>
+        <p class="lead">Create your program's private, branded space to track development and open the door to college recruiters &mdash; free to set up, no credit card required.</p>
+
+        <div class="value-prop-list">
+          <div class="value-prop">
+            <div class="icon-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 15l4-5 3 3 5-7"/></svg>
+            </div>
+            <div>
+              <h3>Every stat and video in one place</h3>
+              <p>Import TrackMan data, log bullpens and games, and watch progress trend automatically.</p>
+            </div>
+          </div>
+          <div class="value-prop">
+            <div class="icon-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.6" fill="currentColor"/></svg>
+            </div>
+            <div>
+              <h3>Get your players in front of recruiters</h3>
+              <p>Turn on recruiting visibility for any player, whenever your program is ready.</p>
+            </div>
+          </div>
+          <div class="value-prop">
+            <div class="icon-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3.5v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9v-5z"/></svg>
+            </div>
+            <div>
+              <h3>Your program, your space</h3>
+              <p>A private, branded site for your team &mdash; your players' data never mixes with another program's.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="trust-pills">
+          <span class="trust-pill">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            Free to set up
+          </span>
+          <span class="trust-pill">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            No credit card required
+          </span>
+          <span class="trust-pill">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            Ready in about a minute
+          </span>
+        </div>
+      </div>
+
+      <div class="signup-card">
+        <h2>Create your program</h2>
+        <p class="signup-card-sub">You'll be able to invite coaches, players, and staff once you're in.</p>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            {% for category, message in messages %}
+              <div class="flash {{ category }}">{{ message }}</div>
+            {% endfor %}
+          {% endif %}
+        {% endwith %}
+
+        <form method="POST" enctype="multipart/form-data" id="start-form">
+          <div class="field-group-label">Organization Details</div>
+          <div class="field">
+            <label for="org_name">Organization / team name</label>
+            <input type="text" id="org_name" name="org_name" autofocus required>
+            <div class="hint">This becomes part of your site's URL, e.g. yourapp.com/your-team-name.</div>
+          </div>
+          <div class="field">
+            <label for="logo">Logo (optional)</label>
+            <label class="upload-dropzone" id="logo-dropzone">
+              <span class="upload-dropzone-icon" id="logo-preview-wrap">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4 7 9M12 4l5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+              </span>
+              <span class="upload-dropzone-text">
+                <span class="t" id="logo-filename">Upload a logo</span>
+                <span class="s">PNG, JPG, or GIF &mdash; we'll pull colors from it automatically</span>
+              </span>
+              <input type="file" id="logo" name="logo" accept="image/png,image/jpeg,image/gif">
+            </label>
+            <div class="hint">Skip this and you'll get a clean neutral theme instead &mdash; you can add a logo anytime later.</div>
+          </div>
+
+          <div class="field-group-label">Your Account</div>
+          <div class="field">
+            <label for="name">Your name</label>
+            <input type="text" id="name" name="name" required>
+          </div>
+          <div class="field">
+            <label for="email">Email</label>
+            <input type="email" id="email" name="email" autocomplete="email">
+          </div>
+          <div class="field">
+            <label for="phone">Phone number</label>
+            <input type="tel" id="phone" name="phone" autocomplete="tel">
+            <div class="hint">Fill in at least one of email / phone &mdash; either can be used to sign in.</div>
+          </div>
+          <div class="field">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" autocomplete="new-password" required minlength="6">
+          </div>
+          <div class="field">
+            <label for="confirm">Confirm password</label>
+            <input type="password" id="confirm" name="confirm" autocomplete="new-password" required minlength="6">
+          </div>
+
+          <button class="btn-cta" type="submit" style="width:100%; margin-top:6px;">Create My Program</button>
+          <p class="signup-submit-note">Free to set up &middot; no credit card required. Already have an account? <a href="{{ url_for('org_picker') }}">Log in</a>.</p>
+        </form>
+      </div>
+
     </div>
   </div>
+
+  <script>
+    // Swap the dropzone's placeholder icon/label for a real preview + the
+    // chosen filename once a logo is picked, so the upload feels confirmed
+    // instead of a bare file input with no feedback.
+    (function () {
+      var input = document.getElementById('logo');
+      var previewWrap = document.getElementById('logo-preview-wrap');
+      var filenameEl = document.getElementById('logo-filename');
+      if (!input) return;
+      input.addEventListener('change', function () {
+        var file = input.files && input.files[0];
+        if (!file) return;
+        filenameEl.textContent = file.name;
+        var reader = new FileReader();
+        reader.onload = function (e) {
+          previewWrap.innerHTML = '<img src="' + e.target.result + '" alt="Logo preview">';
+        };
+        reader.readAsDataURL(file);
+      });
+    })();
+  </script>
 </body>
 </html>
