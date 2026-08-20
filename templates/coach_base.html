@@ -22,7 +22,7 @@
     <nav id="coach-nav" class="coach-nav">
       <a href="{{ url_for('coach_players') }}" class="{{ 'active' if request.endpoint == 'coach_players' }}">Players</a>
       <a href="{{ url_for('coach_leaderboards') }}" class="{{ 'active' if request.endpoint == 'coach_leaderboards' }}">Leaderboards</a>
-      <a href="{{ url_for('coach_reels') }}" class="{{ 'active' if request.endpoint == 'coach_reels' }}">Reels</a>
+      <a href="{{ url_for('coach_feed') }}" class="{{ 'active' if request.endpoint == 'coach_feed' }}">Feed</a>
       <a href="{{ url_for('coach_favorites') }}" class="{{ 'active' if request.endpoint == 'coach_favorites' }}">Favorites</a>
       <form method="POST" action="{{ url_for('coach_logout') }}" style="display:inline;">
         <button type="submit" class="nav-logout">Log Out</button>

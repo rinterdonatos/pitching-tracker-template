@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>Reels - Recruiting Portal</title>
+  <title>Feed - Recruiting Portal</title>
   <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
   <link rel="icon" href="{{ static_url('img/default-badge.svg') }}">
   <style>
@@ -17,14 +17,14 @@
   </style>
 </head>
 <body class="coach-shell">
-  <a class="reels-back-link" href="{{ url_for('coach_players') }}">&larr; Players</a>
-  <button class="reels-back-link" id="reels-filter-toggle" type="button" style="left:auto; right:14px;">Filters</button>
+  <a class="feed-back-link" href="{{ url_for('coach_players') }}">&larr; Players</a>
+  <button class="feed-back-link" id="feed-filter-toggle" type="button" style="left:auto; right:14px;">Filters</button>
 
-  <div id="reels-filter-panel" style="display:none; position:fixed; top:60px; right:14px; z-index:6; background:#fff; border-radius:12px; padding:16px; width:min(260px, 80vw); box-shadow:var(--shadow-lg);">
+  <div id="feed-filter-panel" style="display:none; position:fixed; top:60px; right:14px; z-index:6; background:#fff; border-radius:12px; padding:16px; width:min(260px, 80vw); box-shadow:var(--shadow-lg);">
     <form method="GET">
       <div class="field">
-        <label for="rf-team">Team</label>
-        <select id="rf-team" name="team">
+        <label for="ff-team">Team</label>
+        <select id="ff-team" name="team">
           <option value="">All teams</option>
           {% for t in teams %}
             <option value="{{ t['id'] }}" {% if filters['team'] == t['id']|string %}selected{% endif %}>{{ t['org_name'] }} — {{ t['name'] }}</option>
@@ -32,8 +32,8 @@
         </select>
       </div>
       <div class="field">
-        <label for="rf-grad-year">Grad Year</label>
-        <select id="rf-grad-year" name="grad_year">
+        <label for="ff-grad-year">Grad Year</label>
+        <select id="ff-grad-year" name="grad_year">
           <option value="">All years</option>
           {% for y in grad_years %}
             <option value="{{ y }}" {% if filters['grad_year'] == y %}selected{% endif %}>{{ y }}</option>
@@ -41,8 +41,8 @@
         </select>
       </div>
       <div class="field">
-        <label for="rf-position">Position</label>
-        <select id="rf-position" name="position">
+        <label for="ff-position">Position</label>
+        <select id="ff-position" name="position">
           <option value="">All positions</option>
           {% for pos in positions %}
             <option value="{{ pos }}" {% if filters['position'] == pos %}selected{% endif %}>{{ pos }}</option>
@@ -51,22 +51,22 @@
       </div>
       <button class="btn" type="submit" style="width:100%;">Apply</button>
       {% if filters['team'] or filters['grad_year'] or filters['position'] or filters['player'] %}
-        <a class="btn secondary" style="width:100%; text-align:center; margin-top:8px; display:block;" href="{{ url_for('coach_reels') }}">Clear filters</a>
+        <a class="btn secondary" style="width:100%; text-align:center; margin-top:8px; display:block;" href="{{ url_for('coach_feed') }}">Clear filters</a>
       {% endif %}
     </form>
   </div>
 
   {% if not videos %}
-    <div class="reel-empty">
+    <div class="feed-empty">
       <div>
         <p style="font-size:1.1rem; font-weight:600;">No videos match yet.</p>
         <p style="opacity:0.8;">Try clearing your filters, or check back soon.</p>
       </div>
     </div>
   {% else %}
-    <div class="reels-feed" id="reels-feed">
+    <div class="feed-list" id="feed-list">
       {% for v in videos %}
-        <div class="reel" data-video-id="{{ v['id'] }}">
+        <div class="feed-item" data-video-id="{{ v['id'] }}">
           <video
             src="{{ url_for('static', filename='uploads/videos/' ~ v['filename']) }}"
             playsinline
@@ -74,7 +74,7 @@
             loop
             preload="metadata"
           ></video>
-          <div class="reel-info">
+          <div class="feed-item-info">
             <div class="player-name">{{ v['player_name'] }}</div>
             <div class="player-meta">
               {{ v['org_name'] }}{% if v['team_name'] %} · {{ v['team_name'] }}{% endif %}
@@ -83,8 +83,8 @@
             </div>
             {% if v['title'] %}<div class="video-title">{{ v['title'] }}{% if v['category'] %} &middot; {{ v['category'] }}{% endif %}</div>{% endif %}
           </div>
-          <div class="reel-actions">
-            <button class="reel-fav-btn {{ 'favorited' if v['is_favorited'] }}" data-video-id="{{ v['id'] }}" type="button" aria-label="Favorite">
+          <div class="feed-item-actions">
+            <button class="feed-fav-btn {{ 'favorited' if v['is_favorited'] }}" data-video-id="{{ v['id'] }}" type="button" aria-label="Favorite">
               {{ '♥' if v['is_favorited'] else '♡' }}
             </button>
           </div>
@@ -95,18 +95,18 @@
 
   <script>
     (function () {
-      var toggle = document.getElementById('reels-filter-toggle');
-      var panel = document.getElementById('reels-filter-panel');
+      var toggle = document.getElementById('feed-filter-toggle');
+      var panel = document.getElementById('feed-filter-panel');
       if (toggle && panel) {
         toggle.addEventListener('click', function () {
           panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
         });
       }
 
-      var feed = document.getElementById('reels-feed');
+      var feed = document.getElementById('feed-list');
       if (!feed) return;
 
-      // Play whichever reel is actually on screen, pause everything else -
+      // Play whichever item is actually on screen, pause everything else -
       // keeps this smooth on mobile instead of every clip playing at once.
       var observer = new IntersectionObserver(function (entries) {
         entries.forEach(function (entry) {
@@ -120,9 +120,9 @@
         });
       }, { root: feed, threshold: [0, 0.6, 1] });
 
-      document.querySelectorAll('.reel').forEach(function (reel) {
-        observer.observe(reel);
-        var video = reel.querySelector('video');
+      document.querySelectorAll('.feed-item').forEach(function (item) {
+        observer.observe(item);
+        var video = item.querySelector('video');
         if (video) {
           // Tap the video to toggle mute (autoplay only works muted, but a
           // coach will usually want sound for arm-action/velo call-outs).
@@ -133,7 +133,7 @@
       });
 
       // Favoriting: optimistic UI update, then confirm with the server.
-      document.querySelectorAll('.reel-fav-btn').forEach(function (btn) {
+      document.querySelectorAll('.feed-fav-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
           var videoId = btn.getAttribute('data-video-id');
           var wasFavorited = btn.classList.contains('favorited');

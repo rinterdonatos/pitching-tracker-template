@@ -56,7 +56,7 @@
             {% if p['grad_year'] %} · Class of {{ p['grad_year'] }}{% endif %}
             {% if p['team_name'] %} · {{ p['team_name'] }}{% endif %}
           </div>
-          <a class="btn secondary" style="margin-top:6px; text-align:center;" href="{{ url_for('coach_reels', player=p['id']) }}">Watch Video</a>
+          <a class="btn secondary" style="margin-top:6px; text-align:center;" href="{{ url_for('coach_feed', player=p['id']) }}">Watch Video</a>
         </div>
       {% endfor %}
     </div>

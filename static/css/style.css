@@ -1257,12 +1257,12 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   padding: 48px 16px;
 }
 
-/* ---------- Reels: Instagram/TikTok-style full-screen vertical feed ---------- */
+/* ---------- Feed: Instagram/TikTok-style full-screen vertical feed ---------- */
 /* Native CSS scroll-snap does the swiping - no JS gesture library needed,
    and it behaves correctly with real touch momentum scrolling on mobile,
    which a hand-rolled swipe handler usually doesn't get quite right. */
 
-.reels-feed {
+.feed-list {
   height: 100vh;
   height: 100dvh;
   overflow-y: scroll;
@@ -1271,9 +1271,9 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   overscroll-behavior-y: contain;
   scrollbar-width: none;
 }
-.reels-feed::-webkit-scrollbar { display: none; }
+.feed-list::-webkit-scrollbar { display: none; }
 
-.reel {
+.feed-item {
   height: 100vh;
   height: 100dvh;
   scroll-snap-align: start;
@@ -1285,14 +1285,14 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   background: #000;
 }
 
-.reel video {
+.feed-item video {
   height: 100%;
   width: 100%;
   object-fit: contain;
   background: #000;
 }
 
-.reel-info {
+.feed-item-info {
   position: absolute;
   left: 0;
   right: 76px;
@@ -1302,11 +1302,11 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   color: #fff;
 }
 
-.reel-info .player-name { font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; }
-.reel-info .player-meta { font-size: 0.88rem; opacity: 0.9; margin-top: 2px; }
-.reel-info .video-title { font-size: 0.85rem; opacity: 0.85; margin-top: 6px; }
+.feed-item-info .player-name { font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; }
+.feed-item-info .player-meta { font-size: 0.88rem; opacity: 0.9; margin-top: 2px; }
+.feed-item-info .video-title { font-size: 0.85rem; opacity: 0.85; margin-top: 6px; }
 
-.reel-actions {
+.feed-item-actions {
   position: absolute;
   right: 12px;
   bottom: 26px;
@@ -1316,7 +1316,7 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   gap: 18px;
 }
 
-.reel-fav-btn {
+.feed-fav-btn {
   background: rgba(0, 0, 0, 0.4);
   border: none;
   color: #fff;
@@ -1330,9 +1330,9 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   cursor: pointer;
   line-height: 1;
 }
-.reel-fav-btn.favorited { color: #fb7185; }
+.feed-fav-btn.favorited { color: #fb7185; }
 
-.reel-empty {
+.feed-empty {
   height: 100vh;
   height: 100dvh;
   display: flex;
@@ -1344,7 +1344,7 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   padding: 24px;
 }
 
-.reels-back-link {
+.feed-back-link {
   position: fixed;
   top: 14px;
   left: 14px;

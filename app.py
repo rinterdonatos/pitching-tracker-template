@@ -222,7 +222,7 @@ ORG_EXEMPT_ENDPOINTS = {
     # their own separate login (coach_required / platform_admin_required
     # below), not the team-user session this before_request hook checks.
     "coach_signup", "coach_login", "coach_logout", "coach_players",
-    "coach_leaderboards", "coach_reels", "coach_favorite_toggle", "coach_favorites",
+    "coach_leaderboards", "coach_feed", "coach_favorite_toggle", "coach_favorites",
     "platform_coaches", "platform_approve_coach", "platform_reject_coach", "platform_revoke_coach",
 }
 
@@ -1570,7 +1570,7 @@ def coach_logout():
 
 def _coach_player_filters():
     """Shared WHERE-clause building for the coach player search, leaderboards,
-    and reels feed: opted-in players only, everywhere, plus whatever the
+    and video feed: opted-in players only, everywhere, plus whatever the
     coach chose to filter by."""
     conds = ["p.recruiting_opt_in = 1"]
     params = []
@@ -1692,9 +1692,9 @@ def coach_leaderboards():
     )
 
 
-@app.route("/coach/reels")
+@app.route("/coach/feed")
 @coach_required
-def coach_reels():
+def coach_feed():
     conn = get_db()
     where_sql, params, filters = _coach_player_filters()
     videos = conn.execute(
@@ -1712,7 +1712,7 @@ def coach_reels():
     teams, grad_years, positions = _coach_filter_options(conn)
     conn.close()
     return render_template(
-        "coach_reels.html", videos=videos, teams=teams, grad_years=grad_years,
+        "coach_feed.html", videos=videos, teams=teams, grad_years=grad_years,
         positions=positions, filters=filters,
     )
 
@@ -1721,7 +1721,7 @@ def coach_reels():
 @coach_required
 def coach_favorite_toggle(video_id):
     conn = get_db()
-    # Re-check opt-in on every toggle, not just when the reel feed was first
+    # Re-check opt-in on every toggle, not just when the video feed was first
     # loaded - a family can turn recruiting visibility off at any time, and a
     # stale favorite shouldn't be a backdoor to a video that's no longer opted in.
     video = conn.execute(
@@ -1750,7 +1750,7 @@ def coach_favorite_toggle(video_id):
 
     if request.headers.get("X-Requested-With") == "fetch":
         return {"favorited": favorited}
-    return redirect(request.referrer or url_for("coach_reels"))
+    return redirect(request.referrer or url_for("coach_feed"))
 
 
 @app.route("/coach/favorites")
