@@ -1217,26 +1217,26 @@ def landing():
 
 @app.route("/login")
 def org_picker():
-    """Cross-org login entry point (not the marketing home page - that's
-    landing() at "/"). Sends a returning, already-logged-in user straight
-    back to their own organization; otherwise sends a single-organization
-    site straight to that org's login, or shows a picker if more than one
-    organization exists."""
+    """Cross-identity entry point (not the marketing home page - that's
+    landing() at "/"). Always shows the chooser - every organization on the
+    platform, plus the separate college-coach portal - rather than silently
+    bouncing an already-logged-in visitor back into whichever org they
+    happen to have an active session with. That auto-redirect made sense
+    when there was only ever one organization, but once someone manages (or
+    just wants to check) more than one, "click Log In" needs to actually let
+    them pick, not assume."""
     conn = get_db()
-    if session.get("user_id") and session.get("organization_id"):
-        org = conn.execute("SELECT * FROM organizations WHERE id = ?", (session["organization_id"],)).fetchone()
-        if org:
-            conn.close()
-            return redirect(url_for("index", org_slug=org["slug"]))
-
     orgs = conn.execute("SELECT * FROM organizations ORDER BY name COLLATE NOCASE ASC").fetchall()
     conn.close()
 
     if not orgs:
         return redirect(url_for("setup"))
-    if len(orgs) == 1:
-        return redirect(url_for("login", org_slug=orgs[0]["slug"]))
-    return render_template("org_picker.html", organizations=orgs)
+
+    current_org = None
+    if session.get("user_id") and session.get("organization_id"):
+        current_org = next((o for o in orgs if o["id"] == session["organization_id"]), None)
+
+    return render_template("org_picker.html", organizations=orgs, current_org=current_org)
 
 
 @app.route("/start", methods=["GET", "POST"])

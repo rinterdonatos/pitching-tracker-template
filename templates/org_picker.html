@@ -19,18 +19,30 @@
   <div class="login-wrap">
     <div class="login-card">
       <a href="{{ url_for('landing') }}"><img src="{{ static_url('img/default-badge.svg') }}" alt="{{ platform_name }} logo" class="login-logo"></a>
-      <h1>Choose Your Organization</h1>
-      <p class="login-sub">Pick your team to sign in.</p>
+      <h1>Choose Where to Sign In</h1>
+      <p class="login-sub">Pick your organization, or head to the recruiting portal if you're a college coach.</p>
 
-      <div style="display:flex; flex-direction:column; gap:10px; margin-top:16px;">
+      {% if current_org %}
+        <div style="background:#eef2ff; border-radius:10px; padding:10px 14px; margin-bottom:14px; text-align:left; font-size:0.85rem;">
+          Currently signed in to <strong>{{ current_org['name'] }}</strong>.
+          <a href="{{ url_for('index', org_slug=current_org['slug']) }}">Continue &rarr;</a>
+        </div>
+      {% endif %}
+
+      <div style="display:flex; flex-direction:column; gap:10px;">
         {% for org in organizations %}
-          <a class="btn" style="width:100%; text-align:center;" href="{{ url_for('login', org_slug=org['slug']) }}">{{ org['name'] }}</a>
+          <a class="btn {{ 'secondary' if current_org and org['id'] == current_org['id'] }}" style="width:100%; text-align:center;" href="{{ url_for('login', org_slug=org['slug']) }}">{{ org['name'] }}</a>
         {% endfor %}
       </div>
 
       <p class="login-sub" style="margin-top:16px; margin-bottom:0;">
         Don't have an organization yet? <a href="{{ url_for('start') }}">Create one</a>
       </p>
+
+      <hr style="border:none; border-top:1px solid var(--phx-border); margin:20px 0;">
+
+      <p class="login-sub" style="margin:0;">College coach or recruiter?</p>
+      <a class="btn secondary" style="width:100%; text-align:center; margin-top:8px;" href="{{ url_for('coach_login') }}">Recruiting Portal Login</a>
     </div>
   </div>
 </body>
