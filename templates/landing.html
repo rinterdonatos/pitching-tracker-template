@@ -5,9 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ platform_name }} - Player Development & Recruiting Platform</title>
   <meta name="description" content="Track pitching and hitting development, share video with recruiters, and run your program's leaderboards - all in one place.">
+  <meta property="og:title" content="{{ platform_name }} - Player Development & Recruiting">
+  <meta property="og:description" content="Track every stat and video session, then get discovered by college coaches. Built for pitching labs, travel programs, and training facilities.">
+  <meta name="theme-color" content="#0b1120">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
   <link rel="icon" href="{{ static_url('img/default-badge.svg') }}">
   <style>
@@ -16,59 +19,309 @@
       --phx-blue-dark: #0f172a;
       --phx-orange: #14b8a6;
       --phx-orange-dark: #0d9488;
+      --brand-dark: #0b1120;
+      --brand-dark-2: #131f36;
+      --brand-cta: #f97316;
+      --brand-cta-light: #fb923c;
       --font-display: 'Sora', 'Inter', -apple-system, sans-serif;
+      --font-impact: 'Anton', 'Sora', -apple-system, sans-serif;
     }
   </style>
 </head>
-<body>
-  <header class="landing-nav">
-    <div class="landing-nav-inner">
+<body style="background:#fff;">
+
+  <header class="landing-header">
+    <div class="landing-header-inner">
       <a class="landing-brand" href="{{ url_for('landing') }}">
         <img src="{{ static_url('img/default-badge.svg') }}" alt="{{ platform_name }} logo">
         <span>{{ platform_name }}</span>
       </a>
       <div class="landing-nav-links">
-        <a href="{{ url_for('org_picker') }}">Log In</a>
-        <a class="btn" href="{{ url_for('start') }}">Get Started</a>
+        <a class="nav-link" href="#how">How It Works</a>
+        <a class="nav-link" href="#product">Product</a>
+        <a class="nav-link" href="#benefits">Benefits</a>
+        <div class="nav-divider"></div>
+        <a class="nav-log-in" href="{{ url_for('org_picker') }}">Log In</a>
+        <a class="btn-cta" href="{{ url_for('start') }}" style="padding:9px 18px; font-size:0.86rem;">Get Started</a>
       </div>
     </div>
   </header>
 
+  <!-- Hero -->
   <section class="landing-hero">
-    <h1>Player development and recruiting, in one place.</h1>
-    <p>Track velocity, stats, and video for every player on your team - then let college coaches discover the ones ready to be seen. Built for pitching labs, travel programs, and training facilities.</p>
-    <div class="landing-hero-ctas">
-      <a class="btn" href="{{ url_for('start') }}">Start Your Program - It's Free to Set Up</a>
-      <a class="btn secondary" href="{{ url_for('org_picker') }}">Log In</a>
+    <div class="landing-hero-inner">
+      <div class="landing-hero-copy">
+        <span class="hero-chip">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z"/></svg>
+          Player Development + College Recruiting
+        </span>
+        <h1>Track your progress.<br>Get <span>discovered</span>.</h1>
+        <p class="lead">{{ platform_name }} is where pitching programs log every stat and video session &mdash; and where college coaches come looking for the next arm worth recruiting.</p>
+        <div class="landing-hero-ctas">
+          <a class="btn-cta" href="{{ url_for('start') }}">Start Your Program &mdash; Free to Set Up</a>
+          <a class="btn-ghost" href="{{ url_for('coach_login') }}">College Coach? Log In</a>
+        </div>
+      </div>
+      <div class="hero-mock reveal">
+        <div class="hero-mock-card">
+          <div class="hero-mock-head">
+            <span class="hero-mock-label">Velocity Trend</span>
+            <div class="dot-row"><span></span><span></span><span></span></div>
+          </div>
+          <div class="hero-mock-value">89.4 <small>+2.1 vs last outing</small></div>
+          <div class="chart-mock" style="margin-top:18px;">
+            <div class="bar" style="height:45%"></div>
+            <div class="bar" style="height:58%"></div>
+            <div class="bar" style="height:50%"></div>
+            <div class="bar" style="height:68%"></div>
+            <div class="bar" style="height:72%"></div>
+            <div class="bar" style="height:64%"></div>
+            <div class="bar" style="height:84%"></div>
+            <div class="bar peak" style="height:100%"></div>
+          </div>
+        </div>
+        <div class="hero-mock-card card-2">
+          <div class="video-mock-row" style="margin:0; background:transparent; padding:0;">
+            <div class="video-mock-thumb">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            </div>
+            <div class="video-mock-meta">
+              <div class="t">Bullpen &middot; Session 14</div>
+              <div class="s">12 pitches logged</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
-  <section class="landing-features">
-    <div class="landing-feature">
-      <h3>Every session, tracked</h3>
-      <p>Import stats and TrackMan data, log video from bullpens and games, and watch velocity and command trend over time with charts built for pitching development.</p>
-    </div>
-    <div class="landing-feature">
-      <h3>Video that tells the story</h3>
-      <p>Pin the best clips, keep a full timeline for every player, and let coaches and family leave feedback right on the video.</p>
-    </div>
-    <div class="landing-feature">
-      <h3>Get seen by college coaches</h3>
-      <p>Opt any player in to the recruiting portal and approved college coaches can search, filter by team/position/grad year, and browse a feed of video from every program on the platform.</p>
-    </div>
-    <div class="landing-feature">
-      <h3>Your program, your space</h3>
-      <p>Every organization gets its own private, branded site - your players' data never mixes with another program's.</p>
+  <!-- Problem -->
+  <section class="landing-section">
+    <div class="section-inner">
+      <div class="section-head center reveal">
+        <span class="eyebrow">The Problem</span>
+        <h2>Your best reps are scattered everywhere but where they matter.</h2>
+      </div>
+      <div class="problem-grid reveal-stagger">
+        <div class="problem-card">
+          <div class="icon-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg>
+          </div>
+          <h3>Spreadsheets no one opens twice</h3>
+          <p>Stats get logged once and forgotten &mdash; scattered across sheets, notebooks, and someone's phone.</p>
+        </div>
+        <div class="problem-card">
+          <div class="icon-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 9.5 21 7v10l-4-2.5"/></svg>
+          </div>
+          <h3>Video buried in camera rolls</h3>
+          <p>Bullpens and games get filmed, then disappear into texts and drives no coach can search.</p>
+        </div>
+        <div class="problem-card">
+          <div class="icon-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.6" fill="currentColor"/></svg>
+          </div>
+          <h3>No path to recruiters</h3>
+          <p>Even your best players have no easy way to get in front of the coaches who'd want them.</p>
+        </div>
+      </div>
     </div>
   </section>
 
-  <section class="landing-cta-band">
-    <h2>Set up your organization in about a minute.</h2>
-    <a class="btn" href="{{ url_for('start') }}">Get Started</a>
+  <!-- How it works -->
+  <section class="landing-section on-light-alt" id="how">
+    <div class="section-inner">
+      <div class="section-head reveal">
+        <span class="eyebrow">How It Works</span>
+        <h2>From first login to recruiter's inbox.</h2>
+        <p>Four steps, no separate tools to stitch together.</p>
+      </div>
+      <div class="how-steps reveal-stagger">
+        <div class="how-step">
+          <span class="step-num">01</span>
+          <h3>Create your program</h3>
+          <p>Set up your team's branded page in about a minute. Invite coaches, players, and staff.</p>
+        </div>
+        <div class="how-step">
+          <span class="step-num">02</span>
+          <h3>Log every session</h3>
+          <p>Import stats &mdash; including TrackMan data &mdash; and upload video from bullpens and games.</p>
+        </div>
+        <div class="how-step">
+          <span class="step-num">03</span>
+          <h3>Opt in to be seen</h3>
+          <p>Turn on recruiting visibility for any player, whenever your program is ready.</p>
+        </div>
+        <div class="how-step">
+          <span class="step-num">04</span>
+          <h3>Get discovered</h3>
+          <p>Approved college coaches search, follow, and watch video from players who opted in.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Product experience -->
+  <section class="landing-section on-dark" id="product">
+    <div class="section-inner">
+      <div class="section-head on-dark center reveal">
+        <span class="eyebrow on-dark">Inside the Platform</span>
+        <h2>Built around how development actually happens.</h2>
+      </div>
+      <div class="product-panels reveal-stagger">
+        <div class="product-panel">
+          <h4>Velocity Trend</h4>
+          <p class="panel-sub">Every outing, charted automatically</p>
+          <div class="chart-mock">
+            <div class="bar" style="height:40%"></div>
+            <div class="bar" style="height:55%"></div>
+            <div class="bar" style="height:48%"></div>
+            <div class="bar" style="height:66%"></div>
+            <div class="bar" style="height:60%"></div>
+            <div class="bar peak" style="height:90%"></div>
+          </div>
+        </div>
+        <div class="product-panel">
+          <h4>Video Timeline</h4>
+          <p class="panel-sub">Every rep, tagged and searchable</p>
+          <div class="video-mock-row">
+            <div class="video-mock-thumb"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+            <div class="video-mock-meta"><div class="t">Bullpen &middot; Aug 14</div><div class="s">12 pitches logged</div></div>
+          </div>
+          <div class="video-mock-row">
+            <div class="video-mock-thumb"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+            <div class="video-mock-meta"><div class="t">Live AB &middot; Aug 9</div><div class="s">3 clips</div></div>
+          </div>
+          <div class="video-mock-row">
+            <div class="video-mock-thumb"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
+            <div class="video-mock-meta"><div class="t">Bullpen &middot; Aug 2</div><div class="s">10 pitches logged</div></div>
+          </div>
+        </div>
+        <div class="product-panel">
+          <h4>Coach Recruiting Feed</h4>
+          <p class="panel-sub">What approved coaches see</p>
+          <div class="feed-mock-card">
+            <div class="feed-mock-top"><span class="feed-mock-name">J. Ramirez &middot; RHP &middot; 2027</span><span class="feed-mock-tag">94 MPH</span></div>
+            <div class="feed-mock-thumb"></div>
+          </div>
+          <div class="feed-mock-card" style="margin-bottom:0;">
+            <div class="feed-mock-top"><span class="feed-mock-name">T. Alvarez &middot; LHP &middot; 2026</span><span class="feed-mock-tag">91 MPH</span></div>
+            <div class="feed-mock-thumb"></div>
+          </div>
+        </div>
+      </div>
+      <p class="panel-caption reveal">Sample players shown for illustration.</p>
+    </div>
+  </section>
+
+  <!-- Benefits -->
+  <section class="landing-section" id="benefits">
+    <div class="section-inner">
+      <div class="section-head center reveal">
+        <span class="eyebrow">Why Programs Use {{ platform_name }}</span>
+        <h2>Everything development and recruiting needs, nothing it doesn't.</h2>
+      </div>
+      <div class="benefits-grid reveal-stagger">
+        <div class="benefit-card">
+          <div class="icon-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 15l4-5 3 3 5-7"/></svg>
+          </div>
+          <h3>One source of truth</h3>
+          <p>Every stat, every clip, every session in one timeline instead of scattered across apps.</p>
+        </div>
+        <div class="benefit-card">
+          <div class="icon-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg>
+          </div>
+          <h3>TrackMan-ready</h3>
+          <p>Import real TrackMan data instead of re-typing numbers by hand.</p>
+        </div>
+        <div class="benefit-card">
+          <div class="icon-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.6" fill="currentColor"/></svg>
+          </div>
+          <h3>Built to get you seen</h3>
+          <p>Opt-in recruiting visibility puts your players' film in front of real college coaches.</p>
+        </div>
+        <div class="benefit-card">
+          <div class="icon-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3.5v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9v-5z"/></svg>
+          </div>
+          <h3>Your program, your brand</h3>
+          <p>A private, themed site for your team &mdash; your players' data never mixes with another program's.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Statement -->
+  <section class="statement-band">
+    <div class="statement-lines reveal">
+      <p class="line">Show up.</p>
+      <p class="line">Log it.</p>
+      <p class="line">Get better.</p>
+      <p class="line">Get <span>seen</span>.</p>
+    </div>
+    <p class="statement-sub">Development that shows its work.</p>
+  </section>
+
+  <!-- Trust -->
+  <section class="landing-section tight">
+    <div class="section-inner">
+      <div class="trust-panel reveal">
+        <div class="icon-badge">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3.5v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9v-5z"/></svg>
+        </div>
+        <div>
+          <h3>Every organization gets full control.</h3>
+          <p>Your program gets its own branded page, its own logins, and full say over who sees your players' film. No shared rosters, no shared data, no surprises.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Final CTA -->
+  <section class="final-cta">
+    <h2>Ready to get to work?</h2>
+    <p>Set up your program in about a minute. No credit card required.</p>
+    <div class="final-cta-ctas">
+      <a class="btn-cta" href="{{ url_for('start') }}">Start Your Program</a>
+      <a class="btn-ghost" href="{{ url_for('org_picker') }}">Log In</a>
+    </div>
+    <p class="final-cta-links">College coach? <a href="{{ url_for('coach_login') }}">Recruiting portal login</a></p>
   </section>
 
   <footer class="landing-footer">
     <p>&copy; {{ current_year() }} {{ platform_name }}. <a href="{{ url_for('org_picker') }}">Log in</a> &middot; <a href="{{ url_for('start') }}">Create an organization</a></p>
   </footer>
+
+  <script>
+    (function () {
+      var header = document.querySelector('.landing-header');
+      function onScroll() {
+        if (window.scrollY > 8) header.classList.add('scrolled');
+        else header.classList.remove('scrolled');
+      }
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+    })();
+
+    (function () {
+      var targets = document.querySelectorAll('.reveal, .reveal-stagger, .statement-lines');
+      if (!('IntersectionObserver' in window)) {
+        targets.forEach(function (t) { t.classList.add('in-view'); });
+        return;
+      }
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('in-view');
+            io.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.18 });
+      targets.forEach(function (t) { io.observe(t); });
+    })();
+  </script>
 </body>
 </html>
