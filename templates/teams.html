@@ -16,7 +16,7 @@
             <a class="btn secondary" href="{{ url_for('lesson_calendar', team=t['id']) }}">Calendar</a>
           </div>
           <details style="margin-top:10px;">
-            <summary style="cursor:pointer; font-size:0.85em; color:#888;">Rename / Delete</summary>
+            <summary class="text-muted" style="cursor:pointer; font-size:0.85em;">Rename / Delete</summary>
             <form method="POST" action="{{ url_for('rename_team', team_id=t['id']) }}" style="margin-top:8px; display:flex; gap:6px;">
               <input type="text" name="name" value="{{ t['name'] }}" required style="flex:1; min-width:0;">
               <button class="btn secondary" type="submit">Rename</button>

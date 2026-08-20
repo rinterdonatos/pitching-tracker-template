@@ -43,7 +43,7 @@
   </div>
 
   {% if player['notes'] %}
-    <p style="color:#6b6564;">{{ player['notes'] }}</p>
+    <p class="text-muted">{{ player['notes'] }}</p>
   {% endif %}
 
   {% set measurable_fields = [('height','Height'), ('weight','Weight'), ('bats','Bats'), ('throws','Throws'), ('sixty_time','60-Yard Dash')] %}
@@ -249,7 +249,7 @@
         </div>
 
         <details style="margin-top:8px;">
-          <summary style="cursor:pointer; font-size:0.85em; color:#888;">Pitch-by-pitch ({{ s.pitch_count }})</summary>
+          <summary class="text-muted" style="cursor:pointer; font-size:0.85em;">Pitch-by-pitch ({{ s.pitch_count }})</summary>
           <div class="spreadsheet-wrap" style="margin-top:8px;">
             <table class="spreadsheet-table">
               <thead>
@@ -298,7 +298,7 @@
             <video controls preload="metadata" src="{{ url_for('static', filename='uploads/videos/' ~ v['filename']) }}"></video>
             <div class="info">
               <span class="date-tag">{{ v['entry_date'] }}</span>
-              <h4>{{ v['title'] }}{% if v['category'] %} <span style="color:#6b6564; font-weight:400;">&middot; {{ v['category'] }}</span>{% endif %}</h4>
+              <h4>{{ v['title'] }}{% if v['category'] %} <span class="text-muted" style="font-weight:400;">&middot; {{ v['category'] }}</span>{% endif %}</h4>
               {% if v['notes'] %}<p>{{ v['notes'] }}</p>{% endif %}
               {% with day_stats = stats_by_date.get(v['entry_date']) %}{% include "_day_stats.html" %}{% endwith %}
               {% if can_edit %}
@@ -367,7 +367,7 @@
               <div class="info">
                 <span class="date-tag">{{ v['entry_date'] }}</span>
                 {% if v['pinned'] %}<span style="display:inline-block; background:var(--phx-orange); color:var(--phx-blue-dark); font-weight:700; font-size:0.72rem; padding:2px 8px; border-radius:10px; margin-left:6px;">Pinned</span>{% endif %}
-                <h4>{{ v['title'] }}{% if v['category'] %} <span style="color:#6b6564; font-weight:400;">&middot; {{ v['category'] }}</span>{% endif %}</h4>
+                <h4>{{ v['title'] }}{% if v['category'] %} <span class="text-muted" style="font-weight:400;">&middot; {{ v['category'] }}</span>{% endif %}</h4>
                 {% if v['notes'] %}<p>{{ v['notes'] }}</p>{% endif %}
                 {% if can_edit %}
                   <form method="POST" action="{{ url_for('toggle_video_pin', video_id=v['id']) }}" style="display:inline;">
@@ -513,7 +513,7 @@
           {% endfor %}
         </div>
       {% else %}
-        <p style="color:#6b6564; font-size:0.9rem; margin-top:0;">No general feedback yet on {{ player['name'] }}.</p>
+        <p class="hint" style="margin-top:0;">No general feedback yet on {{ player['name'] }}.</p>
       {% endif %}
       <form class="comment-form" method="POST" action="{{ url_for('add_player_comment', player_id=player['id']) }}">
         <div class="comment-form-row">

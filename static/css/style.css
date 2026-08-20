@@ -10,10 +10,11 @@
   --phx-bg: #f6f5f0;
   --phx-white: #ffffff;
   --phx-gray: #5c6066;
+  --phx-gray-light: #8b8f95;
   --phx-border: #e3e0d6;
 
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-display: 'Barlow Condensed', 'Inter', -apple-system, sans-serif;
+  --font-display: 'Sora', 'Inter', -apple-system, sans-serif;
 
   --shadow-sm: 0 1px 2px rgba(10, 30, 63, 0.06), 0 1px 3px rgba(10, 30, 63, 0.08);
   --shadow-md: 0 4px 12px rgba(10, 30, 63, 0.10), 0 2px 4px rgba(10, 30, 63, 0.06);
@@ -27,6 +28,15 @@ body {
   font-family: var(--font-body);
   background: var(--phx-bg);
   color: var(--phx-black);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--phx-blue); }
+
+:focus-visible {
+  outline: 2px solid var(--phx-blue);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 h1, h2, h3, h4,
@@ -35,21 +45,55 @@ h1, h2, h3, h4,
 .stat-card .latest {
   font-family: var(--font-display);
   font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.text-muted { color: var(--phx-gray); }
+
+/* Muted helper/status text used all over the app (empty lists, form hints,
+   filter captions). Previously only styled when nested inside a .field
+   wrapper, so most standalone usages rendered as plain black paragraphs -
+   this base rule makes every ".hint" consistent wherever it appears. */
+.hint {
+  color: var(--phx-gray);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+/* Shared control style for filter/search inputs & selects that live
+   outside a .field wrapper (search boxes, table filters). Keeps every
+   ad hoc filter bar across the app visually identical instead of each
+   page hand-rolling its own padding/border/radius. */
+.control {
+  padding: 9px 12px;
+  border: 1px solid var(--phx-border);
+  border-radius: 9px;
+  font-size: 0.92rem;
+  font-family: inherit;
+  background: var(--phx-white);
+  color: var(--phx-black);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.control:focus-visible {
+  border-color: var(--phx-blue);
+  box-shadow: 0 0 0 3px rgba(10, 30, 63, 0.10);
+  outline: none;
 }
 
 header.site-header {
   background: linear-gradient(135deg, var(--phx-blue) 0%, var(--phx-blue-dark) 100%);
-  border-bottom: 4px solid var(--phx-orange);
+  border-bottom: 3px solid var(--phx-orange);
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.2);
-  padding: 14px 28px;
+  padding: 16px 28px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 18px;
 }
 
 header.site-header img.logo {
-  height: 48px;
+  height: 44px;
   width: auto;
+  border-radius: 8px;
 }
 
 header.site-header .brand {
@@ -59,12 +103,13 @@ header.site-header .brand {
 header.site-header .brand h1 {
   margin: 0;
   font-size: 1.5rem;
-  letter-spacing: 0.01em;
+  letter-spacing: -0.01em;
 }
 
 header.site-header .brand span {
   color: var(--phx-orange);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
+  font-weight: 500;
 }
 
 header.site-header nav {
@@ -72,16 +117,16 @@ header.site-header nav {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 2px;
+  gap: 3px;
 }
 
 header.site-header nav a {
   color: var(--phx-white);
   text-decoration: none;
-  padding: 6px 9px;
-  border-radius: 6px;
-  font-size: 0.78rem;
-  font-weight: 500;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
   white-space: nowrap;
   transition: background-color 0.15s ease, color 0.15s ease;
 }
@@ -128,51 +173,59 @@ main {
 }
 
 .flash {
-  padding: 12px 16px;
-  border-radius: 8px;
-  margin-bottom: 18px;
-  font-size: 0.95rem;
+  padding: 13px 16px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  font-size: 0.92rem;
+  font-weight: 500;
+  border-left-width: 3px;
+  border-left-style: solid;
 }
 
 .flash.success {
   background: #e6f4ea;
   color: #1e6b34;
   border: 1px solid #b7dfc4;
+  border-left-color: #2f9e53;
 }
 
 .flash.error {
   background: #fce9e9;
   color: var(--phx-blue-dark);
   border: 1px solid #f0c2c6;
+  border-left-color: #c94d4d;
 }
 
 .page-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   flex-wrap: wrap;
   gap: 12px;
 }
 
 .page-title h2 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: 1.7rem;
 }
 
 .btn {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   background: linear-gradient(180deg, var(--phx-blue) 0%, var(--phx-blue-dark) 100%);
   color: var(--phx-white);
-  padding: 10px 18px;
-  border-radius: 7px;
+  padding: 11px 20px;
+  border-radius: 9px;
   text-decoration: none;
   font-size: 0.92rem;
   font-weight: 600;
+  letter-spacing: -0.005em;
   border: none;
   cursor: pointer;
   box-shadow: var(--shadow-sm);
-  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
 
 .btn:hover { background: var(--phx-blue-dark); box-shadow: var(--shadow-md); transform: translateY(-1px); }
@@ -205,13 +258,13 @@ main {
 .player-card {
   background: var(--phx-white);
   border: 1px solid var(--phx-border);
-  border-radius: 12px;
-  padding: 18px;
+  border-radius: 14px;
+  padding: 20px;
   text-decoration: none;
   color: inherit;
   display: block;
   box-shadow: var(--shadow-sm);
-  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  transition: box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
 }
 
 .player-card:hover {
@@ -255,45 +308,72 @@ main {
 
 .empty-state {
   text-align: center;
-  padding: 60px 20px;
+  padding: 56px 28px;
   color: var(--phx-gray);
+  background: var(--phx-white);
+  border: 1.5px dashed var(--phx-border);
+  border-radius: 14px;
 }
+
+.empty-state p {
+  font-size: 0.98rem;
+  max-width: 420px;
+  margin: 0 auto 16px;
+  line-height: 1.5;
+}
+
+.empty-state p:last-child { margin-bottom: 0; }
+.empty-state .btn, .empty-state .btn.secondary { margin-top: 2px; }
 
 form.card-form {
   background: var(--phx-white);
   border: 1px solid var(--phx-border);
-  border-radius: 12px;
-  padding: 24px;
+  border-radius: 14px;
+  padding: 28px;
   max-width: 560px;
   box-shadow: var(--shadow-sm);
 }
 
 .field {
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .field label {
   display: block;
-  font-size: 0.88rem;
-  font-weight: 600;
+  font-size: 0.86rem;
+  font-weight: 700;
   margin-bottom: 6px;
+  color: var(--phx-blue-dark);
 }
 
 .field input[type="text"],
+.field input[type="tel"],
+.field input[type="email"],
+.field input[type="password"],
 .field input[type="date"],
 .field input[type="file"],
 .field select,
 .field textarea {
   width: 100%;
-  padding: 9px 11px;
+  padding: 10px 12px;
   border: 1px solid var(--phx-border);
-  border-radius: 7px;
+  border-radius: 9px;
   font-size: 0.95rem;
   font-family: inherit;
+  background: var(--phx-white);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible {
+  border-color: var(--phx-blue);
+  box-shadow: 0 0 0 3px rgba(10, 30, 63, 0.10);
+  outline: none;
 }
 
 .field textarea { resize: vertical; min-height: 70px; }
-.field .hint { color: var(--phx-gray); font-size: 0.8rem; margin-top: 5px; }
+.field .hint { color: var(--phx-gray); font-size: 0.82rem; margin-top: 6px; line-height: 1.45; }
 
 /* Time field: a plain text input with a type-to-filter, scrollable list of
    suggestions underneath it (see calendar.html), similar to Google
@@ -358,8 +438,8 @@ form.card-form {
 .compact-card {
   background: var(--phx-white);
   border: 1px solid var(--phx-border);
-  border-radius: 10px;
-  padding: 12px 14px;
+  border-radius: 12px;
+  padding: 13px 15px;
   box-shadow: var(--shadow-sm);
 }
 
@@ -393,8 +473,8 @@ form.card-form {
 
 .contact-row {
   border: 1px solid var(--phx-border);
-  border-radius: 8px;
-  padding: 10px;
+  border-radius: 10px;
+  padding: 12px;
   margin-bottom: 10px;
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -404,11 +484,17 @@ form.card-form {
 }
 
 .contact-row input {
-  padding: 9px 11px;
+  padding: 10px 12px;
   border: 1px solid var(--phx-border);
-  border-radius: 7px;
+  border-radius: 9px;
   font-size: 0.95rem;
   font-family: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.contact-row input:focus-visible {
+  border-color: var(--phx-blue);
+  box-shadow: 0 0 0 3px rgba(10, 30, 63, 0.10);
+  outline: none;
 }
 
 .contact-row-remove {
@@ -450,11 +536,11 @@ form.card-form {
 
 .section-title {
   position: relative;
-  font-size: 1.15rem;
+  font-size: 1.12rem;
   font-weight: 700;
-  margin: 32px 0 14px;
-  padding: 2px 0 8px 14px;
-  border-bottom: 2px solid var(--phx-border);
+  margin: 40px 0 16px;
+  padding: 2px 0 10px 14px;
+  border-bottom: 1px solid var(--phx-border);
   color: var(--phx-blue-dark);
 }
 
@@ -463,8 +549,8 @@ form.card-form {
   position: absolute;
   left: 0;
   top: 2px;
-  bottom: 12px;
-  width: 4px;
+  bottom: 14px;
+  width: 3px;
   border-radius: 2px;
   background: var(--phx-orange);
 }
@@ -476,16 +562,21 @@ summary.section-title {
   cursor: pointer;
   list-style: none;
   user-select: none;
+  border-radius: 8px;
+  transition: background-color 0.12s ease;
 }
+summary.section-title:hover { background: rgba(10, 30, 63, 0.03); }
 summary.section-title::-webkit-details-marker { display: none; }
 summary.section-title::after {
   content: "\25B8";
   float: right;
   color: var(--phx-gray);
   font-size: 0.85em;
+  transition: transform 0.15s ease;
 }
 details[open] > summary.section-title::after {
-  content: "\25BE";
+  content: "\25B8";
+  transform: rotate(90deg);
 }
 
 .stat-grid {
@@ -497,17 +588,20 @@ details[open] > summary.section-title::after {
 .stat-card {
   background: var(--phx-white);
   border: 1px solid var(--phx-border);
-  border-radius: 12px;
-  padding: 14px 16px;
+  border-radius: 14px;
+  padding: 16px 18px;
   box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.15s ease;
 }
+.stat-card:hover { box-shadow: var(--shadow-md); }
 
 .stat-card h4 {
-  margin: 0 0 8px;
-  font-size: 0.92rem;
+  margin: 0 0 10px;
+  font-size: 0.8rem;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--phx-blue-dark);
+  letter-spacing: 0.05em;
+  color: var(--phx-gray);
+  font-weight: 700;
 }
 
 .stat-card .latest {
@@ -528,7 +622,7 @@ details[open] > summary.section-title::after {
 .spreadsheet-wrap {
   overflow-x: auto;
   border: 1px solid var(--phx-border);
-  border-radius: 10px;
+  border-radius: 12px;
   margin-bottom: 8px;
   box-shadow: var(--shadow-sm);
 }
@@ -601,8 +695,8 @@ table.spreadsheet-table tr.avg-row td.spreadsheet-date-col {
 .video-item {
   background: var(--phx-white);
   border: 1px solid var(--phx-border);
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 14px;
+  padding: 18px;
   box-shadow: var(--shadow-sm);
 }
 
@@ -748,7 +842,7 @@ table.csv-preview th, table.csv-preview td {
 
 .login-card {
   background: var(--phx-white);
-  border-radius: 14px;
+  border-radius: 18px;
   padding: 36px 32px;
   max-width: 360px;
   width: 100%;
@@ -877,8 +971,8 @@ table.csv-preview th, table.csv-preview td {
 .feedback-section {
   background: var(--phx-white);
   border: 1px solid var(--phx-border);
-  border-radius: 12px;
-  padding: 18px;
+  border-radius: 14px;
+  padding: 20px;
   box-shadow: var(--shadow-sm);
 }
 
@@ -916,7 +1010,7 @@ table.csv-preview th, table.csv-preview td {
 .calendar-day {
   background: var(--phx-white);
   border: 1px solid var(--phx-border);
-  border-radius: 8px;
+  border-radius: 10px;
   min-height: 84px;
   padding: 6px;
   display: flex;
@@ -1001,13 +1095,13 @@ table.data-table {
   margin-top: 20px;
   background: var(--phx-white);
   border: 1px solid var(--phx-border);
-  border-radius: 12px;
+  border-radius: 14px;
   overflow: hidden;
   box-shadow: var(--shadow-sm);
 }
 
 table.data-table th, table.data-table td {
-  padding: 10px 14px;
+  padding: 11px 16px;
   text-align: left;
   border-bottom: 1px solid var(--phx-border);
   font-size: 0.92rem;
@@ -1015,11 +1109,15 @@ table.data-table th, table.data-table td {
 
 table.data-table th {
   background: var(--phx-bg);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--phx-blue-dark);
+  letter-spacing: 0.05em;
+  font-weight: 700;
+  color: var(--phx-gray);
 }
+
+table.data-table tbody tr { transition: background-color 0.12s ease; }
+table.data-table tbody tr:hover { background: var(--phx-bg); }
 
 table.data-table tr:last-child td { border-bottom: none; }
 
@@ -1143,11 +1241,12 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 
 .coach-header {
   background: linear-gradient(135deg, var(--coach-ink) 0%, var(--coach-ink-dark) 100%);
+  border-bottom: 3px solid var(--coach-accent);
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.2);
-  padding: 14px 28px;
+  padding: 16px 28px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 18px;
 }
 
 .coach-brand {
@@ -1174,10 +1273,11 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 .coach-nav a {
   color: #fff;
   text-decoration: none;
-  padding: 6px 9px;
-  border-radius: 6px;
-  font-size: 0.92rem;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
   font-weight: 600;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .coach-nav a:hover { background: var(--coach-accent); color: var(--coach-ink-dark); }
@@ -1189,11 +1289,12 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   color: #fff;
   opacity: 0.85;
   font-weight: 600;
-  font-size: 0.92rem;
-  padding: 6px 9px;
-  border-radius: 6px;
+  font-size: 0.85rem;
+  padding: 7px 12px;
+  border-radius: 8px;
   cursor: pointer;
   font-family: inherit;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
 }
 .coach-nav .nav-logout:hover { background: var(--coach-ink); opacity: 1; }
 
@@ -1210,13 +1311,13 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 .coach-filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px;
   align-items: flex-end;
   background: #fff;
   border: 1px solid var(--phx-border);
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 22px;
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 24px;
   box-shadow: var(--shadow-sm);
 }
 
@@ -1226,10 +1327,11 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 .coach-card {
   background: #fff;
   border: 1px solid var(--phx-border);
-  border-radius: 12px;
+  border-radius: 14px;
   box-shadow: var(--shadow-sm);
-  padding: 16px;
+  padding: 18px;
   position: relative;
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
 }
 
 .card-team-logo {
@@ -1251,9 +1353,9 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 }
 
 .coach-player-card { display: flex; flex-direction: column; gap: 6px; }
-.coach-player-card .name { font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; color: inherit; text-decoration: none; }
-.coach-player-card .name:hover { text-decoration: underline; }
-.coach-player-card .meta { color: var(--phx-gray); font-size: 0.85rem; }
+.coach-card .name { font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; color: inherit; text-decoration: none; }
+.coach-card a.name:hover { text-decoration: underline; }
+.coach-player-card .meta, .coach-card .meta { color: var(--phx-gray); font-size: 0.85rem; }
 .coach-player-card .org-tag {
   display: inline-block;
   background: #eef2ff;
@@ -1268,8 +1370,12 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 .coach-empty {
   text-align: center;
   color: var(--phx-gray);
-  padding: 48px 16px;
+  padding: 56px 28px;
+  background: #fff;
+  border: 1.5px dashed var(--phx-border);
+  border-radius: 14px;
 }
+.coach-empty p { font-size: 0.98rem; max-width: 420px; margin: 0 auto; line-height: 1.5; }
 
 /* ---------- Feed: Instagram/TikTok-style full-screen vertical feed ---------- */
 /* Native CSS scroll-snap does the swiping - no JS gesture library needed,

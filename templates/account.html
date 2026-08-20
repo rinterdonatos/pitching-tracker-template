@@ -3,7 +3,7 @@
 {% block content %}
   <div class="page-title"><h2>My Account</h2></div>
 
-  <p style="color:#6b6564; font-size:0.9rem;">
+  <p class="hint" style="font-size:0.9rem;">
     Signed in as <strong>{{ user['name'] or user['email'] or user['phone'] }}</strong>
     {% if user['email'] %} &middot; {{ user['email'] }}{% endif %}
     {% if user['phone'] %} &middot; {{ user['phone'] }}{% endif %}

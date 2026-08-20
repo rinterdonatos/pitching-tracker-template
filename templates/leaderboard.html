@@ -3,14 +3,14 @@
 {% block content %}
   <div class="page-title"><h2>Leaderboard</h2></div>
 
-  <form method="GET" style="margin-bottom:18px; display:flex; gap:8px; flex-wrap:wrap;">
-    <select name="team" onchange="this.form.submit()" style="padding:9px 12px; border:1px solid #ddd; border-radius:8px;">
+  <form method="GET" style="margin-bottom:22px; display:flex; gap:10px; flex-wrap:wrap;">
+    <select name="team" onchange="this.form.submit()" class="control">
       <option value="">All teams</option>
       {% for t in teams %}
         <option value="{{ t['id'] }}" {% if team_filter == t['id']|string %}selected{% endif %}>{{ t['name'] }}</option>
       {% endfor %}
     </select>
-    <select name="grad_year" onchange="this.form.submit()" style="padding:9px 12px; border:1px solid #ddd; border-radius:8px;">
+    <select name="grad_year" onchange="this.form.submit()" class="control">
       <option value="">All grad years</option>
       {% for gy in grad_years %}
         <option value="{{ gy }}" {% if grad_year_filter == gy|string %}selected{% endif %}>Class of {{ gy }}</option>

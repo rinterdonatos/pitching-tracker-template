@@ -11,7 +11,7 @@
         {% for u in user_list %}
           {% set manageable = not u['is_owner'] %}
           <tr class="user-row">
-            <td>{{ u['name'] or '-' }}{% if u['id'] == session.get('user_id') %} <span style="color:#6b6564; font-size:0.85em;">(you)</span>{% endif %}</td>
+            <td>{{ u['name'] or '-' }}{% if u['id'] == session.get('user_id') %} <span class="text-muted" style="font-size:0.85em;">(you)</span>{% endif %}</td>
             <td>{{ u['email'] or '-' }}</td>
             <td>{{ u['phone'] or '-' }}</td>
             <td>
@@ -25,7 +25,7 @@
                   </select>
                 </form>
               {% elif u['is_admin'] %}
-                <span style="color:#6b6564;">&mdash;</span>
+                <span class="text-muted">&mdash;</span>
               {% else %}
                 {{ u['player_name'] or '-' }}
               {% endif %}
@@ -60,7 +60,7 @@
 {% block content %}
   <div class="page-title"><h2>Users</h2></div>
 
-  <p style="color:#6b6564; font-size:0.9rem; max-width:640px;">
+  <p class="hint" style="max-width:640px;">
     Anyone listed here can sign in with their email or phone number.
     Admins can manage everyone except the site owner, who can't be removed or demoted.
   </p>
@@ -104,7 +104,7 @@
 
   <details class="page-section" open>
     <summary class="section-title">Invite Links</summary>
-    <p style="color:#6b6564; font-size:0.9rem; max-width:640px;">
+    <p class="hint" style="max-width:640px;">
       Or send people a link instead &mdash; anyone who opens it enters their own name, email/phone,
       and password, and joins as a member. Links work for 7 days; deactivate one anytime.
     </p>

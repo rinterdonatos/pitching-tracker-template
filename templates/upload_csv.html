@@ -111,7 +111,7 @@
 
   <div class="section-title">Build a CSV right here</div>
   <div style="background:#fff; border:1px solid var(--phx-border); border-radius:10px; padding:16px 18px; margin-bottom:24px;">
-    <p style="margin-top:0; color:#6b6564; font-size:0.9rem;">
+    <p class="hint" style="margin-top:0;">
       Pick a session type and the right columns are set up for you. Fill in the table, then download the file or import it straight into the tracker.
       Rename any column header, add your own, and leave cells blank if there's no data.
     </p>
@@ -145,7 +145,7 @@
     <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">
       <button class="btn" type="button" onclick="builderImport()">Import into Tracker</button>
       <button class="btn secondary" type="button" onclick="builderDownload()">Download CSV</button>
-      <span id="builder-status" style="align-self:center; color:#6b6564; font-size:0.85rem;"></span>
+      <span id="builder-status" class="text-muted" style="align-self:center; font-size:0.85rem;"></span>
     </div>
   </div>
 

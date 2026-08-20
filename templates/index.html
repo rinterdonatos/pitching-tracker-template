@@ -9,11 +9,11 @@
     </div>
   </div>
 
-  <form method="GET" action="{{ url_for('index') }}" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:18px;">
+  <form method="GET" action="{{ url_for('index') }}" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:22px;">
     <input type="text" name="q" id="player-search" value="{{ q }}" autocomplete="off"
            placeholder="Search players, teams, or grad year (e.g. 2027 - Red)"
-           style="flex:1; min-width:220px; padding:9px 12px; border:1px solid #ddd; border-radius:8px;">
-    <select name="team" onchange="this.form.submit()" style="padding:9px 12px; border:1px solid #ddd; border-radius:8px;">
+           class="control" style="flex:1; min-width:220px;">
+    <select name="team" onchange="this.form.submit()" class="control">
       <option value="">All teams</option>
       {% for t in teams %}
         <option value="{{ t['id'] }}" {% if team_filter == t['id']|string %}selected{% endif %}>{{ t['name'] }}</option>

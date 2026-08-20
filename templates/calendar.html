@@ -82,7 +82,7 @@
     <div style="background:#fff; border-radius:12px; padding:22px; width:min(420px, 92vw); box-shadow:0 10px 30px rgba(0,0,0,0.3);">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
         <h3 style="margin:0;">Add Event <span id="modal-date-label" style="color:var(--phx-red);"></span></h3>
-        <button type="button" onclick="closeDayModal()" style="background:none; border:none; font-size:1.4rem; cursor:pointer; color:#888;" title="Close">&times;</button>
+        <button type="button" onclick="closeDayModal()" class="text-muted" style="background:none; border:none; font-size:1.4rem; cursor:pointer;" title="Close">&times;</button>
       </div>
       <form method="POST" action="{{ url_for('add_calendar_entry') }}">
         <input type="hidden" name="team_id" value="{{ current_team['id'] if current_team else '' }}">
@@ -119,7 +119,7 @@
     <div style="background:#fff; border-radius:12px; padding:22px; width:min(460px, 92vw); max-height:86vh; overflow-y:auto; box-shadow:0 10px 30px rgba(0,0,0,0.3);">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
         <h3 style="margin:0;" id="view-date-label"></h3>
-        <button type="button" onclick="closeViewModal()" style="background:none; border:none; font-size:1.4rem; cursor:pointer; color:#888;" title="Close">&times;</button>
+        <button type="button" onclick="closeViewModal()" class="text-muted" style="background:none; border:none; font-size:1.4rem; cursor:pointer;" title="Close">&times;</button>
       </div>
       <p id="view-time-line" style="margin:0 0 8px; font-weight:700; color:var(--phx-blue-dark);"></p>
       <p id="view-message" style="margin:0 0 14px; white-space:pre-wrap;"></p>
