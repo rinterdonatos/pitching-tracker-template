@@ -1669,6 +1669,11 @@ def coach_players():
 def coach_leaderboards():
     conn = get_db()
     where_sql, params, filters = _coach_player_filters()
+    # Leaderboards only ever rank players this coach follows - not the whole
+    # platform - so it's a personal shortlist comparison, not a general
+    # scouting-everyone-at-once ranking (that's what Players/Feed are for).
+    where_sql += " AND p.id IN (SELECT player_id FROM player_follows WHERE coach_id = ?)"
+    params = params + [g.coach["id"]]
     teams, grad_years, positions = _coach_filter_options(conn)
 
     velo_leaders = conn.execute(
@@ -1678,7 +1683,7 @@ def coach_leaderboards():
             LEFT JOIN teams t ON t.id = p.team_id
             JOIN organizations o ON o.id = p.organization_id
             WHERE lower(s.stat_name) LIKE '%velo%' AND {where_sql}
-            GROUP BY p.id ORDER BY value DESC LIMIT 20""",
+            GROUP BY p.id ORDER BY value DESC LIMIT 10""",
         params,
     ).fetchall()
 
@@ -1690,7 +1695,7 @@ def coach_leaderboards():
             LEFT JOIN teams t ON t.id = p.team_id
             JOIN organizations o ON o.id = p.organization_id
             WHERE s.stat_name = 'Strike %' AND {where_sql}
-            GROUP BY p.id ORDER BY value DESC LIMIT 20""",
+            GROUP BY p.id ORDER BY value DESC LIMIT 10""",
         params,
     ).fetchall()
 
@@ -1701,7 +1706,7 @@ def coach_leaderboards():
             LEFT JOIN teams t ON t.id = p.team_id
             JOIN organizations o ON o.id = p.organization_id
             WHERE lower(s.stat_name) IN ('k', 'so', 'strikeouts', 'ks') AND {where_sql}
-            GROUP BY p.id ORDER BY value DESC LIMIT 20""",
+            GROUP BY p.id ORDER BY value DESC LIMIT 10""",
         params,
     ).fetchall()
 
