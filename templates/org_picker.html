@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Choose Your Organization - Swarm Baseball</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="icon" href="{{ url_for('static', filename='img/swarm-badge.png') }}">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <img src="{{ url_for('static', filename='img/swarm-badge.png') }}" alt="Swarm Baseball logo" class="login-logo">
+      <h1>Choose Your Organization</h1>
+      <p class="login-sub">Pick your team to sign in.</p>
+
+      <div style="display:flex; flex-direction:column; gap:10px; margin-top:16px;">
+        {% for org in organizations %}
+          <a class="btn" style="width:100%; text-align:center;" href="{{ url_for('login', org_slug=org['slug']) }}">{{ org['name'] }}</a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

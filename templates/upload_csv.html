@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Import Stats - Swarm Baseball{% endblock %}
+{% block title %}Import Stats - {{ org_name }}{% endblock %}
 {% block content %}
   <div class="page-title"><h2>Add Stats/Video</h2></div>
   {% with active = 'csv' %}{% include "_import_tabs.html" %}{% endwith %}

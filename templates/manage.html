@@ -1,11 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Manage Uploads - Swarm Baseball{% endblock %}
+{% block title %}Manage Uploads - {{ org_name }}{% endblock %}
 {% block content %}
   <div class="page-title"><h2>Manage Uploads</h2></div>
 
+  {% if import_rows or manual_rows or videos %}
+    <div class="field" style="max-width:360px;">
+      <input type="text" id="manage-search" autocomplete="off" placeholder="Search by player name...">
+    </div>
+  {% endif %}
+
   <div class="section-title">CSV Imports</div>
   {% if import_rows or manual_rows %}
-    <table class="data-table">
+    <table class="data-table" id="imports-table">
       <thead>
         <tr>
           <th>File</th>
@@ -19,7 +25,7 @@
       </thead>
       <tbody>
         {% for r in import_rows %}
-          <tr>
+          <tr class="manage-row">
             <td>{{ r['source_file'] }}</td>
             <td>{{ r['category'] }}</td>
             <td>{{ r['imported_at'] | friendly_time }}</td>
@@ -37,7 +43,7 @@
           </tr>
         {% endfor %}
         {% for r in manual_rows %}
-          <tr>
+          <tr class="manage-row">
             <td>&mdash;</td>
             <td>{{ r['category'] }}</td>
             <td colspan="2" style="color:#6b6564;">Entries with no source file on record</td>
@@ -48,6 +54,7 @@
         {% endfor %}
       </tbody>
     </table>
+    <p class="hint" id="imports-no-match" hidden>No imports match that search.</p>
   {% else %}
     <div class="empty-state">
       <p>No CSV imports yet.</p>
@@ -57,7 +64,7 @@
 
   <div class="section-title">Videos</div>
   {% if videos %}
-    <table class="data-table">
+    <table class="data-table" id="videos-table">
       <thead>
         <tr>
           <th>Player</th>
@@ -69,7 +76,7 @@
       </thead>
       <tbody>
         {% for v in videos %}
-          <tr>
+          <tr class="manage-row" data-player-name="{{ v['player_name'] | lower }}">
             <td><a href="{{ url_for('player_detail', player_id=v['player_id']) }}#video-{{ v['id'] }}">{{ v['player_name'] }}</a></td>
             <td>{{ v['entry_date'] }}</td>
             <td>{{ v['title'] }}</td>
@@ -84,10 +91,40 @@
         {% endfor %}
       </tbody>
     </table>
+    <p class="hint" id="videos-no-match" hidden>No videos match that search.</p>
   {% else %}
     <div class="empty-state">
       <p>No videos uploaded yet.</p>
       <a class="btn" href="{{ url_for('upload_video') }}">Add Video</a>
     </div>
   {% endif %}
+
+  <script>
+    // Search-as-you-type across both tables, matched against everything
+    // visible in the row (player name, file name, session type, etc.) so
+    // it works whether you're hunting a CSV import or a video.
+    const manageSearch = document.getElementById('manage-search');
+    if (manageSearch) {
+      const importRows = Array.from(document.querySelectorAll('#imports-table .manage-row'));
+      const videoRows = Array.from(document.querySelectorAll('#videos-table .manage-row'));
+      const importsNoMatch = document.getElementById('imports-no-match');
+      const videosNoMatch = document.getElementById('videos-no-match');
+
+      function filterRows(rows, q, noMatchEl) {
+        let visible = 0;
+        rows.forEach(row => {
+          const hit = !q || row.textContent.toLowerCase().includes(q);
+          row.style.display = hit ? '' : 'none';
+          if (hit) visible++;
+        });
+        if (noMatchEl) noMatchEl.hidden = visible > 0 || rows.length === 0;
+      }
+
+      manageSearch.addEventListener('input', () => {
+        const q = manageSearch.value.trim().toLowerCase();
+        filterRows(importRows, q, importsNoMatch);
+        filterRows(videoRows, q, videosNoMatch);
+      });
+    }
+  </script>
 {% endblock %}

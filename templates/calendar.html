@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Calendar - Swarm Baseball{% endblock %}
+{% block title %}Calendar - {{ org_name }}{% endblock %}
 {% block content %}
   <div class="page-title">
     <h2>Lesson Calendar{% if current_team %} &mdash; {{ current_team['name'] }}{% endif %}</h2>
@@ -13,6 +13,24 @@
          href="{{ url_for('lesson_calendar', year=year, month=month, team=t['id']) }}">{{ t['name'] }}</a>
     {% endfor %}
   </div>
+
+  {% set feed_url = url_for('calendar_feed', token=feed_token, team=current_team['id'] if current_team else None, _external=True) %}
+  <details class="page-section" style="margin-bottom:18px;">
+    <summary class="section-title" style="margin:0 0 10px;">Subscribe to This Calendar</summary>
+    <p class="hint" style="margin:0 0 10px;">
+      Add this to Google or Apple Calendar and it'll stay up to date on its own &mdash;
+      no need to check the site. This link shows {% if current_team %}the {{ current_team['name'] }} calendar (plus General){% else %}the General calendar{% endif %}.
+    </p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+      <a class="btn secondary" href="{{ feed_url | replace('https://', 'webcal://') | replace('http://', 'webcal://') }}">Add to Apple Calendar</a>
+      <button class="btn secondary" type="button"
+              onclick="navigator.clipboard.writeText('{{ feed_url }}').then(() => { this.textContent = 'Copied!'; setTimeout(() => this.textContent = 'Copy Link', 1500); })">Copy Link</button>
+    </div>
+    <p class="hint" style="margin:10px 0 0;">
+      For Google Calendar: Settings &rarr; Add calendar &rarr; From URL, then paste the copied link.
+    </p>
+    <p class="hint" style="margin:6px 0 0; font-family:monospace; font-size:0.72rem; word-break:break-all; color:var(--phx-gray);">{{ feed_url }}</p>
+  </details>
 
   <div class="calendar-nav">
     <a class="btn secondary" href="{{ url_for('lesson_calendar', year=prev_year, month=prev_month, team=current_team['id'] if current_team else None) }}">&larr; Prev</a>

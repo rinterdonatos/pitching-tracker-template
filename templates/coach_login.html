@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Coach Sign In - Recruiting Portal</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="icon" href="{{ url_for('static', filename='img/default-badge.svg') }}">
+  <style>
+    :root {
+      --phx-blue: #4338ca;
+      --phx-blue-dark: #312e81;
+      --phx-orange: #a5b4fc;
+      --phx-orange-dark: #818cf8;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <img src="{{ url_for('static', filename='img/default-badge.svg') }}" alt="Recruiting Portal" class="login-logo">
+      <h1>Recruiting Portal</h1>
+      <p class="login-sub">Coach sign in</p>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="flash {{ category }}">{{ message }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <form method="POST">
+        <input type="hidden" name="next" value="{{ next }}">
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" autocomplete="username" autofocus required>
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" autocomplete="current-password" required>
+        </div>
+        <button class="btn" type="submit" style="width:100%;">Sign In</button>
+      </form>
+      <p style="margin-top:14px; font-size:0.85rem;"><a href="{{ url_for('coach_signup') }}">New coach? Request access</a></p>
+    </div>
+  </div>
+</body>
+</html>

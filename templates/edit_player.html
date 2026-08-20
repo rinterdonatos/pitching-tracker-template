@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Edit {{ player['name'] }} - Swarm Baseball{% endblock %}
+{% block title %}Edit {{ player['name'] }} - {{ org_name }}{% endblock %}
 {% block content %}
   <div class="page-title"><h2>Edit {{ player['name'] }}</h2></div>
   <form class="card-form" method="POST" enctype="multipart/form-data">
@@ -42,6 +42,13 @@
     <div class="field">
       <label for="notes">About Me</label>
       <textarea id="notes" name="notes" placeholder="What do you want coaches and scouts to know about you? Shows on the Recruiting Report.">{{ player['notes'] or '' }}</textarea>
+    </div>
+    <div class="field">
+      <label style="display:flex; align-items:flex-start; gap:8px; font-weight:600;">
+        <input type="checkbox" name="recruiting_opt_in" value="1" style="margin-top:3px;" {% if player['recruiting_opt_in'] %}checked{% endif %}>
+        <span>Visible to college recruiters</span>
+      </label>
+      <div class="hint">When on, stats, videos, and info can be found by approved college coaches browsing the recruiting portal. Off by default - nothing is shared until you turn this on.</div>
     </div>
     <button class="btn" type="submit">Save Changes</button>
     <a class="btn secondary" href="{{ url_for('player_detail', player_id=player['id']) }}">Cancel</a>

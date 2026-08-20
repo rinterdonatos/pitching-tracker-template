@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ player['name'] }} - Swarm Baseball{% endblock %}
+{% block title %}{{ player['name'] }} - {{ org_name }}{% endblock %}
 {% block content %}
   {% set can_edit = session.get('is_admin') or session.get('player_id') == player['id'] %}
   <div class="page-title">

@@ -1,0 +1,78 @@
+{% extends "coach_base.html" %}
+{% block title %}Leaderboards - Recruiting Portal{% endblock %}
+{% block content %}
+  <div class="page-title"><h2>Leaderboards</h2></div>
+  <p class="hint" style="margin-top:-8px;">Opted-in players only, across every program on the platform.</p>
+
+  <form class="coach-filters" method="GET">
+    <div class="field">
+      <label for="team">Team</label>
+      <select id="team" name="team">
+        <option value="">All teams</option>
+        {% for t in teams %}
+          <option value="{{ t['id'] }}" {% if filters['team'] == t['id']|string %}selected{% endif %}>{{ t['org_name'] }} — {{ t['name'] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="grad_year">Grad Year</label>
+      <select id="grad_year" name="grad_year">
+        <option value="">All years</option>
+        {% for y in grad_years %}
+          <option value="{{ y }}" {% if filters['grad_year'] == y %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="position">Position</label>
+      <select id="position" name="position">
+        <option value="">All positions</option>
+        {% for pos in positions %}
+          <option value="{{ pos }}" {% if filters['position'] == pos %}selected{% endif %}>{{ pos }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn" type="submit">Filter</button>
+    {% if filters['team'] or filters['grad_year'] or filters['position'] %}
+      <a class="btn secondary" href="{{ url_for('coach_leaderboards') }}">Clear</a>
+    {% endif %}
+  </form>
+
+  <div class="stat-grid">
+    <div class="stat-card">
+      <h4>Top Velo (any pitch)</h4>
+      {% if velo_leaders %}
+        {% for row in velo_leaders %}
+          <div class="meta" style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <span>{{ loop.index }}. {{ row['name'] }} <span style="color:var(--phx-gray); font-size:0.82rem;">({{ row['org_name'] }}{% if row['team_name'] %} · {{ row['team_name'] }}{% endif %})</span></span>
+            <strong>{{ row['value'] }}</strong>
+          </div>
+        {% endfor %}
+      {% else %}<p class="hint" style="margin:0;">No velo data yet.</p>{% endif %}
+    </div>
+
+    <div class="stat-card">
+      <h4>Strike % (avg)</h4>
+      {% if strike_leaders %}
+        {% for row in strike_leaders %}
+          <div class="meta" style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <span>{{ loop.index }}. {{ row['name'] }} <span style="color:var(--phx-gray); font-size:0.82rem;">({{ row['org_name'] }}{% if row['team_name'] %} · {{ row['team_name'] }}{% endif %})</span></span>
+            <strong>{{ row['value'] }}%</strong>
+          </div>
+        {% endfor %}
+      {% else %}<p class="hint" style="margin:0;">No strike % data yet.</p>{% endif %}
+    </div>
+
+    <div class="stat-card">
+      <h4>Strikeouts (season total)</h4>
+      {% if k_leaders %}
+        {% for row in k_leaders %}
+          <div class="meta" style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <span>{{ loop.index }}. {{ row['name'] }} <span style="color:var(--phx-gray); font-size:0.82rem;">({{ row['org_name'] }}{% if row['team_name'] %} · {{ row['team_name'] }}{% endif %})</span></span>
+            <strong>{{ row['value'] | int }}</strong>
+          </div>
+        {% endfor %}
+      {% else %}<p class="hint" style="margin:0;">No strikeout data yet.</p>{% endif %}
+    </div>
+  </div>
+{% endblock %}

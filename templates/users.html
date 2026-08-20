@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Users - Swarm Baseball{% endblock %}
+{% block title %}Users - {{ org_name }}{% endblock %}
 
 {% macro user_table(user_list) %}
   <div class="spreadsheet-wrap">
@@ -10,7 +10,7 @@
       <tbody>
         {% for u in user_list %}
           {% set manageable = not u['is_owner'] %}
-          <tr>
+          <tr class="user-row">
             <td>{{ u['name'] or '-' }}{% if u['id'] == session.get('user_id') %} <span style="color:#6b6564; font-size:0.85em;">(you)</span>{% endif %}</td>
             <td>{{ u['email'] or '-' }}</td>
             <td>{{ u['phone'] or '-' }}</td>
@@ -65,88 +65,141 @@
     Admins can manage everyone except the site owner, who can't be removed or demoted.
   </p>
 
-  <div class="section-title">Invite Someone</div>
-  <form class="card-form" method="POST" action="{{ url_for('add_user') }}">
-    <div class="field">
-      <label for="name">Name</label>
-      <input type="text" id="name" name="name" placeholder="e.g. Jake's mom, Coach Rivera">
-    </div>
-    <div class="field">
-      <label for="email">Email</label>
-      <input type="email" id="email" name="email">
-    </div>
-    <div class="field">
-      <label for="phone">Phone number</label>
-      <input type="tel" id="phone" name="phone">
-      <div class="hint">Fill in at least one of email / phone &mdash; they'll sign in with whichever you add (or either, if both).</div>
-    </div>
-    <div class="field" id="player-link-field">
-      <label for="player_id">Link to a player (optional)</label>
-      <select id="player_id" name="player_id">
-        <option value="">&mdash; none &mdash;</option>
-        {% for p in all_players %}
-          <option value="{{ p['id'] }}">{{ p['name'] }}</option>
-        {% endfor %}
-      </select>
-      <div class="hint">For a parent or player account &mdash; they'll land straight on that player's page when they sign in. Admins don't get a linked player.</div>
-    </div>
-    <div class="field">
-      <label style="font-weight:400;"><input type="checkbox" id="is-admin-check" name="is_admin" value="1" onchange="document.getElementById('player-link-field').style.display = this.checked ? 'none' : ''"> Make this person an admin (near-full access, same as site owner)</label>
-    </div>
-    <button class="btn" type="submit">Add User</button>
-  </form>
+  <div class="field" style="max-width:360px;">
+    <input type="text" id="user-search" autocomplete="off" placeholder="Search by name...">
+  </div>
 
-  <div class="section-title">Invite Links</div>
-  <p style="color:#6b6564; font-size:0.9rem; max-width:640px;">
-    Or send people a link instead &mdash; anyone who opens it enters their own name, email/phone,
-    and password, and joins as a member. Links work for 7 days; deactivate one anytime.
-  </p>
-  <form method="POST" action="{{ url_for('create_invite') }}" style="margin-bottom:12px;">
-    <button class="btn" type="submit">+ Create Invite Link</button>
-  </form>
-  {% if invites %}
-    <div class="spreadsheet-wrap">
-      <table class="spreadsheet-table">
-        <thead><tr><th>Link</th><th>Status</th><th></th></tr></thead>
-        <tbody>
-          {% for inv in invites %}
-            {% set link = url_for('join', token=inv['token'], _external=True) %}
-            {% set expired = inv['expires_at'] and now > inv['expires_at'] %}
-            <tr>
-              <td style="font-family:monospace; font-size:0.78rem; word-break:break-all;">{{ link }}</td>
-              <td>{% if expired %}Expired{% else %}Active until {{ inv['expires_at'] }}{% endif %}</td>
-              <td style="white-space:nowrap;">
-                {% if not expired %}
-                  <button class="btn secondary" type="button" style="font-size:0.75rem; padding:3px 8px;"
-                          onclick="navigator.clipboard.writeText('{{ link }}').then(() => { this.textContent = 'Copied!'; setTimeout(() => this.textContent = 'Copy', 1500); })">Copy</button>
-                {% endif %}
-                <form method="POST" action="{{ url_for('delete_invite', invite_id=inv['id']) }}" style="display:inline;">
-                  <button class="btn secondary" type="submit" style="font-size:0.75rem; padding:3px 8px; color:var(--phx-red);">
-                    {{ 'Delete' if expired else 'Deactivate' }}
-                  </button>
-                </form>
-              </td>
-            </tr>
+  <details class="page-section" open>
+    <summary class="section-title">Invite Someone</summary>
+    <form class="card-form" method="POST" action="{{ url_for('add_user') }}">
+      <div class="field">
+        <label for="name">Name</label>
+        <input type="text" id="name" name="name" placeholder="e.g. Jake's mom, Coach Rivera">
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" name="email">
+      </div>
+      <div class="field">
+        <label for="phone">Phone number</label>
+        <input type="tel" id="phone" name="phone">
+        <div class="hint">Fill in at least one of email / phone &mdash; they'll sign in with whichever you add (or either, if both).</div>
+      </div>
+      <div class="field" id="player-link-field">
+        <label for="player_id">Link to a player (optional)</label>
+        <select id="player_id" name="player_id">
+          <option value="">&mdash; none &mdash;</option>
+          {% for p in all_players %}
+            <option value="{{ p['id'] }}">{{ p['name'] }}</option>
           {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  {% endif %}
+        </select>
+        <div class="hint">For a parent or player account &mdash; they'll land straight on that player's page when they sign in. Admins don't get a linked player.</div>
+      </div>
+      <div class="field">
+        <label style="font-weight:400;"><input type="checkbox" id="is-admin-check" name="is_admin" value="1" onchange="document.getElementById('player-link-field').style.display = this.checked ? 'none' : ''"> Make this person an admin (near-full access, same as site owner)</label>
+      </div>
+      <button class="btn" type="submit">Add User</button>
+    </form>
+  </details>
 
-  <div class="section-title">Site Owner</div>
-  {{ user_table(owners) }}
+  <details class="page-section" open>
+    <summary class="section-title">Invite Links</summary>
+    <p style="color:#6b6564; font-size:0.9rem; max-width:640px;">
+      Or send people a link instead &mdash; anyone who opens it enters their own name, email/phone,
+      and password, and joins as a member. Links work for 7 days; deactivate one anytime.
+    </p>
+    <form method="POST" action="{{ url_for('create_invite') }}" style="margin-bottom:12px;">
+      <button class="btn" type="submit">+ Create Invite Link</button>
+    </form>
+    {% if invites %}
+      <div class="spreadsheet-wrap">
+        <table class="spreadsheet-table">
+          <thead><tr><th>Link</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            {% for inv in invites %}
+              {% set link = url_for('join', token=inv['token'], _external=True) %}
+              {% set expired = inv['expires_at'] and now > inv['expires_at'] %}
+              <tr>
+                <td style="font-family:monospace; font-size:0.78rem; word-break:break-all;">{{ link }}</td>
+                <td>{% if expired %}Expired{% else %}Active until {{ inv['expires_at'] }}{% endif %}</td>
+                <td style="white-space:nowrap;">
+                  {% if not expired %}
+                    <button class="btn secondary" type="button" style="font-size:0.75rem; padding:3px 8px;"
+                            onclick="navigator.clipboard.writeText('{{ link }}').then(() => { this.textContent = 'Copied!'; setTimeout(() => this.textContent = 'Copy', 1500); })">Copy</button>
+                  {% endif %}
+                  <form method="POST" action="{{ url_for('delete_invite', invite_id=inv['id']) }}" style="display:inline;">
+                    <button class="btn secondary" type="submit" style="font-size:0.75rem; padding:3px 8px; color:var(--phx-red);">
+                      {{ 'Delete' if expired else 'Deactivate' }}
+                    </button>
+                  </form>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+  </details>
 
-  <div class="section-title">Admins</div>
-  {% if admins %}
-    {{ user_table(admins) }}
-  {% else %}
-    <p class="hint">No admins yet &mdash; promote a member with "Make Admin" or check the admin box when inviting.</p>
-  {% endif %}
+  <details class="page-section user-section" open>
+    <summary class="section-title">Site Owner</summary>
+    {{ user_table(owners) }}
+    <p class="hint user-empty-hint" hidden>No match in this section.</p>
+  </details>
 
-  <div class="section-title">Members</div>
-  {% if members %}
-    {{ user_table(members) }}
-  {% else %}
-    <p class="hint">No members yet &mdash; invite someone above or send them an invite link.</p>
-  {% endif %}
+  <details class="page-section user-section" open>
+    <summary class="section-title">Admins</summary>
+    {% if admins %}
+      {{ user_table(admins) }}
+      <p class="hint user-empty-hint" hidden>No match in this section.</p>
+    {% else %}
+      <p class="hint">No admins yet &mdash; promote a member with "Make Admin" or check the admin box when inviting.</p>
+    {% endif %}
+  </details>
+
+  <details class="page-section user-section" open>
+    <summary class="section-title">Members</summary>
+    {% if members %}
+      {{ user_table(members) }}
+      <p class="hint user-empty-hint" hidden>No match in this section.</p>
+    {% else %}
+      <p class="hint">No members yet &mdash; invite someone above or send them an invite link.</p>
+    {% endif %}
+  </details>
+
+  <script>
+    // Every section is a native <details> so it's collapsible with zero
+    // extra JS. The search box filters rows across the Owner/Admin/Member
+    // tables by anything visible in the row (name, email, phone, status),
+    // and forces open any section that has a match while you're searching.
+    const userSearch = document.getElementById('user-search');
+    if (userSearch) {
+      const sections = Array.from(document.querySelectorAll('details.user-section'));
+      const initiallyOpen = sections.map(s => s.open);
+
+      userSearch.addEventListener('input', () => {
+        const q = userSearch.value.trim().toLowerCase();
+        sections.forEach((section, i) => {
+          const rows = Array.from(section.querySelectorAll('.user-row'));
+          const emptyHint = section.querySelector('.user-empty-hint');
+          if (!q) {
+            rows.forEach(row => { row.style.display = ''; });
+            if (emptyHint) emptyHint.hidden = true;
+            section.open = initiallyOpen[i];
+            return;
+          }
+          let visible = 0;
+          rows.forEach(row => {
+            const hit = row.textContent.toLowerCase().includes(q);
+            row.style.display = hit ? '' : 'none';
+            if (hit) visible++;
+          });
+          if (rows.length) {
+            section.open = true;
+            if (emptyHint) emptyHint.hidden = visible > 0;
+          }
+        });
+      });
+    }
+  </script>
 {% endblock %}

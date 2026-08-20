@@ -12,7 +12,7 @@ import calendar as calendar_module
 import sqlite3
 from datetime import datetime, timedelta, date
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, abort, session
+from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, abort, session, Response, g
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -196,18 +196,102 @@ def get_db():
     return conn
 
 
+# ---------- Multi-tenant: organization resolution from the URL ----------
+#
+# Every route lives under /<org_slug>/... except a small always-global set
+# (below) - static files, the one-time setup wizard, invite links, and the
+# calendar subscription feed, all of which either predate having an org to
+# scope to or already carry their own unguessable token so an org_slug in
+# the URL wouldn't add anything.
+#
+# Rather than hand-editing every one of the ~200 url_for() calls already
+# spread across the templates, Flask's url_value_preprocessor/url_defaults
+# hooks do this transparently: the preprocessor strips org_slug off the
+# incoming URL and resolves it to an organization row on `g.org`, and
+# url_defaults injects org_slug back into any url_for() call that needs it,
+# pulling it from `g.org` unless a different one was passed explicitly. This
+# is the same pattern Flask's own docs use for internationalized URLs like
+# /<lang_code>/... - every existing url_for("index") call keeps working
+# unchanged because the endpoint name itself never changes, only the URL
+# pattern behind it.
+ORG_EXEMPT_ENDPOINTS = {
+    "static", "org_picker", "setup", "join", "calendar_feed",
+    # College-recruiting coach portal: coaches aren't members of any one
+    # organization - they browse opted-in players across all of them - so
+    # these routes live outside the /<org_slug>/ scheme entirely and use
+    # their own separate login (coach_required / platform_admin_required
+    # below), not the team-user session this before_request hook checks.
+    "coach_signup", "coach_login", "coach_logout", "coach_players",
+    "coach_leaderboards", "coach_reels", "coach_favorite_toggle", "coach_favorites",
+    "platform_coaches", "platform_approve_coach", "platform_reject_coach", "platform_revoke_coach",
+}
+
+
+@app.url_value_preprocessor
+def pull_org_slug(endpoint, values):
+    g.org = None
+    if endpoint in ORG_EXEMPT_ENDPOINTS or values is None or "org_slug" not in values:
+        return
+    slug = values.pop("org_slug")
+    conn = get_db()
+    g.org = conn.execute("SELECT * FROM organizations WHERE slug = ?", (slug,)).fetchone()
+    conn.close()
+    if g.org is None:
+        abort(404)
+
+
+@app.url_defaults
+def add_org_slug(endpoint, values):
+    if endpoint in ORG_EXEMPT_ENDPOINTS or "org_slug" in values:
+        return
+    if app.url_map.is_endpoint_expecting(endpoint, "org_slug"):
+        org = getattr(g, "org", None)
+        if org is not None:
+            values["org_slug"] = org["slug"]
+
+
+# Swarm Baseball keeps its own navy/gold logo and color scheme (the site was
+# built around it). Every other organization gets a neutral gray theme and a
+# generic badge instead of Swarm's branding - these values feed both the
+# header/logo markup and a small CSS variable override in base.html so
+# buttons, nav highlights, etc. all follow along automatically.
+@app.context_processor
+def inject_branding():
+    org = getattr(g, "org", None)
+    if org and org["slug"] != "swarm-baseball":
+        return {
+            "org_name": org["name"],
+            "org_logo": static_url("img/default-badge.svg"),
+            "org_theme_gray": True,
+        }
+    return {
+        "org_name": org["name"] if org else "Swarm Baseball",
+        "org_logo": static_url("img/swarm-badge.png"),
+        "org_theme_gray": False,
+    }
+
+
 def init_db():
     conn = get_db()
     conn.executescript(
         """
+        CREATE TABLE IF NOT EXISTS organizations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            slug TEXT NOT NULL UNIQUE,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+
         CREATE TABLE IF NOT EXISTS teams (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL UNIQUE,
+            organization_id INTEGER REFERENCES organizations(id),
+            name TEXT NOT NULL,
             created_at TEXT DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS players (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            organization_id INTEGER REFERENCES organizations(id),
             name TEXT NOT NULL,
             jersey_number TEXT,
             position TEXT,
@@ -220,6 +304,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS stat_entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            organization_id INTEGER REFERENCES organizations(id),
             player_id INTEGER NOT NULL,
             entry_date TEXT NOT NULL,
             category TEXT,
@@ -232,6 +317,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS videos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            organization_id INTEGER REFERENCES organizations(id),
             player_id INTEGER NOT NULL,
             entry_date TEXT NOT NULL,
             title TEXT,
@@ -244,6 +330,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS comments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            organization_id INTEGER REFERENCES organizations(id),
             player_id INTEGER NOT NULL,
             video_id INTEGER,
             commenter_name TEXT NOT NULL,
@@ -255,6 +342,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS throwing_entries (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            organization_id INTEGER REFERENCES organizations(id),
             entry_date TEXT NOT NULL,
             message TEXT NOT NULL,
             created_at TEXT DEFAULT (datetime('now'))
@@ -262,6 +350,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS calendar_entry_comments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            organization_id INTEGER REFERENCES organizations(id),
             entry_id INTEGER NOT NULL,
             commenter_name TEXT NOT NULL,
             body TEXT NOT NULL,
@@ -271,9 +360,10 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            organization_id INTEGER REFERENCES organizations(id),
             name TEXT,
-            email TEXT UNIQUE,
-            phone TEXT UNIQUE,
+            email TEXT,
+            phone TEXT,
             password_hash TEXT,
             is_admin INTEGER DEFAULT 0,
             is_owner INTEGER DEFAULT 0,
@@ -284,6 +374,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS invite_links (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            organization_id INTEGER REFERENCES organizations(id),
             token TEXT NOT NULL UNIQUE,
             created_by INTEGER,
             expires_at TEXT,
@@ -292,6 +383,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS trackman_pitches (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            organization_id INTEGER REFERENCES organizations(id),
             player_id INTEGER NOT NULL,
             entry_date TEXT NOT NULL,
             category TEXT,
@@ -318,6 +410,7 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS player_contacts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            organization_id INTEGER REFERENCES organizations(id),
             player_id INTEGER NOT NULL,
             relationship TEXT,
             name TEXT,
@@ -328,6 +421,54 @@ def init_db():
         );
         """
     )
+    conn.commit()
+
+    # Migration: multi-tenant support. Every organization-owned table gets
+    # an organization_id column added if it predates this (existing
+    # installs). Nothing in the app writes/reads it yet - this is just the
+    # data model landing first so a later pass can wire the actual scoping
+    # in safely, without changing how the app behaves today.
+    org_owned_tables = (
+        "teams", "players", "stat_entries", "videos", "comments",
+        "throwing_entries", "calendar_entry_comments", "users",
+        "invite_links", "trackman_pitches", "player_contacts",
+    )
+    for table in org_owned_tables:
+        cols = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+        if "organization_id" not in cols:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN organization_id INTEGER REFERENCES organizations(id)")
+    conn.commit()
+
+    # Make sure one organization exists for any pre-existing data (the
+    # business already running this app becomes "Swarm Baseball", the
+    # first organization), and attach every row that doesn't have one yet.
+    # A brand-new install with no data at all is left with zero
+    # organizations until a real signup flow creates one.
+    if conn.execute("SELECT COUNT(*) FROM organizations").fetchone()[0] == 0:
+        has_existing_data = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] > 0
+        if has_existing_data:
+            conn.execute(
+                "INSERT INTO organizations (name, slug) VALUES (?, ?)",
+                ("Swarm Baseball", "swarm-baseball"),
+            )
+            conn.commit()
+
+    default_org = conn.execute("SELECT id FROM organizations ORDER BY id ASC LIMIT 1").fetchone()
+    if default_org:
+        default_org_id = default_org["id"]
+        for table in org_owned_tables:
+            conn.execute(
+                f"UPDATE {table} SET organization_id = ? WHERE organization_id IS NULL",
+                (default_org_id,),
+            )
+        conn.commit()
+
+    # Per-organization uniqueness: a team name or a login email/phone only
+    # has to be unique within one organization, not across the whole
+    # platform, now that more than one organization can exist.
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_org_name ON teams(organization_id, name)")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_org_email ON users(organization_id, email)")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_org_phone ON users(organization_id, phone)")
     conn.commit()
 
     # Migration: videos can be pinned so the most important clips float to
@@ -443,6 +584,21 @@ def init_db():
     conn.execute("UPDATE users SET player_id = NULL WHERE is_admin = 1 AND player_id IS NOT NULL")
     conn.commit()
 
+    # Migration: a private, unguessable token per user for subscribing to the
+    # lesson calendar from Google/Apple Calendar (calendar apps can't do a
+    # login flow, so the token in the URL is what authenticates the feed).
+    # SQLite can't add a UNIQUE column via ALTER TABLE, so the column is
+    # plain and a unique index enforces it instead (SQLite allows multiple
+    # NULLs in a unique index, so this is safe for existing users with no
+    # token yet).
+    if "calendar_feed_token" not in user_cols:
+        conn.execute("ALTER TABLE users ADD COLUMN calendar_feed_token TEXT")
+        conn.commit()
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_calendar_feed_token ON users(calendar_feed_token)"
+    )
+    conn.commit()
+
     # Migration: calendar entries now belong to a team (NULL = General calendar).
     throwing_cols = {row["name"] for row in conn.execute("PRAGMA table_info(throwing_entries)")}
     if "team_id" not in throwing_cols:
@@ -459,6 +615,152 @@ def init_db():
     if "event_time" not in throwing_cols:
         conn.execute("ALTER TABLE throwing_entries ADD COLUMN event_time TEXT")
         conn.commit()
+
+    # Migration: the pre-multi-tenant schema had a single-column UNIQUE
+    # constraint baked directly into teams.name and users.email/phone
+    # (global uniqueness across the whole site). That's what the composite
+    # per-organization indexes further up are meant to replace, but SQLite
+    # can't drop or alter a column-level constraint with ALTER TABLE - the
+    # only way to actually remove it from an existing database is to rebuild
+    # the table. Without this step, two organizations still couldn't both
+    # have a team named "Red" or a user with the same email, even though the
+    # composite index says they should be able to. This only fires on
+    # existing databases that still carry the old constraint; a fresh
+    # install never has it, so this is a one-time, idempotent cleanup.
+    def _has_single_column_unique(table, column):
+        for idx in conn.execute(f"PRAGMA index_list({table})").fetchall():
+            if not idx["unique"]:
+                continue
+            idx_cols = conn.execute(f"PRAGMA index_info({idx['name']})").fetchall()
+            if len(idx_cols) == 1 and idx_cols[0]["name"] == column:
+                return True
+        return False
+
+    needs_teams_rebuild = _has_single_column_unique("teams", "name")
+    needs_users_rebuild = _has_single_column_unique("users", "email") or _has_single_column_unique("users", "phone")
+
+    if needs_teams_rebuild or needs_users_rebuild:
+        # players.team_id and throwing_entries.team_id hold a REFERENCES
+        # teams(id) foreign key, so rebuilding teams (drop + recreate under
+        # the same name) has to happen with FK enforcement suspended, or
+        # SQLite raises a FOREIGN KEY constraint failure on the DROP even
+        # though the new table ends up with the exact same id values. This
+        # can only be toggled between transactions, not inside one.
+        conn.execute("PRAGMA foreign_keys = OFF")
+
+    if needs_teams_rebuild:
+        conn.executescript(
+            """
+            DROP TABLE IF EXISTS teams_new;
+            CREATE TABLE teams_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                organization_id INTEGER REFERENCES organizations(id),
+                name TEXT NOT NULL,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+            INSERT INTO teams_new (id, organization_id, name, created_at)
+                SELECT id, organization_id, name, created_at FROM teams;
+            DROP TABLE teams;
+            ALTER TABLE teams_new RENAME TO teams;
+            """
+        )
+        conn.commit()
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_org_name ON teams(organization_id, name)")
+        conn.commit()
+
+    if needs_users_rebuild:
+        conn.executescript(
+            """
+            DROP TABLE IF EXISTS users_new;
+            CREATE TABLE users_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                organization_id INTEGER REFERENCES organizations(id),
+                name TEXT,
+                email TEXT,
+                phone TEXT,
+                password_hash TEXT,
+                is_admin INTEGER DEFAULT 0,
+                is_owner INTEGER DEFAULT 0,
+                reset_code TEXT,
+                reset_expires TEXT,
+                player_id INTEGER REFERENCES players(id),
+                calendar_feed_token TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+            INSERT INTO users_new (id, organization_id, name, email, phone, password_hash,
+                                    is_admin, is_owner, reset_code, reset_expires,
+                                    player_id, calendar_feed_token, created_at)
+                SELECT id, organization_id, name, email, phone, password_hash,
+                       is_admin, is_owner, reset_code, reset_expires,
+                       player_id, calendar_feed_token, created_at FROM users;
+            DROP TABLE users;
+            ALTER TABLE users_new RENAME TO users;
+            """
+        )
+        conn.commit()
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_org_email ON users(organization_id, email)")
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_org_phone ON users(organization_id, phone)")
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_calendar_feed_token ON users(calendar_feed_token)"
+        )
+        conn.commit()
+
+    if needs_teams_rebuild or needs_users_rebuild:
+        conn.execute("PRAGMA foreign_keys = ON")
+
+    # Migration: college-recruiting coach portal. Players opt in to being
+    # visible to coaches (off by default - a real person's info/video isn't
+    # shown to strangers on the internet without them or their family
+    # choosing that). Coaches are a separate identity from `users` entirely,
+    # since a coach isn't a member of any one organization - they browse
+    # opted-in players across every organization on the platform. New coach
+    # signups need approval before they can see anything.
+    player_cols = {row["name"] for row in conn.execute("PRAGMA table_info(players)")}
+    if "recruiting_opt_in" not in player_cols:
+        conn.execute("ALTER TABLE players ADD COLUMN recruiting_opt_in INTEGER DEFAULT 0")
+        conn.commit()
+
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS coaches (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            school TEXT,
+            email TEXT NOT NULL UNIQUE,
+            phone TEXT,
+            password_hash TEXT NOT NULL,
+            approved INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now'))
+        )"""
+    )
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS video_favorites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            coach_id INTEGER NOT NULL,
+            video_id INTEGER NOT NULL,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (coach_id) REFERENCES coaches (id) ON DELETE CASCADE,
+            FOREIGN KEY (video_id) REFERENCES videos (id) ON DELETE CASCADE
+        )"""
+    )
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_video_favorites_coach_video ON video_favorites(coach_id, video_id)"
+    )
+    conn.commit()
+
+    # Platform admin: gates the coach-approval page. This is a platform-owner
+    # role, separate from any one organization's admin/owner - it's whoever
+    # actually runs this site as a product. Backfilled to the very first
+    # user account ever created (id 1), since that's whoever ran first-time
+    # setup before any organization existed.
+    user_cols_now = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+    if "is_platform_admin" not in user_cols_now:
+        conn.execute("ALTER TABLE users ADD COLUMN is_platform_admin INTEGER DEFAULT 0")
+        conn.commit()
+    if conn.execute("SELECT COUNT(*) FROM users WHERE is_platform_admin = 1").fetchone()[0] == 0:
+        first_user = conn.execute("SELECT id FROM users ORDER BY id ASC LIMIT 1").fetchone()
+        if first_user:
+            conn.execute("UPDATE users SET is_platform_admin = 1 WHERE id = ?", (first_user["id"],))
+            conn.commit()
 
     conn.close()
 
@@ -617,6 +919,101 @@ def parse_event_time_minutes(value):
     return None
 
 
+# ---------- iCalendar (.ics) feed for the lesson calendar ----------
+
+def _ics_escape(text):
+    """Escape a value per RFC 5545 (backslash, semicolon, comma, newline)."""
+    if not text:
+        return ""
+    return (
+        text.replace("\\", "\\\\")
+        .replace(";", "\\;")
+        .replace(",", "\\,")
+        .replace("\n", "\\n")
+    )
+
+
+def _ics_fold(line):
+    """RFC 5545 says no content line should exceed 75 octets; continuation
+    lines start with a single space. Our lines are almost always short, but
+    a long "Other Info" note could exceed it, so fold defensively."""
+    encoded = line.encode("utf-8")
+    if len(encoded) <= 75:
+        return line
+    out = []
+    remaining = line
+    limit = 75
+    while len(remaining.encode("utf-8")) > limit:
+        cut = limit
+        while len(remaining[:cut].encode("utf-8")) > limit:
+            cut -= 1
+        out.append(remaining[:cut])
+        remaining = " " + remaining[cut:]
+        limit = 74  # continuation lines lose one octet to the leading space
+    out.append(remaining)
+    return "\r\n".join(out)
+
+
+def build_ics_feed(entries, calendar_name, mark_general=False):
+    """Render throwing_entries rows as a minimal, hand-rolled RFC 5545
+    iCalendar feed - no external dependency needed. Events with a
+    recognizable time become timed (1-hour default duration); everything
+    else becomes an all-day event on that date."""
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Swarm Baseball//Lesson Calendar//EN",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        f"X-WR-CALNAME:{_ics_escape(calendar_name)}",
+        "X-PUBLISHED-TTL:PT12H",
+        "REFRESH-INTERVAL;VALUE=DURATION:PT12H",
+    ]
+    now_stamp = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    for e in entries:
+        minutes = parse_event_time_minutes(e["event_time"])
+        date_compact = e["entry_date"].replace("-", "")
+        lines.append("BEGIN:VEVENT")
+        lines.append(_ics_fold(f"UID:calendar-entry-{e['id']}@swarmbaseball.app"))
+        lines.append(_ics_fold(f"DTSTAMP:{now_stamp}"))
+        if minutes is not None:
+            hh, mm = divmod(minutes, 60)
+            end_hh, end_mm = divmod(minutes + 60, 60)
+            end_hh %= 24
+            lines.append(_ics_fold(f"DTSTART:{date_compact}T{hh:02d}{mm:02d}00"))
+            lines.append(_ics_fold(f"DTEND:{date_compact}T{end_hh:02d}{end_mm:02d}00"))
+        else:
+            lines.append(_ics_fold(f"DTSTART;VALUE=DATE:{date_compact}"))
+        summary = e["message"] or "Lesson"
+        if mark_general and e["team_id"] is None:
+            summary += " (General)"
+        lines.append(_ics_fold(f"SUMMARY:{_ics_escape(summary)}"))
+        if e["location"]:
+            lines.append(_ics_fold(f"LOCATION:{_ics_escape(e['location'])}"))
+        desc_parts = []
+        if e["event_time"]:
+            desc_parts.append(f"Time: {e['event_time']}")
+        if e["details"]:
+            desc_parts.append(e["details"])
+        if desc_parts:
+            lines.append(_ics_fold(f"DESCRIPTION:{_ics_escape(chr(10).join(desc_parts))}"))
+        lines.append("END:VEVENT")
+    lines.append("END:VCALENDAR")
+    return "\r\n".join(lines) + "\r\n"
+
+
+def get_or_create_feed_token(conn, user_id):
+    """Every account gets one stable, unguessable token the moment they need
+    it, so their calendar subscription link never changes."""
+    user = conn.execute("SELECT calendar_feed_token FROM users WHERE id = ?", (user_id,)).fetchone()
+    if user and user["calendar_feed_token"]:
+        return user["calendar_feed_token"]
+    token = secrets.token_urlsafe(24)
+    conn.execute("UPDATE users SET calendar_feed_token = ? WHERE id = ?", (token, user_id))
+    conn.commit()
+    return token
+
+
 def format_comment_time(value):
     """SQLite datetime('now') gives UTC 'YYYY-MM-DD HH:MM:SS'; show something friendlier."""
     try:
@@ -663,17 +1060,25 @@ def normalize_phone(raw):
     return digits or None
 
 
-def find_user_by_identifier(conn, identifier):
-    """Look a user up by email (case-insensitive) or phone number."""
+def find_user_by_identifier(conn, identifier, organization_id):
+    """Look a user up by email (case-insensitive) or phone number, scoped to
+    one organization - the same email or phone can belong to a different
+    person in a different organization now that uniqueness is per-org."""
     ident = (identifier or "").strip()
     if not ident:
         return None
-    user = conn.execute("SELECT * FROM users WHERE lower(email) = ?", (ident.lower(),)).fetchone()
+    user = conn.execute(
+        "SELECT * FROM users WHERE lower(email) = ? AND organization_id = ?",
+        (ident.lower(), organization_id),
+    ).fetchone()
     if user:
         return user
     phone = normalize_phone(ident)
     if phone and len(phone) >= 7:
-        return conn.execute("SELECT * FROM users WHERE phone = ?", (phone,)).fetchone()
+        return conn.execute(
+            "SELECT * FROM users WHERE phone = ? AND organization_id = ?",
+            (phone, organization_id),
+        ).fetchone()
     return None
 
 
@@ -700,42 +1105,135 @@ def admin_required(f):
     return wrapper
 
 
+def platform_admin_required(f):
+    """Gates the coach-approval page. This is a platform-owner permission,
+    not a per-organization one - it's whoever actually runs this site as a
+    product, not any one customer's team admin."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if not session.get("is_platform_admin"):
+            abort(403)
+        return f(*args, **kwargs)
+    return wrapper
+
+
+def coach_required(f):
+    """Gates every coach-portal page behind an approved coach login. Looks
+    the coach up fresh from the database on every request (rather than
+    trusting a flag cached in the session at login time) so a revoked
+    approval takes effect immediately, not just after their next login -
+    this page shows opted-in players' info and video to a stranger on the
+    internet, so that matters."""
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        coach_id = session.get("coach_id")
+        if not coach_id:
+            return redirect(url_for("coach_login", next=request.path))
+        conn = get_db()
+        coach = conn.execute("SELECT * FROM coaches WHERE id = ?", (coach_id,)).fetchone()
+        conn.close()
+        if not coach:
+            session.pop("coach_id", None)
+            session.pop("coach_name", None)
+            return redirect(url_for("coach_login", next=request.path))
+        if not coach["approved"]:
+            return render_template("coach_pending.html", coach=coach)
+        g.coach = coach
+        return f(*args, **kwargs)
+    return wrapper
+
+
 @app.before_request
 def require_login():
-    open_endpoints = ("login", "static", "setup", "set_password", "logout",
-                      "forgot_password", "forgot_verify", "join")
-    if request.endpoint in open_endpoints:
+    if request.endpoint in ORG_EXEMPT_ENDPOINTS:
         return None
+
+    # These need an org resolved (to know which org's user list to check
+    # against - email/phone are only unique within one org now) but don't
+    # require an existing session, since they're how you get one.
+    org_scoped_open_endpoints = {"login", "set_password", "logout", "forgot_password", "forgot_verify"}
+    if request.endpoint in org_scoped_open_endpoints:
+        return None
+
+    org_slug = g.org["slug"] if getattr(g, "org", None) else None
     if not session.get("user_id"):
-        return redirect(url_for("login", next=request.path))
+        return redirect(url_for("login", org_slug=org_slug, next=request.path))
+
+    # Cross-org guard: being logged into one organization must never grant
+    # access to another org's data just because its URL is known or
+    # guessed. Treat it the same as not being logged in at all, for *this*
+    # org, rather than silently mixing sessions.
+    if getattr(g, "org", None) is not None and session.get("organization_id") != g.org["id"]:
+        session.clear()
+        flash("Please sign in.", "error")
+        return redirect(url_for("login", org_slug=org_slug, next=request.path))
+
     return None
+
+
+@app.route("/")
+def org_picker():
+    """The one truly global landing page. Sends a returning, already-logged-in
+    user straight back to their own organization; otherwise sends a
+    single-organization site straight to that org's login (today's reality
+    for everyone on this platform), or shows a picker if more than one
+    organization exists."""
+    conn = get_db()
+    if session.get("user_id") and session.get("organization_id"):
+        org = conn.execute("SELECT * FROM organizations WHERE id = ?", (session["organization_id"],)).fetchone()
+        if org:
+            conn.close()
+            return redirect(url_for("index", org_slug=org["slug"]))
+
+    orgs = conn.execute("SELECT * FROM organizations ORDER BY name COLLATE NOCASE ASC").fetchall()
+    conn.close()
+
+    if not orgs:
+        return redirect(url_for("setup"))
+    if len(orgs) == 1:
+        return redirect(url_for("login", org_slug=orgs[0]["slug"]))
+    return render_template("org_picker.html", organizations=orgs)
 
 
 @app.route("/setup", methods=["GET", "POST"])
 def setup():
-    """First run only: create the admin account. Disabled once any user exists."""
+    """First run only: create the first organization and its owner account.
+    Disabled once any organization exists - after that, new organizations
+    are created directly rather than through a public signup flow."""
     conn = get_db()
-    if any_users_exist(conn):
+    if conn.execute("SELECT COUNT(*) FROM organizations").fetchone()[0] > 0:
         conn.close()
-        return redirect(url_for("login"))
+        return redirect(url_for("org_picker"))
 
     if request.method == "POST":
+        org_name = request.form.get("org_name", "").strip()
         name = request.form.get("name", "").strip()
         email = request.form.get("email", "").strip().lower()
         phone = normalize_phone(request.form.get("phone", ""))
         password = request.form.get("password", "")
         confirm = request.form.get("confirm", "")
 
-        if not email and not phone:
+        slug = re.sub(r"[^a-z0-9]+", "-", org_name.lower()).strip("-")
+
+        if not org_name or not slug:
+            flash("Enter a name for your organization.", "error")
+        elif not email and not phone:
             flash("Enter an email or a phone number (or both).", "error")
         elif len(password) < 6:
             flash("Password needs at least 6 characters.", "error")
         elif password != confirm:
             flash("Those passwords don't match.", "error")
         else:
+            org_cur = conn.execute(
+                "INSERT INTO organizations (name, slug) VALUES (?, ?)", (org_name, slug)
+            )
+            org_id = org_cur.lastrowid
+            # setup() only ever runs once, before any organization exists, so
+            # whoever creates it here is definitionally the platform's very
+            # first user - the platform-owner role that gates coach approvals.
             cur = conn.execute(
-                "INSERT INTO users (name, email, phone, password_hash, is_admin, is_owner) VALUES (?, ?, ?, ?, 1, 1)",
-                (name, email or None, phone, generate_password_hash(password)),
+                "INSERT INTO users (organization_id, name, email, phone, password_hash, is_admin, is_owner, is_platform_admin) VALUES (?, ?, ?, ?, ?, 1, 1, 1)",
+                (org_id, name, email or None, phone, generate_password_hash(password)),
             )
             conn.commit()
             session.permanent = True
@@ -743,10 +1241,12 @@ def setup():
             session["user_name"] = name
             session["is_admin"] = True
             session["is_owner"] = True
+            session["is_platform_admin"] = True
             session["player_id"] = None
+            session["organization_id"] = org_id
             conn.close()
-            flash("Site owner account created. Welcome!", "success")
-            return redirect(url_for("index"))
+            flash("Organization created. Welcome!", "success")
+            return redirect(url_for("index", org_slug=slug))
         conn.close()
         return redirect(url_for("setup"))
 
@@ -754,17 +1254,20 @@ def setup():
     return render_template("setup.html")
 
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/<org_slug>/login", methods=["GET", "POST"])
 def login():
     conn = get_db()
-    if not any_users_exist(conn):
+    org_row_count = conn.execute(
+        "SELECT COUNT(*) FROM users WHERE organization_id = ?", (g.org["id"],)
+    ).fetchone()[0]
+    if org_row_count == 0:
         conn.close()
         return redirect(url_for("setup"))
 
     if request.method == "POST":
         identifier = request.form.get("identifier", "").strip()
         password = request.form.get("password", "")
-        user = find_user_by_identifier(conn, identifier)
+        user = find_user_by_identifier(conn, identifier, g.org["id"])
         conn.close()
 
         if not user:
@@ -785,14 +1288,16 @@ def login():
         session["user_name"] = user["name"]
         session["is_admin"] = bool(user["is_admin"])
         session["is_owner"] = bool(user["is_owner"])
+        session["is_platform_admin"] = bool(user["is_platform_admin"])
         session["player_id"] = user["player_id"]
+        session["organization_id"] = g.org["id"]
         return redirect(post_login_url(user, request.form.get("next")))
 
     conn.close()
     return render_template("login.html", next=request.args.get("next", ""))
 
 
-@app.route("/set-password", methods=["GET", "POST"])
+@app.route("/<org_slug>/set-password", methods=["GET", "POST"])
 def set_password():
     pending_id = session.get("pending_user_id")
     if not pending_id:
@@ -827,7 +1332,9 @@ def set_password():
         session["user_name"] = user["name"]
         session["is_admin"] = bool(user["is_admin"])
         session["is_owner"] = bool(user["is_owner"])
+        session["is_platform_admin"] = bool(user["is_platform_admin"])
         session["player_id"] = user["player_id"]
+        session["organization_id"] = user["organization_id"]
         flash("Password set - you're in!", "success")
         return redirect(post_login_url(user, request.form.get("next")))
 
@@ -835,12 +1342,12 @@ def set_password():
     return render_template("set_password.html", user=user, next=request.args.get("next", ""))
 
 
-@app.route("/forgot", methods=["GET", "POST"])
+@app.route("/<org_slug>/forgot", methods=["GET", "POST"])
 def forgot_password():
     if request.method == "POST":
         identifier = request.form.get("identifier", "").strip()
         conn = get_db()
-        user = find_user_by_identifier(conn, identifier)
+        user = find_user_by_identifier(conn, identifier, g.org["id"])
 
         if not user:
             conn.close()
@@ -881,7 +1388,7 @@ def forgot_password():
     return render_template("forgot.html")
 
 
-@app.route("/forgot/verify", methods=["GET", "POST"])
+@app.route("/<org_slug>/forgot/verify", methods=["GET", "POST"])
 def forgot_verify():
     user_id = session.get("reset_user_id")
     if not user_id:
@@ -927,14 +1434,16 @@ def forgot_verify():
         session["user_name"] = user["name"]
         session["is_admin"] = bool(user["is_admin"])
         session["is_owner"] = bool(user["is_owner"])
+        session["is_platform_admin"] = bool(user["is_platform_admin"])
         session["player_id"] = user["player_id"]
+        session["organization_id"] = user["organization_id"]
         flash("Password updated - you're signed in.", "success")
         return redirect(post_login_url(user))
 
     return render_template("forgot_verify.html")
 
 
-@app.route("/account", methods=["GET", "POST"])
+@app.route("/<org_slug>/account", methods=["GET", "POST"])
 def account():
     conn = get_db()
     user = conn.execute("SELECT * FROM users WHERE id = ?", (session["user_id"],)).fetchone()
@@ -968,10 +1477,349 @@ def account():
     return render_template("account.html", user=user)
 
 
-@app.route("/logout", methods=["POST"])
+@app.route("/<org_slug>/logout", methods=["POST"])
 def logout():
+    org_slug = g.org["slug"] if getattr(g, "org", None) else None
     session.clear()
-    return redirect(url_for("login"))
+    return redirect(url_for("login", org_slug=org_slug))
+
+
+# ---------- Routes: college-recruiting coach portal ----------
+# A completely separate identity from team users/players. Coaches sign up
+# themselves, then wait for a platform admin to approve them before they can
+# see anything - every opted-in player's info and video is otherwise a
+# stranger-on-the-internet page, so that gate matters. Once approved, a
+# coach's login works the same across every organization on the platform.
+
+def normalize_coach_email(raw):
+    return (raw or "").strip().lower()
+
+
+@app.route("/coach/signup", methods=["GET", "POST"])
+def coach_signup():
+    if session.get("coach_id"):
+        return redirect(url_for("coach_players"))
+
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        school = request.form.get("school", "").strip()
+        email = normalize_coach_email(request.form.get("email", ""))
+        phone = normalize_phone(request.form.get("phone", ""))
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm", "")
+
+        if not name:
+            flash("Your name is required.", "error")
+        elif not school:
+            flash("Let us know what school/program you're with.", "error")
+        elif not email:
+            flash("A valid email is required.", "error")
+        elif len(password) < 6:
+            flash("Password needs at least 6 characters.", "error")
+        elif password != confirm:
+            flash("Those passwords don't match.", "error")
+        else:
+            conn = get_db()
+            try:
+                conn.execute(
+                    "INSERT INTO coaches (name, school, email, phone, password_hash, approved) VALUES (?, ?, ?, ?, ?, 0)",
+                    (name, school, email, phone, generate_password_hash(password)),
+                )
+                conn.commit()
+                conn.close()
+                flash("Thanks! Your account is pending approval - we'll email you once you're in.", "success")
+                return redirect(url_for("coach_login"))
+            except sqlite3.IntegrityError:
+                conn.close()
+                flash("An account with that email already exists - try signing in instead.", "error")
+
+    return render_template("coach_signup.html")
+
+
+@app.route("/coach/login", methods=["GET", "POST"])
+def coach_login():
+    if request.method == "POST":
+        email = normalize_coach_email(request.form.get("email", ""))
+        password = request.form.get("password", "")
+        conn = get_db()
+        coach = conn.execute("SELECT * FROM coaches WHERE email = ?", (email,)).fetchone()
+        conn.close()
+
+        if not coach or not check_password_hash(coach["password_hash"], password):
+            flash("That email or password isn't right.", "error")
+            return redirect(url_for("coach_login", next=request.form.get("next", "")))
+
+        session.permanent = True
+        session["coach_id"] = coach["id"]
+        session["coach_name"] = coach["name"]
+
+        if not coach["approved"]:
+            return render_template("coach_pending.html", coach=coach)
+
+        return redirect(request.form.get("next") or url_for("coach_players"))
+
+    return render_template("coach_login.html", next=request.args.get("next", ""))
+
+
+@app.route("/coach/logout", methods=["POST"])
+def coach_logout():
+    session.pop("coach_id", None)
+    session.pop("coach_name", None)
+    return redirect(url_for("coach_login"))
+
+
+def _coach_player_filters():
+    """Shared WHERE-clause building for the coach player search, leaderboards,
+    and reels feed: opted-in players only, everywhere, plus whatever the
+    coach chose to filter by."""
+    conds = ["p.recruiting_opt_in = 1"]
+    params = []
+    team_id = request.args.get("team", "").strip()
+    grad_year = request.args.get("grad_year", "").strip()
+    position = request.args.get("position", "").strip()
+    q = request.args.get("q", "").strip()
+    if team_id.isdigit():
+        conds.append("p.team_id = ?")
+        params.append(int(team_id))
+    if grad_year:
+        conds.append("p.grad_year = ?")
+        params.append(grad_year)
+    if position:
+        conds.append("p.position = ?")
+        params.append(position)
+    if q:
+        conds.append("p.name LIKE ?")
+        params.append(f"%{q}%")
+    player_id = request.args.get("player", "").strip()
+    if player_id.isdigit():
+        conds.append("p.id = ?")
+        params.append(int(player_id))
+    return " AND ".join(conds), params, {
+        "team": team_id, "grad_year": grad_year, "position": position, "q": q, "player": player_id,
+    }
+
+
+def _coach_filter_options(conn):
+    """Distinct team/grad-year/position values across every organization,
+    for populating the filter dropdowns - each team is labeled with its
+    organization so same-named teams in different orgs aren't ambiguous."""
+    teams = conn.execute(
+        """SELECT t.id, t.name, o.name AS org_name
+           FROM teams t JOIN organizations o ON o.id = t.organization_id
+           WHERE t.id IN (SELECT DISTINCT team_id FROM players WHERE recruiting_opt_in = 1 AND team_id IS NOT NULL)
+           ORDER BY o.name COLLATE NOCASE ASC, t.name COLLATE NOCASE ASC"""
+    ).fetchall()
+    grad_years = [
+        r[0] for r in conn.execute(
+            "SELECT DISTINCT grad_year FROM players WHERE recruiting_opt_in = 1 AND grad_year IS NOT NULL AND grad_year != '' ORDER BY grad_year ASC"
+        ).fetchall()
+    ]
+    positions = [
+        r[0] for r in conn.execute(
+            "SELECT DISTINCT position FROM players WHERE recruiting_opt_in = 1 AND position IS NOT NULL AND position != '' ORDER BY position ASC"
+        ).fetchall()
+    ]
+    return teams, grad_years, positions
+
+
+@app.route("/coach/players")
+@coach_required
+def coach_players():
+    conn = get_db()
+    where_sql, params, filters = _coach_player_filters()
+    players = conn.execute(
+        f"""SELECT p.*, t.name AS team_name, o.name AS org_name
+            FROM players p
+            LEFT JOIN teams t ON t.id = p.team_id
+            JOIN organizations o ON o.id = p.organization_id
+            WHERE {where_sql}
+            ORDER BY p.name COLLATE NOCASE ASC""",
+        params,
+    ).fetchall()
+    teams, grad_years, positions = _coach_filter_options(conn)
+    conn.close()
+    return render_template(
+        "coach_players.html", players=players, teams=teams, grad_years=grad_years,
+        positions=positions, filters=filters,
+    )
+
+
+@app.route("/coach/leaderboards")
+@coach_required
+def coach_leaderboards():
+    conn = get_db()
+    where_sql, params, filters = _coach_player_filters()
+    teams, grad_years, positions = _coach_filter_options(conn)
+
+    velo_leaders = conn.execute(
+        f"""SELECT p.id, p.name, t.name AS team_name, o.name AS org_name, MAX(s.stat_value) AS value
+            FROM stat_entries s
+            JOIN players p ON p.id = s.player_id
+            LEFT JOIN teams t ON t.id = p.team_id
+            JOIN organizations o ON o.id = p.organization_id
+            WHERE lower(s.stat_name) LIKE '%velo%' AND {where_sql}
+            GROUP BY p.id ORDER BY value DESC LIMIT 20""",
+        params,
+    ).fetchall()
+
+    strike_leaders = conn.execute(
+        f"""SELECT p.id, p.name, t.name AS team_name, o.name AS org_name,
+                   ROUND(AVG(s.stat_value), 1) AS value, COUNT(*) AS sessions
+            FROM stat_entries s
+            JOIN players p ON p.id = s.player_id
+            LEFT JOIN teams t ON t.id = p.team_id
+            JOIN organizations o ON o.id = p.organization_id
+            WHERE s.stat_name = 'Strike %' AND {where_sql}
+            GROUP BY p.id ORDER BY value DESC LIMIT 20""",
+        params,
+    ).fetchall()
+
+    k_leaders = conn.execute(
+        f"""SELECT p.id, p.name, t.name AS team_name, o.name AS org_name, SUM(s.stat_value) AS value
+            FROM stat_entries s
+            JOIN players p ON p.id = s.player_id
+            LEFT JOIN teams t ON t.id = p.team_id
+            JOIN organizations o ON o.id = p.organization_id
+            WHERE lower(s.stat_name) IN ('k', 'so', 'strikeouts', 'ks') AND {where_sql}
+            GROUP BY p.id ORDER BY value DESC LIMIT 20""",
+        params,
+    ).fetchall()
+
+    conn.close()
+    return render_template(
+        "coach_leaderboards.html", velo_leaders=velo_leaders, strike_leaders=strike_leaders,
+        k_leaders=k_leaders, teams=teams, grad_years=grad_years, positions=positions, filters=filters,
+    )
+
+
+@app.route("/coach/reels")
+@coach_required
+def coach_reels():
+    conn = get_db()
+    where_sql, params, filters = _coach_player_filters()
+    videos = conn.execute(
+        f"""SELECT v.*, p.name AS player_name, p.position, p.grad_year,
+                   t.name AS team_name, o.name AS org_name,
+                   EXISTS(SELECT 1 FROM video_favorites vf WHERE vf.video_id = v.id AND vf.coach_id = ?) AS is_favorited
+            FROM videos v
+            JOIN players p ON p.id = v.player_id
+            LEFT JOIN teams t ON t.id = p.team_id
+            JOIN organizations o ON o.id = p.organization_id
+            WHERE {where_sql}
+            ORDER BY v.entry_date DESC, v.id DESC""",
+        [g.coach["id"]] + params,
+    ).fetchall()
+    teams, grad_years, positions = _coach_filter_options(conn)
+    conn.close()
+    return render_template(
+        "coach_reels.html", videos=videos, teams=teams, grad_years=grad_years,
+        positions=positions, filters=filters,
+    )
+
+
+@app.route("/coach/videos/<int:video_id>/favorite", methods=["POST"])
+@coach_required
+def coach_favorite_toggle(video_id):
+    conn = get_db()
+    # Re-check opt-in on every toggle, not just when the reel feed was first
+    # loaded - a family can turn recruiting visibility off at any time, and a
+    # stale favorite shouldn't be a backdoor to a video that's no longer opted in.
+    video = conn.execute(
+        """SELECT v.id FROM videos v JOIN players p ON p.id = v.player_id
+           WHERE v.id = ? AND p.recruiting_opt_in = 1""",
+        (video_id,),
+    ).fetchone()
+    if not video:
+        conn.close()
+        abort(404)
+
+    existing = conn.execute(
+        "SELECT id FROM video_favorites WHERE coach_id = ? AND video_id = ?",
+        (g.coach["id"], video_id),
+    ).fetchone()
+    if existing:
+        conn.execute("DELETE FROM video_favorites WHERE id = ?", (existing["id"],))
+        favorited = False
+    else:
+        conn.execute(
+            "INSERT INTO video_favorites (coach_id, video_id) VALUES (?, ?)", (g.coach["id"], video_id)
+        )
+        favorited = True
+    conn.commit()
+    conn.close()
+
+    if request.headers.get("X-Requested-With") == "fetch":
+        return {"favorited": favorited}
+    return redirect(request.referrer or url_for("coach_reels"))
+
+
+@app.route("/coach/favorites")
+@coach_required
+def coach_favorites():
+    conn = get_db()
+    videos = conn.execute(
+        """SELECT v.*, p.name AS player_name, p.position, p.grad_year,
+                  t.name AS team_name, o.name AS org_name, 1 AS is_favorited
+           FROM video_favorites vf
+           JOIN videos v ON v.id = vf.video_id
+           JOIN players p ON p.id = v.player_id
+           LEFT JOIN teams t ON t.id = p.team_id
+           JOIN organizations o ON o.id = p.organization_id
+           WHERE vf.coach_id = ? AND p.recruiting_opt_in = 1
+           ORDER BY vf.created_at DESC""",
+        (g.coach["id"],),
+    ).fetchall()
+    conn.close()
+    return render_template("coach_favorites.html", videos=videos)
+
+
+# ---------- Routes: platform admin (coach approvals) ----------
+
+@app.route("/platform/coaches")
+@platform_admin_required
+def platform_coaches():
+    conn = get_db()
+    pending = conn.execute(
+        "SELECT * FROM coaches WHERE approved = 0 ORDER BY created_at ASC"
+    ).fetchall()
+    approved = conn.execute(
+        "SELECT * FROM coaches WHERE approved = 1 ORDER BY created_at DESC"
+    ).fetchall()
+    conn.close()
+    return render_template("platform_coaches.html", pending=pending, approved=approved)
+
+
+@app.route("/platform/coaches/<int:coach_id>/approve", methods=["POST"])
+@platform_admin_required
+def platform_approve_coach(coach_id):
+    conn = get_db()
+    conn.execute("UPDATE coaches SET approved = 1 WHERE id = ?", (coach_id,))
+    conn.commit()
+    conn.close()
+    flash("Coach approved.", "success")
+    return redirect(url_for("platform_coaches"))
+
+
+@app.route("/platform/coaches/<int:coach_id>/revoke", methods=["POST"])
+@platform_admin_required
+def platform_revoke_coach(coach_id):
+    conn = get_db()
+    conn.execute("UPDATE coaches SET approved = 0 WHERE id = ?", (coach_id,))
+    conn.commit()
+    conn.close()
+    flash("Access revoked.", "success")
+    return redirect(url_for("platform_coaches"))
+
+
+@app.route("/platform/coaches/<int:coach_id>/reject", methods=["POST"])
+@platform_admin_required
+def platform_reject_coach(coach_id):
+    conn = get_db()
+    conn.execute("DELETE FROM coaches WHERE id = ?", (coach_id,))
+    conn.commit()
+    conn.close()
+    flash("Coach account removed.", "success")
+    return redirect(url_for("platform_coaches"))
 
 
 # ---------- Routes: user management (admin only) ----------
@@ -984,17 +1832,23 @@ def can_manage_user(target):
     return True
 
 
-@app.route("/users")
+@app.route("/<org_slug>/users")
 @admin_required
 def users_page():
     conn = get_db()
     users = conn.execute(
         """SELECT u.*, p.name AS player_name FROM users u
            LEFT JOIN players p ON p.id = u.player_id
-           ORDER BY u.name COLLATE NOCASE ASC"""
+           WHERE u.organization_id = ?
+           ORDER BY u.name COLLATE NOCASE ASC""",
+        (g.org["id"],),
     ).fetchall()
-    invites = conn.execute("SELECT * FROM invite_links ORDER BY created_at DESC").fetchall()
-    all_players = conn.execute("SELECT id, name FROM players ORDER BY name COLLATE NOCASE ASC").fetchall()
+    invites = conn.execute(
+        "SELECT * FROM invite_links WHERE organization_id = ? ORDER BY created_at DESC", (g.org["id"],)
+    ).fetchall()
+    all_players = conn.execute(
+        "SELECT id, name FROM players WHERE organization_id = ? ORDER BY name COLLATE NOCASE ASC", (g.org["id"],)
+    ).fetchall()
     conn.close()
     owners = [u for u in users if u["is_owner"]]
     admins = [u for u in users if u["is_admin"] and not u["is_owner"]]
@@ -1006,11 +1860,13 @@ def users_page():
     )
 
 
-@app.route("/users/<int:user_id>/link-player", methods=["POST"])
+@app.route("/<org_slug>/users/<int:user_id>/link-player", methods=["POST"])
 @admin_required
 def link_user_player(user_id):
     conn = get_db()
-    target = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    target = conn.execute(
+        "SELECT * FROM users WHERE id = ? AND organization_id = ?", (user_id, g.org["id"])
+    ).fetchone()
     if not can_manage_user(target):
         conn.close()
         flash("You don't have permission to edit that account.", "error")
@@ -1021,6 +1877,14 @@ def link_user_player(user_id):
         return redirect(url_for("users_page"))
     raw = request.form.get("player_id", "").strip()
     player_id = int(raw) if raw.isdigit() else None
+    if player_id is not None:
+        owned = conn.execute(
+            "SELECT id FROM players WHERE id = ? AND organization_id = ?", (player_id, g.org["id"])
+        ).fetchone()
+        if not owned:
+            conn.close()
+            flash("That player isn't part of this organization.", "error")
+            return redirect(url_for("users_page"))
     conn.execute("UPDATE users SET player_id = ? WHERE id = ?", (player_id, user_id))
     conn.commit()
     conn.close()
@@ -1028,15 +1892,15 @@ def link_user_player(user_id):
     return redirect(url_for("users_page"))
 
 
-@app.route("/invites/create", methods=["POST"])
+@app.route("/<org_slug>/invites/create", methods=["POST"])
 @admin_required
 def create_invite():
     token = secrets.token_urlsafe(16)
     expires = (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
     conn = get_db()
     conn.execute(
-        "INSERT INTO invite_links (token, created_by, expires_at) VALUES (?, ?, ?)",
-        (token, session["user_id"], expires),
+        "INSERT INTO invite_links (organization_id, token, created_by, expires_at) VALUES (?, ?, ?, ?)",
+        (g.org["id"], token, session["user_id"], expires),
     )
     conn.commit()
     conn.close()
@@ -1044,11 +1908,11 @@ def create_invite():
     return redirect(url_for("users_page"))
 
 
-@app.route("/invites/<int:invite_id>/delete", methods=["POST"])
+@app.route("/<org_slug>/invites/<int:invite_id>/delete", methods=["POST"])
 @admin_required
 def delete_invite(invite_id):
     conn = get_db()
-    conn.execute("DELETE FROM invite_links WHERE id = ?", (invite_id,))
+    conn.execute("DELETE FROM invite_links WHERE id = ? AND organization_id = ?", (invite_id, g.org["id"]))
     conn.commit()
     conn.close()
     flash("Invite link deactivated.", "success")
@@ -1061,9 +1925,29 @@ def join(token):
     invite = conn.execute("SELECT * FROM invite_links WHERE token = ?", (token,)).fetchone()
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    if not invite or (invite["expires_at"] and now > invite["expires_at"]):
+    # An invalid/unknown token means there's no org to send them back to
+    # (login itself requires one) - the org picker is the only safe fallback.
+    # An expired-but-real invite still knows its org, so it can link there.
+    if not invite:
         conn.close()
-        return render_template("join.html", invalid=True, token=token)
+        return render_template("join.html", invalid=True, token=token, back_url=url_for("org_picker"))
+
+    org = conn.execute("SELECT * FROM organizations WHERE id = ?", (invite["organization_id"],)).fetchone()
+    if not org:
+        conn.close()
+        return render_template("join.html", invalid=True, token=token, back_url=url_for("org_picker"))
+
+    if invite["expires_at"] and now > invite["expires_at"]:
+        conn.close()
+        return render_template(
+            "join.html",
+            invalid=True,
+            token=token,
+            back_url=url_for("login", org_slug=org["slug"]),
+            org_name=org["name"],
+            org_logo=static_url("img/default-badge.svg") if org["slug"] != "swarm-baseball" else static_url("img/swarm-badge.png"),
+            org_theme_gray=(org["slug"] != "swarm-baseball"),
+        )
 
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -1083,8 +1967,8 @@ def join(token):
         else:
             try:
                 cur = conn.execute(
-                    "INSERT INTO users (name, email, phone, password_hash, is_admin) VALUES (?, ?, ?, ?, 0)",
-                    (name, email or None, phone, generate_password_hash(password)),
+                    "INSERT INTO users (organization_id, name, email, phone, password_hash, is_admin) VALUES (?, ?, ?, ?, ?, 0)",
+                    (org["id"], name, email or None, phone, generate_password_hash(password)),
                 )
                 conn.commit()
                 session.permanent = True
@@ -1092,20 +1976,29 @@ def join(token):
                 session["user_name"] = name
                 session["is_admin"] = False
                 session["is_owner"] = False
+                session["is_platform_admin"] = False
                 session["player_id"] = None
+                session["organization_id"] = org["id"]
                 conn.close()
                 flash(f"Welcome, {name}! Your account is ready.", "success")
-                return redirect(url_for("index"))
+                return redirect(url_for("index", org_slug=org["slug"]))
             except sqlite3.IntegrityError:
                 flash("An account with that email or phone already exists - try signing in instead.", "error")
         conn.close()
         return redirect(url_for("join", token=token))
 
     conn.close()
-    return render_template("join.html", invalid=False, token=token)
+    return render_template(
+        "join.html",
+        invalid=False,
+        token=token,
+        org_name=org["name"],
+        org_logo=static_url("img/default-badge.svg") if org["slug"] != "swarm-baseball" else static_url("img/swarm-badge.png"),
+        org_theme_gray=(org["slug"] != "swarm-baseball"),
+    )
 
 
-@app.route("/users/add", methods=["POST"])
+@app.route("/<org_slug>/users/add", methods=["POST"])
 @admin_required
 def add_user():
     name = request.form.get("name", "").strip()
@@ -1122,10 +2015,16 @@ def add_user():
         return redirect(url_for("users_page"))
 
     conn = get_db()
+    if player_id is not None:
+        owned = conn.execute(
+            "SELECT id FROM players WHERE id = ? AND organization_id = ?", (player_id, g.org["id"])
+        ).fetchone()
+        if not owned:
+            player_id = None
     try:
         conn.execute(
-            "INSERT INTO users (name, email, phone, is_admin, player_id) VALUES (?, ?, ?, ?, ?)",
-            (name, email, phone, is_admin, player_id),
+            "INSERT INTO users (organization_id, name, email, phone, is_admin, player_id) VALUES (?, ?, ?, ?, ?, ?)",
+            (g.org["id"], name, email, phone, is_admin, player_id),
         )
         conn.commit()
         flash(f"Added {name or email or phone}. They can now sign in and create their password.", "success")
@@ -1135,11 +2034,13 @@ def add_user():
     return redirect(url_for("users_page"))
 
 
-@app.route("/users/<int:user_id>/delete", methods=["POST"])
+@app.route("/<org_slug>/users/<int:user_id>/delete", methods=["POST"])
 @admin_required
 def delete_user(user_id):
     conn = get_db()
-    target = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    target = conn.execute(
+        "SELECT * FROM users WHERE id = ? AND organization_id = ?", (user_id, g.org["id"])
+    ).fetchone()
     if not can_manage_user(target):
         conn.close()
         flash("You don't have permission to remove that account.", "error")
@@ -1151,11 +2052,13 @@ def delete_user(user_id):
     return redirect(url_for("users_page"))
 
 
-@app.route("/users/<int:user_id>/reset", methods=["POST"])
+@app.route("/<org_slug>/users/<int:user_id>/reset", methods=["POST"])
 @admin_required
 def reset_user_password(user_id):
     conn = get_db()
-    target = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    target = conn.execute(
+        "SELECT * FROM users WHERE id = ? AND organization_id = ?", (user_id, g.org["id"])
+    ).fetchone()
     if not can_manage_user(target):
         conn.close()
         flash("You don't have permission to reset that account's password.", "error")
@@ -1167,13 +2070,15 @@ def reset_user_password(user_id):
     return redirect(url_for("users_page"))
 
 
-@app.route("/users/<int:user_id>/role", methods=["POST"])
+@app.route("/<org_slug>/users/<int:user_id>/role", methods=["POST"])
 @admin_required
 def change_user_role(user_id):
     """Any admin can promote a member to admin or demote an admin to member.
     The site owner can't be touched by anyone, including themselves."""
     conn = get_db()
-    target = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    target = conn.execute(
+        "SELECT * FROM users WHERE id = ? AND organization_id = ?", (user_id, g.org["id"])
+    ).fetchone()
     if not can_manage_user(target):
         conn.close()
         flash("You can't change that account's role.", "error")
@@ -1192,24 +2097,36 @@ def change_user_role(user_id):
 
 # ---------- Routes: leaderboard ----------
 
-@app.route("/leaderboard")
+@app.route("/<org_slug>/leaderboard")
 def leaderboard():
     team_filter = request.args.get("team", "").strip()
+    grad_year_filter = request.args.get("grad_year", "").strip()
     conn = get_db()
-    all_teams = _all_teams(conn)
+    all_teams = _all_teams(conn, g.org["id"])
+    grad_years = [
+        row[0] for row in conn.execute(
+            """SELECT DISTINCT grad_year FROM players
+               WHERE organization_id = ? AND grad_year IS NOT NULL AND grad_year != ''
+               ORDER BY grad_year ASC""",
+            (g.org["id"],),
+        ).fetchall()
+    ]
 
-    team_cond = ""
-    params = []
+    filter_cond = " AND p.organization_id = ?"
+    params = [g.org["id"]]
     if team_filter.isdigit():
-        team_cond = " AND p.team_id = ?"
+        filter_cond += " AND p.team_id = ?"
         params.append(int(team_filter))
+    if grad_year_filter:
+        filter_cond += " AND p.grad_year = ?"
+        params.append(grad_year_filter)
 
     velo_leaders = conn.execute(
         f"""SELECT p.id, p.name, t.name AS team_name, MAX(s.stat_value) AS value
             FROM stat_entries s
             JOIN players p ON p.id = s.player_id
             LEFT JOIN teams t ON t.id = p.team_id
-            WHERE lower(s.stat_name) LIKE '%velo%'{team_cond}
+            WHERE lower(s.stat_name) LIKE '%velo%'{filter_cond}
             GROUP BY p.id ORDER BY value DESC LIMIT 10""",
         params,
     ).fetchall()
@@ -1220,7 +2137,7 @@ def leaderboard():
             FROM stat_entries s
             JOIN players p ON p.id = s.player_id
             LEFT JOIN teams t ON t.id = p.team_id
-            WHERE s.stat_name = 'Strike %'{team_cond}
+            WHERE s.stat_name = 'Strike %'{filter_cond}
             GROUP BY p.id ORDER BY value DESC LIMIT 10""",
         params,
     ).fetchall()
@@ -1230,7 +2147,7 @@ def leaderboard():
             FROM stat_entries s
             JOIN players p ON p.id = s.player_id
             LEFT JOIN teams t ON t.id = p.team_id
-            WHERE lower(s.stat_name) IN ('k', 'so', 'strikeouts', 'ks'){team_cond}
+            WHERE lower(s.stat_name) IN ('k', 'so', 'strikeouts', 'ks'){filter_cond}
             GROUP BY p.id ORDER BY value DESC LIMIT 10""",
         params,
     ).fetchall()
@@ -1239,12 +2156,13 @@ def leaderboard():
     return render_template(
         "leaderboard.html", velo_leaders=velo_leaders, strike_leaders=strike_leaders,
         k_leaders=k_leaders, teams=all_teams, team_filter=team_filter,
+        grad_years=grad_years, grad_year_filter=grad_year_filter,
     )
 
 
 # ---------- Routes: player roster ----------
 
-@app.route("/")
+@app.route("/<org_slug>/")
 def index():
     # Optional filters: ?q= free-text search (matches player name, team name,
     # or grad year - so "2027 - Red" pulls up everyone on that team), and
@@ -1261,8 +2179,8 @@ def index():
         FROM players p
         LEFT JOIN teams t ON t.id = p.team_id
         """
-    where = []
-    params = []
+    where = ["p.organization_id = ?"]
+    params = [g.org["id"]]
     if q:
         like = f"%{q}%"
         where.append("(p.name LIKE ? OR IFNULL(t.name, '') LIKE ? OR IFNULL(p.grad_year, '') LIKE ?)")
@@ -1278,7 +2196,7 @@ def index():
 
     conn = get_db()
     players = conn.execute(sql, params).fetchall()
-    all_teams = conn.execute("SELECT * FROM teams ORDER BY name COLLATE NOCASE ASC").fetchall()
+    all_teams = _all_teams(conn, g.org["id"])
     conn.close()
 
     # Roster convention: alphabetize by last name (then first name to break
@@ -1296,21 +2214,25 @@ def index():
 
 # ---------- Routes: teams ----------
 
-@app.route("/teams")
+@app.route("/<org_slug>/teams")
 def teams_page():
     conn = get_db()
     team_rows = conn.execute(
         """SELECT t.*, COUNT(p.id) AS player_count
            FROM teams t LEFT JOIN players p ON p.team_id = t.id
+           WHERE t.organization_id = ?
            GROUP BY t.id
-           ORDER BY t.name COLLATE NOCASE ASC"""
+           ORDER BY t.name COLLATE NOCASE ASC""",
+        (g.org["id"],),
     ).fetchall()
-    unassigned_count = conn.execute("SELECT COUNT(*) FROM players WHERE team_id IS NULL").fetchone()[0]
+    unassigned_count = conn.execute(
+        "SELECT COUNT(*) FROM players WHERE team_id IS NULL AND organization_id = ?", (g.org["id"],)
+    ).fetchone()[0]
     conn.close()
     return render_template("teams.html", teams=team_rows, unassigned_count=unassigned_count)
 
 
-@app.route("/teams/add", methods=["POST"])
+@app.route("/<org_slug>/teams/add", methods=["POST"])
 def add_team():
     name = request.form.get("name", "").strip()
     if not name:
@@ -1318,7 +2240,7 @@ def add_team():
         return redirect(url_for("teams_page"))
     conn = get_db()
     try:
-        conn.execute("INSERT INTO teams (name) VALUES (?)", (name,))
+        conn.execute("INSERT INTO teams (organization_id, name) VALUES (?, ?)", (g.org["id"], name))
         conn.commit()
         flash(f"Added team {name}.", "success")
     except sqlite3.IntegrityError:
@@ -1327,7 +2249,7 @@ def add_team():
     return redirect(url_for("teams_page"))
 
 
-@app.route("/teams/<int:team_id>/rename", methods=["POST"])
+@app.route("/<org_slug>/teams/<int:team_id>/rename", methods=["POST"])
 def rename_team(team_id):
     name = request.form.get("name", "").strip()
     if not name:
@@ -1335,7 +2257,9 @@ def rename_team(team_id):
         return redirect(url_for("teams_page"))
     conn = get_db()
     try:
-        conn.execute("UPDATE teams SET name = ? WHERE id = ?", (name, team_id))
+        conn.execute(
+            "UPDATE teams SET name = ? WHERE id = ? AND organization_id = ?", (name, team_id, g.org["id"])
+        )
         conn.commit()
         flash("Team renamed.", "success")
     except sqlite3.IntegrityError:
@@ -1344,12 +2268,17 @@ def rename_team(team_id):
     return redirect(url_for("teams_page"))
 
 
-@app.route("/teams/<int:team_id>/delete", methods=["POST"])
+@app.route("/<org_slug>/teams/<int:team_id>/delete", methods=["POST"])
 def delete_team(team_id):
     conn = get_db()
-    conn.execute("UPDATE players SET team_id = NULL WHERE team_id = ?", (team_id,))
-    conn.execute("UPDATE throwing_entries SET team_id = NULL WHERE team_id = ?", (team_id,))
-    conn.execute("DELETE FROM teams WHERE id = ?", (team_id,))
+    conn.execute(
+        "UPDATE players SET team_id = NULL WHERE team_id = ? AND organization_id = ?", (team_id, g.org["id"])
+    )
+    conn.execute(
+        "UPDATE throwing_entries SET team_id = NULL WHERE team_id = ? AND organization_id = ?",
+        (team_id, g.org["id"]),
+    )
+    conn.execute("DELETE FROM teams WHERE id = ? AND organization_id = ?", (team_id, g.org["id"]))
     conn.commit()
     conn.close()
     flash("Team deleted. Its players are now unassigned and its calendar entries moved to the General calendar.", "success")
@@ -1358,14 +2287,24 @@ def delete_team(team_id):
 
 # ---------- Routes: players ----------
 
-def _team_id_from_form():
-    """The team dropdown posts a team id, or empty string for 'No team'."""
+def _team_id_from_form(conn, organization_id):
+    """The team dropdown posts a team id, or empty string for 'No team'.
+    Only accepted if that team actually belongs to this organization -
+    otherwise a crafted request could attach a player to another org's team."""
     raw = request.form.get("team_id", "").strip()
-    return int(raw) if raw.isdigit() else None
+    if not raw.isdigit():
+        return None
+    team_id = int(raw)
+    owned = conn.execute(
+        "SELECT id FROM teams WHERE id = ? AND organization_id = ?", (team_id, organization_id)
+    ).fetchone()
+    return team_id if owned else None
 
 
-def _all_teams(conn):
-    return conn.execute("SELECT * FROM teams ORDER BY name COLLATE NOCASE ASC").fetchall()
+def _all_teams(conn, organization_id):
+    return conn.execute(
+        "SELECT * FROM teams WHERE organization_id = ? ORDER BY name COLLATE NOCASE ASC", (organization_id,)
+    ).fetchall()
 
 
 def _contacts_from_form():
@@ -1393,7 +2332,7 @@ def _save_contacts(conn, player_id, contacts):
         )
 
 
-@app.route("/players/add", methods=["GET", "POST"])
+@app.route("/<org_slug>/players/add", methods=["GET", "POST"])
 def add_player():
     if request.method == "POST":
         name = request.form.get("name", "").strip()
@@ -1405,7 +2344,6 @@ def add_player():
         position = request.form.get("position", "").strip()
         grad_year = request.form.get("grad_year", "").strip()
         notes = request.form.get("notes", "").strip()
-        team_id = _team_id_from_form()
         contact = {f: request.form.get(f, "").strip() for f in PLAYER_CONTACT_FIELDS}
         measurables = {f: request.form.get(f, "").strip() for f in PLAYER_MEASURABLE_FIELDS}
 
@@ -1417,14 +2355,15 @@ def add_player():
             photo.save(os.path.join(PHOTO_DIR, photo_filename))
 
         conn = get_db()
+        team_id = _team_id_from_form(conn, g.org["id"])
         contact_cols = ", ".join(PLAYER_CONTACT_FIELDS)
         contact_marks = ", ".join("?" for _ in PLAYER_CONTACT_FIELDS)
         measurable_cols = ", ".join(PLAYER_MEASURABLE_FIELDS)
         measurable_marks = ", ".join("?" for _ in PLAYER_MEASURABLE_FIELDS)
         cur = conn.execute(
-            f"INSERT INTO players (name, jersey_number, position, grad_year, photo_filename, notes, team_id, {contact_cols}, {measurable_cols}) "
-            f"VALUES (?, ?, ?, ?, ?, ?, ?, {contact_marks}, {measurable_marks})",
-            (name, jersey_number, position, grad_year, photo_filename, notes, team_id,
+            f"INSERT INTO players (organization_id, name, jersey_number, position, grad_year, photo_filename, notes, team_id, {contact_cols}, {measurable_cols}) "
+            f"VALUES (?, ?, ?, ?, ?, ?, ?, ?, {contact_marks}, {measurable_marks})",
+            (g.org["id"], name, jersey_number, position, grad_year, photo_filename, notes, team_id,
              *[contact[f] for f in PLAYER_CONTACT_FIELDS],
              *[measurables[f] for f in PLAYER_MEASURABLE_FIELDS]),
         )
@@ -1435,17 +2374,17 @@ def add_player():
         return redirect(url_for("index"))
 
     conn = get_db()
-    all_teams = _all_teams(conn)
+    all_teams = _all_teams(conn, g.org["id"])
     conn.close()
     return render_template("add_player.html", teams=all_teams, contacts=[])
 
 
-@app.route("/players/<int:player_id>")
+@app.route("/<org_slug>/players/<int:player_id>")
 def player_detail(player_id):
     conn = get_db()
     player = conn.execute(
-        "SELECT p.*, t.name AS team_name FROM players p LEFT JOIN teams t ON t.id = p.team_id WHERE p.id = ?",
-        (player_id,),
+        "SELECT p.*, t.name AS team_name FROM players p LEFT JOIN teams t ON t.id = p.team_id WHERE p.id = ? AND p.organization_id = ?",
+        (player_id, g.org["id"]),
     ).fetchone()
     if not player:
         conn.close()
@@ -1646,12 +2585,12 @@ def player_detail(player_id):
     )
 
 
-@app.route("/players/<int:player_id>/report")
+@app.route("/<org_slug>/players/<int:player_id>/report")
 def player_report(player_id):
     conn = get_db()
     player = conn.execute(
-        "SELECT p.*, t.name AS team_name FROM players p LEFT JOIN teams t ON t.id = p.team_id WHERE p.id = ?",
-        (player_id,),
+        "SELECT p.*, t.name AS team_name FROM players p LEFT JOIN teams t ON t.id = p.team_id WHERE p.id = ? AND p.organization_id = ?",
+        (player_id, g.org["id"]),
     ).fetchone()
     if not player:
         conn.close()
@@ -1719,10 +2658,12 @@ def player_report(player_id):
     )
 
 
-@app.route("/players/<int:player_id>/edit", methods=["GET", "POST"])
+@app.route("/<org_slug>/players/<int:player_id>/edit", methods=["GET", "POST"])
 def edit_player(player_id):
     conn = get_db()
-    player = conn.execute("SELECT * FROM players WHERE id = ?", (player_id,)).fetchone()
+    player = conn.execute(
+        "SELECT * FROM players WHERE id = ? AND organization_id = ?", (player_id, g.org["id"])
+    ).fetchone()
     if not player:
         conn.close()
         abort(404)
@@ -1745,7 +2686,8 @@ def edit_player(player_id):
         position = request.form.get("position", "").strip()
         grad_year = request.form.get("grad_year", "").strip()
         notes = request.form.get("notes", "").strip()
-        team_id = _team_id_from_form()
+        recruiting_opt_in = 1 if request.form.get("recruiting_opt_in") else 0
+        team_id = _team_id_from_form(conn, g.org["id"])
         contact = {f: request.form.get(f, "").strip() for f in PLAYER_CONTACT_FIELDS}
         measurables = {f: request.form.get(f, "").strip() for f in PLAYER_MEASURABLE_FIELDS}
 
@@ -1760,8 +2702,8 @@ def edit_player(player_id):
         measurable_sets = ", ".join(f"{f} = ?" for f in PLAYER_MEASURABLE_FIELDS)
         conn.execute(
             f"""UPDATE players SET name = ?, jersey_number = ?, position = ?, grad_year = ?,
-               notes = ?, photo_filename = ?, team_id = ?, {contact_sets}, {measurable_sets} WHERE id = ?""",
-            (name, jersey_number, position, grad_year, notes, photo_filename, team_id,
+               notes = ?, photo_filename = ?, team_id = ?, recruiting_opt_in = ?, {contact_sets}, {measurable_sets} WHERE id = ?""",
+            (name, jersey_number, position, grad_year, notes, photo_filename, team_id, recruiting_opt_in,
              *[contact[f] for f in PLAYER_CONTACT_FIELDS],
              *[measurables[f] for f in PLAYER_MEASURABLE_FIELDS], player_id),
         )
@@ -1771,7 +2713,7 @@ def edit_player(player_id):
         flash(f"Updated {name}.", "success")
         return redirect(url_for("player_detail", player_id=player_id))
 
-    all_teams = _all_teams(conn)
+    all_teams = _all_teams(conn, g.org["id"])
     contacts = conn.execute(
         "SELECT * FROM player_contacts WHERE player_id = ? ORDER BY id ASC", (player_id,)
     ).fetchall()
@@ -1779,11 +2721,11 @@ def edit_player(player_id):
     return render_template("edit_player.html", player=player, teams=all_teams, contacts=contacts)
 
 
-@app.route("/players/<int:player_id>/delete", methods=["POST"])
+@app.route("/<org_slug>/players/<int:player_id>/delete", methods=["POST"])
 @admin_required
 def delete_player(player_id):
     conn = get_db()
-    conn.execute("DELETE FROM players WHERE id = ?", (player_id,))
+    conn.execute("DELETE FROM players WHERE id = ? AND organization_id = ?", (player_id, g.org["id"]))
     conn.commit()
     conn.close()
     flash("Player removed.", "success")
@@ -1792,7 +2734,7 @@ def delete_player(player_id):
 
 # ---------- Routes: lesson calendar ----------
 
-@app.route("/calendar")
+@app.route("/<org_slug>/calendar")
 def lesson_calendar():
     today = date.today()
     try:
@@ -1811,8 +2753,10 @@ def lesson_calendar():
     team_param = request.args.get("team", "").strip()
     current_team = None
     if team_param.isdigit():
-        current_team = conn.execute("SELECT * FROM teams WHERE id = ?", (int(team_param),)).fetchone()
-    all_teams = _all_teams(conn)
+        current_team = conn.execute(
+            "SELECT * FROM teams WHERE id = ? AND organization_id = ?", (int(team_param), g.org["id"])
+        ).fetchone()
+    all_teams = _all_teams(conn, g.org["id"])
 
     month_start = f"{year:04d}-{month:02d}-01"
     last_day = calendar_module.monthrange(year, month)[1]
@@ -1823,16 +2767,16 @@ def lesson_calendar():
     if current_team:
         entries = conn.execute(
             """SELECT * FROM throwing_entries
-               WHERE entry_date BETWEEN ? AND ? AND (team_id = ? OR team_id IS NULL)
+               WHERE organization_id = ? AND entry_date BETWEEN ? AND ? AND (team_id = ? OR team_id IS NULL)
                ORDER BY entry_date ASC, id ASC""",
-            (month_start, month_end, current_team["id"]),
+            (g.org["id"], month_start, month_end, current_team["id"]),
         ).fetchall()
     else:
         entries = conn.execute(
             """SELECT * FROM throwing_entries
-               WHERE entry_date BETWEEN ? AND ? AND team_id IS NULL
+               WHERE organization_id = ? AND entry_date BETWEEN ? AND ? AND team_id IS NULL
                ORDER BY entry_date ASC, id ASC""",
-            (month_start, month_end),
+            (g.org["id"], month_start, month_end),
         ).fetchall()
 
     # Comments on each lesson day, keyed by entry id, with the delete URL
@@ -1855,6 +2799,8 @@ def lesson_calendar():
                 "created_at": format_comment_time(c["created_at"]),
                 "delete_url": url_for("delete_calendar_comment", comment_id=c["id"]) if session.get("is_admin") else None,
             })
+
+    feed_token = get_or_create_feed_token(conn, session["user_id"])
     conn.close()
 
     entries_by_date = {}
@@ -1894,10 +2840,61 @@ def lesson_calendar():
         teams=all_teams,
         current_team=current_team,
         comments_by_entry=comments_by_entry,
+        feed_token=feed_token,
     )
 
 
-@app.route("/calendar/add", methods=["POST"])
+@app.route("/calendar/feed/<token>.ics")
+def calendar_feed(token):
+    conn = get_db()
+    user = conn.execute(
+        "SELECT id, organization_id FROM users WHERE calendar_feed_token = ?", (token,)
+    ).fetchone()
+    if not user:
+        conn.close()
+        abort(404)
+    org = conn.execute("SELECT * FROM organizations WHERE id = ?", (user["organization_id"],)).fetchone()
+    if not org:
+        conn.close()
+        abort(404)
+
+    team_param = request.args.get("team", "").strip()
+    current_team = None
+    if team_param.isdigit():
+        current_team = conn.execute(
+            "SELECT * FROM teams WHERE id = ? AND organization_id = ?", (int(team_param), org["id"])
+        ).fetchone()
+
+    today = date.today()
+    window_start = (today - timedelta(days=90)).strftime("%Y-%m-%d")
+    window_end = (today + timedelta(days=365)).strftime("%Y-%m-%d")
+
+    if current_team:
+        entries = conn.execute(
+            """SELECT * FROM throwing_entries
+               WHERE organization_id = ? AND entry_date BETWEEN ? AND ? AND (team_id = ? OR team_id IS NULL)
+               ORDER BY entry_date ASC, id ASC""",
+            (org["id"], window_start, window_end, current_team["id"]),
+        ).fetchall()
+        calendar_name = f"{org['name']} – {current_team['name']}"
+    else:
+        entries = conn.execute(
+            """SELECT * FROM throwing_entries
+               WHERE organization_id = ? AND entry_date BETWEEN ? AND ? AND team_id IS NULL
+               ORDER BY entry_date ASC, id ASC""",
+            (org["id"], window_start, window_end),
+        ).fetchall()
+        calendar_name = f"{org['name']} – General"
+
+    conn.close()
+
+    ics_text = build_ics_feed(entries, calendar_name, mark_general=bool(current_team))
+    response = Response(ics_text, mimetype="text/calendar")
+    response.headers["Content-Disposition"] = "inline; filename=swarm-baseball-calendar.ics"
+    return response
+
+
+@app.route("/<org_slug>/calendar/add", methods=["POST"])
 def add_calendar_entry():
     entry_date = parse_date(request.form.get("entry_date"))
     message = request.form.get("message", "").strip()
@@ -1912,8 +2909,8 @@ def add_calendar_entry():
     else:
         conn = get_db()
         conn.execute(
-            "INSERT INTO throwing_entries (entry_date, message, team_id, location, details, event_time) VALUES (?, ?, ?, ?, ?, ?)",
-            (entry_date, message, team_id, location, details, event_time or None),
+            "INSERT INTO throwing_entries (organization_id, entry_date, message, team_id, location, details, event_time) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (g.org["id"], entry_date, message, team_id, location, details, event_time or None),
         )
         conn.commit()
         conn.close()
@@ -1923,10 +2920,12 @@ def add_calendar_entry():
     return redirect(url_for("lesson_calendar", year=int(year), month=int(month), team=team_id))
 
 
-@app.route("/calendar/<int:entry_id>/delete", methods=["POST"])
+@app.route("/<org_slug>/calendar/<int:entry_id>/delete", methods=["POST"])
 def delete_calendar_entry(entry_id):
     conn = get_db()
-    entry = conn.execute("SELECT * FROM throwing_entries WHERE id = ?", (entry_id,)).fetchone()
+    entry = conn.execute(
+        "SELECT * FROM throwing_entries WHERE id = ? AND organization_id = ?", (entry_id, g.org["id"])
+    ).fetchone()
     if entry:
         conn.execute("DELETE FROM throwing_entries WHERE id = ?", (entry_id,))
         conn.commit()
@@ -1941,7 +2940,7 @@ def delete_calendar_entry(entry_id):
 
 # ---------- Routes: comments ----------
 
-@app.route("/players/<int:player_id>/comments/add", methods=["POST"])
+@app.route("/<org_slug>/players/<int:player_id>/comments/add", methods=["POST"])
 def add_player_comment(player_id):
     commenter_name = request.form.get("commenter_name", "").strip()
     body = request.form.get("body", "").strip()
@@ -1951,14 +2950,16 @@ def add_player_comment(player_id):
         return redirect(url_for("player_detail", player_id=player_id))
 
     conn = get_db()
-    player = conn.execute("SELECT id FROM players WHERE id = ?", (player_id,)).fetchone()
+    player = conn.execute(
+        "SELECT id FROM players WHERE id = ? AND organization_id = ?", (player_id, g.org["id"])
+    ).fetchone()
     if not player:
         conn.close()
         abort(404)
 
     conn.execute(
-        "INSERT INTO comments (player_id, video_id, commenter_name, body) VALUES (?, NULL, ?, ?)",
-        (player_id, commenter_name, body),
+        "INSERT INTO comments (organization_id, player_id, video_id, commenter_name, body) VALUES (?, ?, NULL, ?, ?)",
+        (g.org["id"], player_id, commenter_name, body),
     )
     conn.commit()
     conn.close()
@@ -1966,13 +2967,15 @@ def add_player_comment(player_id):
     return redirect(url_for("player_detail", player_id=player_id) + "#feedback")
 
 
-@app.route("/videos/<int:video_id>/comments/add", methods=["POST"])
+@app.route("/<org_slug>/videos/<int:video_id>/comments/add", methods=["POST"])
 def add_video_comment(video_id):
     commenter_name = request.form.get("commenter_name", "").strip()
     body = request.form.get("body", "").strip()
 
     conn = get_db()
-    video = conn.execute("SELECT * FROM videos WHERE id = ?", (video_id,)).fetchone()
+    video = conn.execute(
+        "SELECT * FROM videos WHERE id = ? AND organization_id = ?", (video_id, g.org["id"])
+    ).fetchone()
     if not video:
         conn.close()
         abort(404)
@@ -1983,8 +2986,8 @@ def add_video_comment(video_id):
         return redirect(url_for("player_detail", player_id=video["player_id"]) + f"#video-{video_id}")
 
     conn.execute(
-        "INSERT INTO comments (player_id, video_id, commenter_name, body) VALUES (?, ?, ?, ?)",
-        (video["player_id"], video_id, commenter_name, body),
+        "INSERT INTO comments (organization_id, player_id, video_id, commenter_name, body) VALUES (?, ?, ?, ?, ?)",
+        (g.org["id"], video["player_id"], video_id, commenter_name, body),
     )
     conn.commit()
     player_id = video["player_id"]
@@ -1993,11 +2996,13 @@ def add_video_comment(video_id):
     return redirect(url_for("player_detail", player_id=player_id) + f"#video-{video_id}")
 
 
-@app.route("/comments/<int:comment_id>/delete", methods=["POST"])
+@app.route("/<org_slug>/comments/<int:comment_id>/delete", methods=["POST"])
 @admin_required
 def delete_comment(comment_id):
     conn = get_db()
-    comment = conn.execute("SELECT * FROM comments WHERE id = ?", (comment_id,)).fetchone()
+    comment = conn.execute(
+        "SELECT * FROM comments WHERE id = ? AND organization_id = ?", (comment_id, g.org["id"])
+    ).fetchone()
     if not comment:
         conn.close()
         abort(404)
@@ -2030,13 +3035,15 @@ def _calendar_redirect(request_form, entry_id):
     ))
 
 
-@app.route("/calendar/<int:entry_id>/comments/add", methods=["POST"])
+@app.route("/<org_slug>/calendar/<int:entry_id>/comments/add", methods=["POST"])
 def add_calendar_comment(entry_id):
     commenter_name = request.form.get("commenter_name", "").strip()
     body = request.form.get("body", "").strip()
 
     conn = get_db()
-    entry = conn.execute("SELECT * FROM throwing_entries WHERE id = ?", (entry_id,)).fetchone()
+    entry = conn.execute(
+        "SELECT * FROM throwing_entries WHERE id = ? AND organization_id = ?", (entry_id, g.org["id"])
+    ).fetchone()
     if not entry:
         conn.close()
         abort(404)
@@ -2047,8 +3054,8 @@ def add_calendar_comment(entry_id):
         return _calendar_redirect(request.form, entry_id)
 
     conn.execute(
-        "INSERT INTO calendar_entry_comments (entry_id, commenter_name, body) VALUES (?, ?, ?)",
-        (entry_id, commenter_name, body),
+        "INSERT INTO calendar_entry_comments (organization_id, entry_id, commenter_name, body) VALUES (?, ?, ?, ?)",
+        (g.org["id"], entry_id, commenter_name, body),
     )
     conn.commit()
     conn.close()
@@ -2056,11 +3063,13 @@ def add_calendar_comment(entry_id):
     return _calendar_redirect(request.form, entry_id)
 
 
-@app.route("/calendar/comments/<int:comment_id>/delete", methods=["POST"])
+@app.route("/<org_slug>/calendar/comments/<int:comment_id>/delete", methods=["POST"])
 @admin_required
 def delete_calendar_comment(comment_id):
     conn = get_db()
-    comment = conn.execute("SELECT * FROM calendar_entry_comments WHERE id = ?", (comment_id,)).fetchone()
+    comment = conn.execute(
+        "SELECT * FROM calendar_entry_comments WHERE id = ? AND organization_id = ?", (comment_id, g.org["id"])
+    ).fetchone()
     if not comment:
         conn.close()
         abort(404)
@@ -2075,10 +3084,12 @@ def delete_calendar_comment(comment_id):
 
 # ---------- Routes: CSV stat upload ----------
 
-@app.route("/upload/csv", methods=["GET", "POST"])
+@app.route("/<org_slug>/upload/csv", methods=["GET", "POST"])
 def upload_csv():
     conn = get_db()
-    players = conn.execute("SELECT id, name FROM players ORDER BY name COLLATE NOCASE ASC").fetchall()
+    players = conn.execute(
+        "SELECT id, name FROM players WHERE organization_id = ? ORDER BY name COLLATE NOCASE ASC", (g.org["id"],)
+    ).fetchall()
 
     if request.method == "POST":
         file = request.files.get("csv_file")
@@ -2176,9 +3187,9 @@ def upload_csv():
                 except ValueError:
                     continue
                 conn.execute(
-                    """INSERT INTO stat_entries (player_id, entry_date, category, stat_name, stat_value, source_file, imported_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                    (player_id, entry_date, category, col.strip(), value, source_file, import_timestamp),
+                    """INSERT INTO stat_entries (organization_id, player_id, entry_date, category, stat_name, stat_value, source_file, imported_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (g.org["id"], player_id, entry_date, category, col.strip(), value, source_file, import_timestamp),
                 )
                 any_stat = True
 
@@ -2192,9 +3203,9 @@ def upload_csv():
                         if pitches_val > 0:
                             strike_pct = round(strikes_val / pitches_val * 100, 1)
                             conn.execute(
-                                """INSERT INTO stat_entries (player_id, entry_date, category, stat_name, stat_value, source_file, imported_at)
-                                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                                (player_id, entry_date, category, "Strike %", strike_pct, source_file, import_timestamp),
+                                """INSERT INTO stat_entries (organization_id, player_id, entry_date, category, stat_name, stat_value, source_file, imported_at)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                                (g.org["id"], player_id, entry_date, category, "Strike %", strike_pct, source_file, import_timestamp),
                             )
                             any_stat = True
                     except ValueError:
@@ -2216,9 +3227,9 @@ def upload_csv():
                                     er_val = float(er_raw.strip())
                                     era_val = round(er_val / ip_val * INNINGS_PER_GAME, 2)
                                     conn.execute(
-                                        """INSERT INTO stat_entries (player_id, entry_date, category, stat_name, stat_value, source_file, imported_at)
-                                           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                                        (player_id, entry_date, category, "ERA", era_val, source_file, import_timestamp),
+                                        """INSERT INTO stat_entries (organization_id, player_id, entry_date, category, stat_name, stat_value, source_file, imported_at)
+                                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                                        (g.org["id"], player_id, entry_date, category, "ERA", era_val, source_file, import_timestamp),
                                     )
                                     any_stat = True
                                 except ValueError:
@@ -2231,9 +3242,9 @@ def upload_csv():
                                     k_val = float(k_raw.strip())
                                     k7_val = round(k_val / ip_val * INNINGS_PER_GAME, 2)
                                     conn.execute(
-                                        """INSERT INTO stat_entries (player_id, entry_date, category, stat_name, stat_value, source_file, imported_at)
-                                           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                                        (player_id, entry_date, category, "K/7", k7_val, source_file, import_timestamp),
+                                        """INSERT INTO stat_entries (organization_id, player_id, entry_date, category, stat_name, stat_value, source_file, imported_at)
+                                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                                        (g.org["id"], player_id, entry_date, category, "K/7", k7_val, source_file, import_timestamp),
                                     )
                                     any_stat = True
                                 except ValueError:
@@ -2259,10 +3270,12 @@ def upload_csv():
 
 # ---------- Routes: TrackMan import ----------
 
-@app.route("/upload/trackman", methods=["GET", "POST"])
+@app.route("/<org_slug>/upload/trackman", methods=["GET", "POST"])
 def upload_trackman():
     conn = get_db()
-    players = conn.execute("SELECT id, name FROM players ORDER BY name COLLATE NOCASE ASC").fetchall()
+    players = conn.execute(
+        "SELECT id, name FROM players WHERE organization_id = ? ORDER BY name COLLATE NOCASE ASC", (g.org["id"],)
+    ).fetchall()
 
     if request.method == "POST":
         file = request.files.get("trackman_file")
@@ -2409,9 +3422,9 @@ def upload_trackman():
 
         def insert_stat(player_id, entry_date, stat_name, value):
             conn.execute(
-                """INSERT INTO stat_entries (player_id, entry_date, category, stat_name, stat_value, source_file, imported_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (player_id, entry_date, category, stat_name, value, source_file, import_timestamp),
+                """INSERT INTO stat_entries (organization_id, player_id, entry_date, category, stat_name, stat_value, source_file, imported_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (g.org["id"], player_id, entry_date, category, stat_name, value, source_file, import_timestamp),
             )
 
         for (player_id, entry_date), agg in sessions.items():
@@ -2428,12 +3441,12 @@ def upload_trackman():
             for p in agg["raw"]:
                 conn.execute(
                     """INSERT INTO trackman_pitches
-                       (player_id, entry_date, category, pitch_no, pitch_type, pitch_call,
+                       (organization_id, player_id, entry_date, category, pitch_no, pitch_type, pitch_call,
                         rel_speed, spin_rate, spin_axis, ivb, hb, rel_height, rel_side,
                         extension, vaa, loc_height, loc_side, exit_speed, launch_angle,
                         source_file, imported_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (player_id, entry_date, category, p["pitch_no"], p["pitch_type"], p["pitch_call"],
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (g.org["id"], player_id, entry_date, category, p["pitch_no"], p["pitch_type"], p["pitch_call"],
                      p["rel_speed"], p["spin_rate"], p["spin_axis"], p["ivb"], p["hb"],
                      p["rel_height"], p["rel_side"], p["extension"], p["vaa"],
                      p["loc_height"], p["loc_side"], p["exit_speed"], p["launch_angle"],
@@ -2455,10 +3468,12 @@ def upload_trackman():
 
 # ---------- Routes: video upload ----------
 
-@app.route("/upload/video", methods=["GET", "POST"])
+@app.route("/<org_slug>/upload/video", methods=["GET", "POST"])
 def upload_video():
     conn = get_db()
-    players = conn.execute("SELECT id, name FROM players ORDER BY name COLLATE NOCASE ASC").fetchall()
+    players = conn.execute(
+        "SELECT id, name FROM players WHERE organization_id = ? ORDER BY name COLLATE NOCASE ASC", (g.org["id"],)
+    ).fetchall()
 
     if request.method == "POST":
         player_id = request.form.get("player_id")
@@ -2479,6 +3494,14 @@ def upload_video():
             conn.close()
             return redirect(url_for("upload_video"))
 
+        owned = conn.execute(
+            "SELECT id FROM players WHERE id = ? AND organization_id = ?", (player_id, g.org["id"])
+        ).fetchone()
+        if not owned:
+            flash("That player isn't part of this organization.", "error")
+            conn.close()
+            return redirect(url_for("upload_video"))
+
         if not files:
             flash("Please choose at least one video file.", "error")
             conn.close()
@@ -2496,8 +3519,8 @@ def upload_video():
             file.save(os.path.join(VIDEO_DIR, stored_filename))
 
             conn.execute(
-                "INSERT INTO videos (player_id, entry_date, title, category, notes, filename) VALUES (?, ?, ?, ?, ?, ?)",
-                (player_id, entry_date, title or safe_name, category, notes, stored_filename),
+                "INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (g.org["id"], player_id, entry_date, title or safe_name, category, notes, stored_filename),
             )
             uploaded_count += 1
 
@@ -2520,11 +3543,13 @@ def upload_video():
     return render_template("upload_video.html", players=players, category_options=CATEGORY_OPTIONS)
 
 
-@app.route("/videos/<int:video_id>/delete", methods=["POST"])
+@app.route("/<org_slug>/videos/<int:video_id>/delete", methods=["POST"])
 @admin_required
 def delete_video(video_id):
     conn = get_db()
-    video = conn.execute("SELECT * FROM videos WHERE id = ?", (video_id,)).fetchone()
+    video = conn.execute(
+        "SELECT * FROM videos WHERE id = ? AND organization_id = ?", (video_id, g.org["id"])
+    ).fetchone()
     if video:
         try:
             os.remove(os.path.join(VIDEO_DIR, video["filename"]))
@@ -2544,10 +3569,12 @@ def delete_video(video_id):
     return redirect(url_for("index"))
 
 
-@app.route("/videos/<int:video_id>/pin", methods=["POST"])
+@app.route("/<org_slug>/videos/<int:video_id>/pin", methods=["POST"])
 def toggle_video_pin(video_id):
     conn = get_db()
-    video = conn.execute("SELECT * FROM videos WHERE id = ?", (video_id,)).fetchone()
+    video = conn.execute(
+        "SELECT * FROM videos WHERE id = ? AND organization_id = ?", (video_id, g.org["id"])
+    ).fetchone()
     if not video:
         conn.close()
         abort(404)
@@ -2568,7 +3595,7 @@ def toggle_video_pin(video_id):
 
 # ---------- Routes: manage uploads (delete CSV imports / videos) ----------
 
-@app.route("/manage")
+@app.route("/<org_slug>/manage")
 @admin_required
 def manage_uploads():
     conn = get_db()
@@ -2580,9 +3607,10 @@ def manage_uploads():
                   MIN(entry_date) AS earliest_date,
                   MAX(entry_date) AS latest_date
            FROM stat_entries
-           WHERE source_file IS NOT NULL AND source_file != ''
+           WHERE organization_id = ? AND source_file IS NOT NULL AND source_file != ''
            GROUP BY source_file, imported_at, category
-           ORDER BY imported_at DESC"""
+           ORDER BY imported_at DESC""",
+        (g.org["id"],),
     ).fetchall()
 
     # Any stat rows with no source_file (shouldn't normally happen, but covers
@@ -2590,14 +3618,17 @@ def manage_uploads():
     manual_rows = conn.execute(
         """SELECT category, COUNT(*) AS row_count, COUNT(DISTINCT player_id) AS player_count
            FROM stat_entries
-           WHERE source_file IS NULL OR source_file = ''
-           GROUP BY category"""
+           WHERE organization_id = ? AND (source_file IS NULL OR source_file = '')
+           GROUP BY category""",
+        (g.org["id"],),
     ).fetchall()
 
     videos = conn.execute(
         """SELECT v.*, p.name AS player_name
            FROM videos v JOIN players p ON p.id = v.player_id
-           ORDER BY v.entry_date DESC, v.id DESC"""
+           WHERE v.organization_id = ?
+           ORDER BY v.entry_date DESC, v.id DESC""",
+        (g.org["id"],),
     ).fetchall()
 
     conn.close()
@@ -2606,7 +3637,7 @@ def manage_uploads():
     )
 
 
-@app.route("/imports/delete", methods=["POST"])
+@app.route("/<org_slug>/imports/delete", methods=["POST"])
 @admin_required
 def delete_import():
     source_file = request.form.get("source_file", "")
@@ -2615,13 +3646,13 @@ def delete_import():
 
     conn = get_db()
     cur = conn.execute(
-        "DELETE FROM stat_entries WHERE source_file = ? AND imported_at = ? AND category = ?",
-        (source_file, imported_at, category),
+        "DELETE FROM stat_entries WHERE source_file = ? AND imported_at = ? AND category = ? AND organization_id = ?",
+        (source_file, imported_at, category, g.org["id"]),
     )
     # TrackMan imports also wrote per-pitch detail rows; remove those too.
     conn.execute(
-        "DELETE FROM trackman_pitches WHERE source_file = ? AND imported_at = ? AND category = ?",
-        (source_file, imported_at, category),
+        "DELETE FROM trackman_pitches WHERE source_file = ? AND imported_at = ? AND category = ? AND organization_id = ?",
+        (source_file, imported_at, category, g.org["id"]),
     )
     conn.commit()
     removed = cur.rowcount

@@ -3,14 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Enter Code - Swarm Baseball</title>
+  <title>Enter Code - {{ org_name }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-  <link rel="icon" href="{{ url_for('static', filename='img/swarm-badge.png') }}">
+  <link rel="icon" href="{{ org_logo }}">
+  {% if org_theme_gray %}
+  <style>
+    :root {
+      --phx-blue: #52525b;
+      --phx-blue-dark: #3f3f46;
+      --phx-orange: #d4d4d8;
+      --phx-orange-dark: #a1a1aa;
+    }
+  </style>
+  {% endif %}
 </head>
 <body>
   <div class="login-wrap">
     <div class="login-card">
-      <img src="{{ url_for('static', filename='img/swarm-badge.png') }}" alt="Swarm Baseball logo" class="login-logo">
+      <img src="{{ org_logo }}" alt="{{ org_name }} logo" class="login-logo">
       <h1>Enter Your Code</h1>
       <p class="login-sub">Type the 6-digit code you just received and pick a new password.</p>
 

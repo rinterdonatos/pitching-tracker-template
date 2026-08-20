@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Recruiting Portal{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
+  <link rel="icon" href="{{ static_url('img/default-badge.svg') }}">
+</head>
+<body class="coach-shell">
+  <header class="coach-header">
+    <a class="coach-brand" href="{{ url_for('coach_players') }}">
+      <img src="{{ static_url('img/default-badge.svg') }}" alt="Recruiting Portal">
+      <span>Recruiting Portal</span>
+    </a>
+    <button class="nav-toggle" id="coach-nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="coach-nav">
+      <span></span><span></span><span></span>
+    </button>
+    <nav id="coach-nav" class="coach-nav">
+      <a href="{{ url_for('coach_players') }}" class="{{ 'active' if request.endpoint == 'coach_players' }}">Players</a>
+      <a href="{{ url_for('coach_leaderboards') }}" class="{{ 'active' if request.endpoint == 'coach_leaderboards' }}">Leaderboards</a>
+      <a href="{{ url_for('coach_reels') }}" class="{{ 'active' if request.endpoint == 'coach_reels' }}">Reels</a>
+      <a href="{{ url_for('coach_favorites') }}" class="{{ 'active' if request.endpoint == 'coach_favorites' }}">Favorites</a>
+      <form method="POST" action="{{ url_for('coach_logout') }}" style="display:inline;">
+        <button type="submit" class="nav-logout">Log Out</button>
+      </form>
+    </nav>
+  </header>
+  <main class="{{ 'coach-main-fullbleed' if fullbleed else 'coach-main' }}">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="coach-flashes">
+          {% for category, message in messages %}
+            <div class="flash {{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+  <script>
+    var navToggle = document.getElementById('coach-nav-toggle');
+    var coachNav = document.getElementById('coach-nav');
+    if (navToggle && coachNav) {
+      navToggle.addEventListener('click', function () {
+        var open = coachNav.classList.toggle('nav-open');
+        navToggle.classList.toggle('is-open', open);
+        navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+    }
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

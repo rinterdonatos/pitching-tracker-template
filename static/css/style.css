@@ -469,6 +469,25 @@ form.card-form {
   background: var(--phx-orange);
 }
 
+/* When a .section-title is a <summary> (collapsible sections), drop the
+   browser's default disclosure marker and use our own on the right side,
+   so it doesn't collide with the accent bar on the left. */
+summary.section-title {
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+summary.section-title::-webkit-details-marker { display: none; }
+summary.section-title::after {
+  content: "\25B8";
+  float: right;
+  color: var(--phx-gray);
+  font-size: 0.85em;
+}
+details[open] > summary.section-title::after {
+  content: "\25BE";
+}
+
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -1106,4 +1125,262 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 
   form.card-form { padding: 18px; }
   .login-card { padding: 28px 22px; }
+}
+
+/* ---------- College-recruiting coach portal ---------- */
+/* A deliberately distinct look from any organization's own theme - this
+   isn't any one team's page, it's the shared platform surface coaches from
+   any school land on, so it gets its own fixed slate/indigo identity
+   instead of following --phx-* (which changes per organization). */
+
+.coach-shell {
+  --coach-ink: #1e1b4b;
+  --coach-ink-dark: #131029;
+  --coach-accent: #818cf8;
+  --coach-accent-dark: #6366f1;
+  background: #f4f4f8;
+}
+
+.coach-header {
+  background: linear-gradient(135deg, var(--coach-ink) 0%, var(--coach-ink-dark) 100%);
+  box-shadow: 0 2px 14px rgba(0, 0, 0, 0.2);
+  padding: 14px 28px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.coach-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.15rem;
+}
+
+.coach-brand img { height: 34px; width: 34px; border-radius: 50%; }
+
+.coach-nav {
+  margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.coach-nav a {
+  color: #fff;
+  text-decoration: none;
+  padding: 6px 9px;
+  border-radius: 6px;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.coach-nav a:hover { background: var(--coach-accent); color: var(--coach-ink-dark); }
+.coach-nav a.active { background: rgba(255, 255, 255, 0.16); color: var(--coach-accent); }
+
+.coach-nav .nav-logout {
+  background: none;
+  border: none;
+  color: #fff;
+  opacity: 0.85;
+  font-weight: 600;
+  font-size: 0.92rem;
+  padding: 6px 9px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.coach-nav .nav-logout:hover { background: var(--coach-ink); opacity: 1; }
+
+.coach-main {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 28px 24px 56px;
+}
+
+.coach-main-fullbleed { padding: 0; }
+
+.coach-flashes { max-width: 1080px; margin: 0 auto 12px; padding: 0 24px; }
+
+.coach-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: flex-end;
+  background: #fff;
+  border: 1px solid var(--phx-border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 22px;
+  box-shadow: var(--shadow-sm);
+}
+
+.coach-filters .field { margin: 0; min-width: 150px; flex: 1 1 150px; }
+.coach-filters label { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--phx-gray); }
+
+.coach-card {
+  background: #fff;
+  border: 1px solid var(--phx-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-sm);
+  padding: 16px;
+}
+
+.coach-player-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 16px;
+}
+
+.coach-player-card { display: flex; flex-direction: column; gap: 6px; }
+.coach-player-card .name { font-family: var(--font-display); font-weight: 700; font-size: 1.1rem; }
+.coach-player-card .meta { color: var(--phx-gray); font-size: 0.85rem; }
+.coach-player-card .org-tag {
+  display: inline-block;
+  background: #eef2ff;
+  color: var(--coach-ink);
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  width: fit-content;
+}
+
+.coach-empty {
+  text-align: center;
+  color: var(--phx-gray);
+  padding: 48px 16px;
+}
+
+/* ---------- Reels: Instagram/TikTok-style full-screen vertical feed ---------- */
+/* Native CSS scroll-snap does the swiping - no JS gesture library needed,
+   and it behaves correctly with real touch momentum scrolling on mobile,
+   which a hand-rolled swipe handler usually doesn't get quite right. */
+
+.reels-feed {
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: scroll;
+  scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  scrollbar-width: none;
+}
+.reels-feed::-webkit-scrollbar { display: none; }
+
+.reel {
+  height: 100vh;
+  height: 100dvh;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+
+.reel video {
+  height: 100%;
+  width: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+.reel-info {
+  position: absolute;
+  left: 0;
+  right: 76px;
+  bottom: 0;
+  padding: 18px 18px 26px;
+  background: linear-gradient(0deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0) 100%);
+  color: #fff;
+}
+
+.reel-info .player-name { font-family: var(--font-display); font-weight: 700; font-size: 1.2rem; }
+.reel-info .player-meta { font-size: 0.88rem; opacity: 0.9; margin-top: 2px; }
+.reel-info .video-title { font-size: 0.85rem; opacity: 0.85; margin-top: 6px; }
+
+.reel-actions {
+  position: absolute;
+  right: 12px;
+  bottom: 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.reel-fav-btn {
+  background: rgba(0, 0, 0, 0.4);
+  border: none;
+  color: #fff;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  line-height: 1;
+}
+.reel-fav-btn.favorited { color: #fb7185; }
+
+.reel-empty {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: #111;
+  text-align: center;
+  padding: 24px;
+}
+
+.reels-back-link {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 5;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  text-decoration: none;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+@media (max-width: 860px) {
+  .coach-header { flex-wrap: wrap; padding: 12px 16px; }
+  .coach-header .nav-toggle { display: flex; }
+  .coach-header .nav-toggle span { background: #fff; }
+
+  .coach-nav {
+    display: none;
+    flex-basis: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    margin: 14px 0 2px;
+    gap: 3px;
+    order: 3;
+  }
+  .coach-nav.nav-open { display: flex; }
+  .coach-nav a, .coach-nav .nav-logout {
+    padding: 12px 14px;
+    font-size: 0.95rem;
+    border-radius: 8px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    width: 100%;
+  }
+  .coach-nav form { width: 100%; }
 }

@@ -1,0 +1,30 @@
+{% extends "coach_base.html" %}
+{% block title %}Favorites - Recruiting Portal{% endblock %}
+{% block content %}
+  <div class="page-title"><h2>Your Favorites</h2></div>
+
+  {% if not videos %}
+    <div class="coach-empty">
+      <p>No favorites yet. Head to <a href="{{ url_for('coach_reels') }}">Reels</a> and tap the heart on a video to save it here.</p>
+    </div>
+  {% else %}
+    <div class="coach-player-grid">
+      {% for v in videos %}
+        <div class="coach-card">
+          <video src="{{ url_for('static', filename='uploads/videos/' ~ v['filename']) }}" controls preload="metadata" style="width:100%; border-radius:8px; background:#000; display:block; margin-bottom:8px;"></video>
+          <span class="org-tag">{{ v['org_name'] }}</span>
+          <div class="name" style="margin-top:6px;">{{ v['player_name'] }}</div>
+          <div class="meta">
+            {{ v['position'] or '' }}
+            {% if v['grad_year'] %} · Class of {{ v['grad_year'] }}{% endif %}
+            {% if v['team_name'] %} · {{ v['team_name'] }}{% endif %}
+          </div>
+          {% if v['title'] %}<div class="meta">{{ v['title'] }}{% if v['category'] %} &middot; {{ v['category'] }}{% endif %}</div>{% endif %}
+          <form method="POST" action="{{ url_for('coach_favorite_toggle', video_id=v['id']) }}" style="margin-top:8px;">
+            <button class="btn danger" type="submit" style="padding:6px 12px; font-size:0.85rem;">Remove Favorite</button>
+          </form>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endblock %}

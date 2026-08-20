@@ -3,20 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Join - Swarm Baseball</title>
+  <title>Join - {{ org_name }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-  <link rel="icon" href="{{ url_for('static', filename='img/swarm-badge.png') }}">
+  <link rel="icon" href="{{ org_logo }}">
+  {% if org_theme_gray %}
+  <style>
+    :root {
+      --phx-blue: #52525b;
+      --phx-blue-dark: #3f3f46;
+      --phx-orange: #d4d4d8;
+      --phx-orange-dark: #a1a1aa;
+    }
+  </style>
+  {% endif %}
 </head>
 <body>
   <div class="login-wrap">
     <div class="login-card">
-      <img src="{{ url_for('static', filename='img/swarm-badge.png') }}" alt="Swarm Baseball logo" class="login-logo">
+      <img src="{{ org_logo }}" alt="{{ org_name }} logo" class="login-logo">
       {% if invalid %}
         <h1>Invite Not Valid</h1>
         <p class="login-sub">This invite link has expired or been deactivated. Ask your coach for a new one.</p>
-        <p style="margin-top:14px; font-size:0.85rem;"><a href="{{ url_for('login') }}">Back to sign in</a></p>
+        <p style="margin-top:14px; font-size:0.85rem;"><a href="{{ back_url }}">Back to sign in</a></p>
       {% else %}
-        <h1>Join Swarm Baseball</h1>
+        <h1>Join {{ org_name }}</h1>
         <p class="login-sub">You've been invited. Fill this out once and you're in &mdash; you'll sign in with your email or phone and this password from now on.</p>
 
         {% with messages = get_flashed_messages(with_categories=true) %}

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pending Approval - Recruiting Portal</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="icon" href="{{ url_for('static', filename='img/default-badge.svg') }}">
+  <style>
+    :root {
+      --phx-blue: #4338ca;
+      --phx-blue-dark: #312e81;
+      --phx-orange: #a5b4fc;
+      --phx-orange-dark: #818cf8;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <img src="{{ url_for('static', filename='img/default-badge.svg') }}" alt="Recruiting Portal" class="login-logo">
+      <h1>Almost there, {{ coach['name'] }}</h1>
+      <p class="login-sub">Your account is still waiting on approval. We'll let you know as soon as you're in - check back soon.</p>
+      <form method="POST" action="{{ url_for('coach_logout') }}">
+        <button class="btn secondary" type="submit" style="width:100%;">Log Out</button>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

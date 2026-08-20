@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Coach Approvals - {{ org_name }}{% endblock %}
+{% block content %}
+  <div class="page-title"><h2>Coach Approvals</h2></div>
+
+  <div class="page-section">
+    <h3 class="section-title">Pending ({{ pending|length }})</h3>
+    {% if not pending %}
+      <p class="hint">No pending coach signups.</p>
+    {% else %}
+      <table class="data-table">
+        <thead>
+          <tr><th>Name</th><th>School</th><th>Email</th><th>Phone</th><th>Requested</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for c in pending %}
+            <tr>
+              <td>{{ c['name'] }}</td>
+              <td>{{ c['school'] or '—' }}</td>
+              <td>{{ c['email'] }}</td>
+              <td>{{ c['phone'] or '—' }}</td>
+              <td>{{ c['created_at'] | friendly_time }}</td>
+              <td style="white-space:nowrap;">
+                <form method="POST" action="{{ url_for('platform_approve_coach', coach_id=c['id']) }}" style="display:inline;">
+                  <button class="btn" type="submit" style="padding:6px 12px; font-size:0.85rem;">Approve</button>
+                </form>
+                <form method="POST" action="{{ url_for('platform_reject_coach', coach_id=c['id']) }}" style="display:inline;" onsubmit="return confirm('Remove this coach signup?');">
+                  <button class="btn danger" type="submit" style="padding:6px 12px; font-size:0.85rem;">Reject</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+
+  <div class="page-section">
+    <h3 class="section-title">Approved ({{ approved|length }})</h3>
+    {% if not approved %}
+      <p class="hint">No approved coaches yet.</p>
+    {% else %}
+      <table class="data-table">
+        <thead>
+          <tr><th>Name</th><th>School</th><th>Email</th><th>Phone</th><th>Approved since</th><th></th></tr>
+        </thead>
+        <tbody>
+          {% for c in approved %}
+            <tr>
+              <td>{{ c['name'] }}</td>
+              <td>{{ c['school'] or '—' }}</td>
+              <td>{{ c['email'] }}</td>
+              <td>{{ c['phone'] or '—' }}</td>
+              <td>{{ c['created_at'] | friendly_time }}</td>
+              <td>
+                <form method="POST" action="{{ url_for('platform_revoke_coach', coach_id=c['id']) }}" style="display:inline;" onsubmit="return confirm('Revoke this coach\'s access?');">
+                  <button class="btn danger" type="submit" style="padding:6px 12px; font-size:0.85rem;">Revoke</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+{% endblock %}

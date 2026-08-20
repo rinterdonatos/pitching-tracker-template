@@ -1,0 +1,64 @@
+{% extends "coach_base.html" %}
+{% block title %}Players - Recruiting Portal{% endblock %}
+{% block content %}
+  <div class="page-title"><h2>Players</h2></div>
+
+  <form class="coach-filters" method="GET">
+    <div class="field">
+      <label for="q">Search by name</label>
+      <input type="text" id="q" name="q" value="{{ filters['q'] }}" placeholder="Player name">
+    </div>
+    <div class="field">
+      <label for="team">Team</label>
+      <select id="team" name="team">
+        <option value="">All teams</option>
+        {% for t in teams %}
+          <option value="{{ t['id'] }}" {% if filters['team'] == t['id']|string %}selected{% endif %}>{{ t['org_name'] }} — {{ t['name'] }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="grad_year">Grad Year</label>
+      <select id="grad_year" name="grad_year">
+        <option value="">All years</option>
+        {% for y in grad_years %}
+          <option value="{{ y }}" {% if filters['grad_year'] == y %}selected{% endif %}>{{ y }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="position">Position</label>
+      <select id="position" name="position">
+        <option value="">All positions</option>
+        {% for pos in positions %}
+          <option value="{{ pos }}" {% if filters['position'] == pos %}selected{% endif %}>{{ pos }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn" type="submit">Filter</button>
+    {% if filters['q'] or filters['team'] or filters['grad_year'] or filters['position'] %}
+      <a class="btn secondary" href="{{ url_for('coach_players') }}">Clear</a>
+    {% endif %}
+  </form>
+
+  {% if not players %}
+    <div class="coach-empty">
+      <p>No opted-in players match those filters yet.</p>
+    </div>
+  {% else %}
+    <div class="coach-player-grid">
+      {% for p in players %}
+        <div class="coach-card coach-player-card">
+          <span class="org-tag">{{ p['org_name'] }}</span>
+          <div class="name">{{ p['name'] }}</div>
+          <div class="meta">
+            {{ p['position'] or 'Position n/a' }}
+            {% if p['grad_year'] %} · Class of {{ p['grad_year'] }}{% endif %}
+            {% if p['team_name'] %} · {{ p['team_name'] }}{% endif %}
+          </div>
+          <a class="btn secondary" style="margin-top:6px; text-align:center;" href="{{ url_for('coach_reels', player=p['id']) }}">Watch Video</a>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endblock %}
