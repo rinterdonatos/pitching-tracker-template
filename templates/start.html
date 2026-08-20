@@ -30,11 +30,16 @@
         {% endif %}
       {% endwith %}
 
-      <form method="POST">
+      <form method="POST" enctype="multipart/form-data">
         <div class="field">
           <label for="org_name">Organization / team name</label>
           <input type="text" id="org_name" name="org_name" autofocus required>
           <div class="hint">This becomes part of your site's URL, e.g. yourapp.com/your-team-name.</div>
+        </div>
+        <div class="field">
+          <label for="logo">Logo (optional)</label>
+          <input type="file" id="logo" name="logo" accept="image/png,image/jpeg,image/gif">
+          <div class="hint">We'll pull colors from it to theme your site automatically. Skip this and you'll get a neutral gray theme instead.</div>
         </div>
         <div class="field">
           <label for="name">Your name</label>

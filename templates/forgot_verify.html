@@ -6,13 +6,13 @@
   <title>Enter Code - {{ org_name }}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   <link rel="icon" href="{{ org_logo }}">
-  {% if org_theme_gray %}
+  {% if org_theme_override %}
   <style>
     :root {
-      --phx-blue: #52525b;
-      --phx-blue-dark: #3f3f46;
-      --phx-orange: #d4d4d8;
-      --phx-orange-dark: #a1a1aa;
+      --phx-blue: {{ org_theme_blue }};
+      --phx-blue-dark: {{ org_theme_blue_dark }};
+      --phx-orange: {{ org_theme_orange }};
+      --phx-orange-dark: {{ org_theme_orange_dark }};
     }
   </style>
   {% endif %}

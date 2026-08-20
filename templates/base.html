@@ -9,13 +9,13 @@
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
   <link rel="icon" href="{{ org_logo }}">
-  {% if org_theme_gray %}
+  {% if org_theme_override %}
   <style>
     :root {
-      --phx-blue: #52525b;
-      --phx-blue-dark: #3f3f46;
-      --phx-orange: #d4d4d8;
-      --phx-orange-dark: #a1a1aa;
+      --phx-blue: {{ org_theme_blue }};
+      --phx-blue-dark: {{ org_theme_blue_dark }};
+      --phx-orange: {{ org_theme_orange }};
+      --phx-orange-dark: {{ org_theme_orange_dark }};
     }
   </style>
   {% endif %}

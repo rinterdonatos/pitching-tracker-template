@@ -94,6 +94,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "pvtracker.db")
 VIDEO_DIR = os.path.join(BASE_DIR, "static", "uploads", "videos")
 PHOTO_DIR = os.path.join(BASE_DIR, "static", "uploads", "photos")
+LOGO_DIR = os.path.join(BASE_DIR, "static", "uploads", "logos")
 
 ALLOWED_VIDEO_EXT = {"mp4", "mov", "m4v", "webm", "avi"}
 ALLOWED_PHOTO_EXT = {"png", "jpg", "jpeg", "gif"}
@@ -170,6 +171,7 @@ app.permanent_session_lifetime = timedelta(days=30)
 
 os.makedirs(VIDEO_DIR, exist_ok=True)
 os.makedirs(PHOTO_DIR, exist_ok=True)
+os.makedirs(LOGO_DIR, exist_ok=True)
 
 
 def static_url(filename):
@@ -262,25 +264,141 @@ def add_org_slug(endpoint, values):
             values["org_slug"] = org["slug"]
 
 
+# Default theme for an org that hasn't uploaded a logo (or whose logo didn't
+# yield usable colors) - the same neutral gray every non-Swarm org has always
+# gotten.
+DEFAULT_ORG_THEME = {
+    "blue": "#52525b", "blue_dark": "#3f3f46",
+    "orange": "#d4d4d8", "orange_dark": "#a1a1aa",
+}
+
+
+def darken_hex(hex_color, factor=0.72):
+    """Darken a #rrggbb color by `factor` (0-1) for hover/active CSS variants -
+    mirrors the blue/blue-dark, orange/orange-dark pairing every theme in
+    this app already uses."""
+    hex_color = (hex_color or "").lstrip("#")
+    if len(hex_color) != 6:
+        return hex_color
+    try:
+        r, g, b = (int(hex_color[i:i + 2], 16) for i in (0, 2, 4))
+    except ValueError:
+        return f"#{hex_color}"
+    r, g, b = (max(0, min(255, int(c * factor))) for c in (r, g, b))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def extract_theme_colors(image_path):
+    """Pick a primary + accent color from an uploaded logo, so a new org's
+    site can look like *their* brand instead of the generic gray default.
+    Returns (primary_hex, accent_hex) or None if Pillow isn't available, the
+    file isn't a readable image, or nothing usable comes out of it - any of
+    which just means the org falls back to the default gray theme, never a
+    crash on signup."""
+    try:
+        from PIL import Image
+    except ImportError:
+        return None
+
+    try:
+        img = Image.open(image_path).convert("RGBA")
+        # Flatten transparency onto white first - otherwise a transparent
+        # logo background gets counted as black after the RGB conversion
+        # below, which would very often "win" as the dominant color.
+        flattened = Image.new("RGBA", img.size, (255, 255, 255, 255))
+        img = Image.alpha_composite(flattened, img).convert("RGB")
+        img.thumbnail((150, 150))
+
+        quantized = img.quantize(colors=8)
+        palette = quantized.getpalette()
+        counts = sorted(quantized.getcolors() or [], reverse=True)
+        if not counts:
+            return None
+
+        def rgb_at(idx):
+            return tuple(palette[idx * 3:idx * 3 + 3])
+
+        def luminance(rgb):
+            r, val_g, b = (c / 255 for c in rgb)
+            return 0.299 * r + 0.587 * val_g + 0.114 * b
+
+        def is_near_neutral(rgb):
+            # Too close to white/black/gray to read as a real brand color -
+            # almost always the logo's background, not its actual colors.
+            if max(rgb) - min(rgb) < 18:
+                lum = luminance(rgb)
+                return lum > 0.88 or lum < 0.08
+            return False
+
+        candidates = [rgb_at(idx) for _, idx in counts]
+        vivid = [c for c in candidates if not is_near_neutral(c)]
+        pool = vivid if vivid else candidates
+
+        primary = pool[0]
+        # A very light primary makes the white button/nav text unreadable -
+        # darken it rather than pick a background-ish color as the theme.
+        if luminance(primary) > 0.7:
+            primary = tuple(int(c * 0.55) for c in primary)
+
+        accent = next(
+            (c for c in pool[1:] if sum(abs(a - b) for a, b in zip(c, primary)) > 90),
+            None,
+        )
+        if accent is None:
+            accent = tuple(min(255, int(c * 1.3 + 40)) for c in primary)
+
+        def to_hex(rgb):
+            return "#{:02x}{:02x}{:02x}".format(*(max(0, min(255, int(c))) for c in rgb))
+
+        return to_hex(primary), to_hex(accent)
+    except Exception:
+        return None
+
+
 # Swarm Baseball keeps its own navy/gold logo and color scheme (the site was
-# built around it). Every other organization gets a neutral gray theme and a
-# generic badge instead of Swarm's branding - these values feed both the
+# built around it). Every other organization gets a theme tailored to its
+# own uploaded logo if it has one (extract_theme_colors, set at signup), or
+# the neutral gray default otherwise - these values feed both the
 # header/logo markup and a small CSS variable override in base.html so
 # buttons, nav highlights, etc. all follow along automatically.
-@app.context_processor
-def inject_branding():
-    org = getattr(g, "org", None)
+def branding_context_for_org(org):
+    """The org_name/org_logo/org_theme_* dict for one organization row - the
+    single source of truth for both inject_branding() (every normal
+    org-scoped page) and join() (which looks its org up from an invite
+    token instead of the URL, so it's outside the g.org flow entirely and
+    has to build this context by hand)."""
     if org and org["slug"] != "swarm-baseball":
+        if org["logo_filename"] and org["theme_primary"]:
+            primary = org["theme_primary"]
+            accent = org["theme_accent"] or primary
+            return {
+                "org_name": org["name"],
+                "org_logo": url_for("static", filename=f"uploads/logos/{org['logo_filename']}"),
+                "org_theme_override": True,
+                "org_theme_blue": primary,
+                "org_theme_blue_dark": darken_hex(primary),
+                "org_theme_orange": accent,
+                "org_theme_orange_dark": darken_hex(accent),
+            }
         return {
             "org_name": org["name"],
             "org_logo": static_url("img/default-badge.svg"),
-            "org_theme_gray": True,
+            "org_theme_override": True,
+            "org_theme_blue": DEFAULT_ORG_THEME["blue"],
+            "org_theme_blue_dark": DEFAULT_ORG_THEME["blue_dark"],
+            "org_theme_orange": DEFAULT_ORG_THEME["orange"],
+            "org_theme_orange_dark": DEFAULT_ORG_THEME["orange_dark"],
         }
     return {
         "org_name": org["name"] if org else "Swarm Baseball",
         "org_logo": static_url("img/swarm-badge.png"),
-        "org_theme_gray": False,
+        "org_theme_override": False,
     }
+
+
+@app.context_processor
+def inject_branding():
+    return branding_context_for_org(getattr(g, "org", None))
 
 
 def init_db():
@@ -730,6 +848,16 @@ def init_db():
     player_cols = {row["name"] for row in conn.execute("PRAGMA table_info(players)")}
     if "recruiting_opt_in" not in player_cols:
         conn.execute("ALTER TABLE players ADD COLUMN recruiting_opt_in INTEGER DEFAULT 0")
+        conn.commit()
+
+    # Self-serve orgs can upload a logo at signup and get a site theme
+    # tailored to it (extract_theme_colors) instead of the flat gray default
+    # every non-Swarm org used to be stuck with.
+    org_cols = {row["name"] for row in conn.execute("PRAGMA table_info(organizations)")}
+    if "logo_filename" not in org_cols:
+        conn.execute("ALTER TABLE organizations ADD COLUMN logo_filename TEXT")
+        conn.execute("ALTER TABLE organizations ADD COLUMN theme_primary TEXT")
+        conn.execute("ALTER TABLE organizations ADD COLUMN theme_accent TEXT")
         conn.commit()
 
     conn.execute(
@@ -1277,8 +1405,26 @@ def start():
                     slug = f"{base_slug}-{suffix}"
                     suffix += 1
 
+            # Logo upload is optional - no logo (or a logo that doesn't
+            # yield usable colors) just means the org keeps the default
+            # gray theme, same as before this feature existed.
+            logo_filename = None
+            theme_primary = None
+            theme_accent = None
+            logo = request.files.get("logo")
+            if logo and logo.filename and allowed_file(logo.filename, ALLOWED_PHOTO_EXT):
+                safe_name = secure_filename(logo.filename)
+                logo_filename = f"{slug}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_name}"
+                logo_path = os.path.join(LOGO_DIR, logo_filename)
+                logo.save(logo_path)
+                colors = extract_theme_colors(logo_path)
+                if colors:
+                    theme_primary, theme_accent = colors
+
             org_cur = conn.execute(
-                "INSERT INTO organizations (name, slug) VALUES (?, ?)", (org_name, slug)
+                "INSERT INTO organizations (name, slug, logo_filename, theme_primary, theme_accent) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (org_name, slug, logo_filename, theme_primary, theme_accent),
             )
             org_id = org_cur.lastrowid
             cur = conn.execute(
@@ -2210,9 +2356,7 @@ def join(token):
             invalid=True,
             token=token,
             back_url=url_for("login", org_slug=org["slug"]),
-            org_name=org["name"],
-            org_logo=static_url("img/default-badge.svg") if org["slug"] != "swarm-baseball" else static_url("img/swarm-badge.png"),
-            org_theme_gray=(org["slug"] != "swarm-baseball"),
+            **branding_context_for_org(org),
         )
 
     if request.method == "POST":
@@ -2258,9 +2402,7 @@ def join(token):
         "join.html",
         invalid=False,
         token=token,
-        org_name=org["name"],
-        org_logo=static_url("img/default-badge.svg") if org["slug"] != "swarm-baseball" else static_url("img/swarm-badge.png"),
-        org_theme_gray=(org["slug"] != "swarm-baseball"),
+        **branding_context_for_org(org),
     )
 
 
