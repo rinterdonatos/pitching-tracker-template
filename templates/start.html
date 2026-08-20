@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Get Started - {{ platform_name }}</title>
+  <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
+  <link rel="icon" href="{{ static_url('img/default-badge.svg') }}">
+  <style>
+    :root {
+      --phx-blue: #1e293b;
+      --phx-blue-dark: #0f172a;
+      --phx-orange: #14b8a6;
+      --phx-orange-dark: #0d9488;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <a href="{{ url_for('landing') }}"><img src="{{ static_url('img/default-badge.svg') }}" alt="{{ platform_name }} logo" class="login-logo"></a>
+      <h1>Create Your Organization</h1>
+      <p class="login-sub">Set up your team or facility on {{ platform_name }} in about a minute. You'll be able to invite coaches, players, and staff once you're in.</p>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="flash {{ category }}">{{ message }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <form method="POST">
+        <div class="field">
+          <label for="org_name">Organization / team name</label>
+          <input type="text" id="org_name" name="org_name" autofocus required>
+          <div class="hint">This becomes part of your site's URL, e.g. yourapp.com/your-team-name.</div>
+        </div>
+        <div class="field">
+          <label for="name">Your name</label>
+          <input type="text" id="name" name="name" required>
+        </div>
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" autocomplete="email">
+        </div>
+        <div class="field">
+          <label for="phone">Phone number</label>
+          <input type="tel" id="phone" name="phone" autocomplete="tel">
+          <div class="hint">Fill in at least one of email / phone &mdash; either can be used to sign in.</div>
+        </div>
+        <div class="field">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" autocomplete="new-password" required minlength="6">
+        </div>
+        <div class="field">
+          <label for="confirm">Confirm password</label>
+          <input type="password" id="confirm" name="confirm" autocomplete="new-password" required minlength="6">
+        </div>
+        <button class="btn" type="submit" style="width:100%;">Create My Organization</button>
+      </form>
+
+      <p class="login-sub" style="margin-top:16px; margin-bottom:0;">
+        Already have an account? <a href="{{ url_for('org_picker') }}">Log in</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>

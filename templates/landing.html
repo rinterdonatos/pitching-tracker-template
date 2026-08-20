@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ platform_name }} - Player Development & Recruiting Platform</title>
+  <meta name="description" content="Track pitching and hitting development, share video with recruiters, and run your program's leaderboards - all in one place.">
+  <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
+  <link rel="icon" href="{{ static_url('img/default-badge.svg') }}">
+  <style>
+    :root {
+      --phx-blue: #1e293b;
+      --phx-blue-dark: #0f172a;
+      --phx-orange: #14b8a6;
+      --phx-orange-dark: #0d9488;
+    }
+  </style>
+</head>
+<body>
+  <header class="landing-nav">
+    <div class="landing-nav-inner">
+      <a class="landing-brand" href="{{ url_for('landing') }}">
+        <img src="{{ static_url('img/default-badge.svg') }}" alt="{{ platform_name }} logo">
+        <span>{{ platform_name }}</span>
+      </a>
+      <div class="landing-nav-links">
+        <a href="{{ url_for('org_picker') }}">Log In</a>
+        <a class="btn" href="{{ url_for('start') }}">Get Started</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="landing-hero">
+    <h1>Player development and recruiting, in one place.</h1>
+    <p>Track velocity, stats, and video for every player on your team - then let college coaches discover the ones ready to be seen. Built for pitching labs, travel programs, and training facilities.</p>
+    <div class="landing-hero-ctas">
+      <a class="btn" href="{{ url_for('start') }}">Start Your Program - It's Free to Set Up</a>
+      <a class="btn secondary" href="{{ url_for('org_picker') }}">Log In</a>
+    </div>
+  </section>
+
+  <section class="landing-features">
+    <div class="landing-feature">
+      <h3>Every session, tracked</h3>
+      <p>Import stats and TrackMan data, log video from bullpens and games, and watch velocity and command trend over time with charts built for pitching development.</p>
+    </div>
+    <div class="landing-feature">
+      <h3>Video that tells the story</h3>
+      <p>Pin the best clips, keep a full timeline for every player, and let coaches and family leave feedback right on the video.</p>
+    </div>
+    <div class="landing-feature">
+      <h3>Get seen by college coaches</h3>
+      <p>Opt any player in to the recruiting portal and approved college coaches can search, filter by team/position/grad year, and browse a feed of video from every program on the platform.</p>
+    </div>
+    <div class="landing-feature">
+      <h3>Your program, your space</h3>
+      <p>Every organization gets its own private, branded site - your players' data never mixes with another program's.</p>
+    </div>
+  </section>
+
+  <section class="landing-cta-band">
+    <h2>Set up your organization in about a minute.</h2>
+    <a class="btn" href="{{ url_for('start') }}">Get Started</a>
+  </section>
+
+  <footer class="landing-footer">
+    <p>&copy; {{ current_year() }} {{ platform_name }}. <a href="{{ url_for('org_picker') }}">Log in</a> &middot; <a href="{{ url_for('start') }}">Create an organization</a></p>
+  </footer>
+</body>
+</html>

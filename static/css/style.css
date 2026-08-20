@@ -1427,6 +1427,103 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 }
 .feed-tab.active { background: #fff; color: #111; opacity: 1; }
 
+/* ---------- Public marketing landing page ---------- */
+
+.landing-nav {
+  border-bottom: 1px solid var(--phx-border);
+  background: var(--phx-white);
+}
+.landing-nav-inner {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.landing-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--phx-black);
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.2rem;
+}
+.landing-brand img { height: 32px; width: 32px; }
+.landing-nav-links { display: flex; align-items: center; gap: 16px; }
+.landing-nav-links a:not(.btn) { color: var(--phx-black); text-decoration: none; font-weight: 600; font-size: 0.92rem; }
+.landing-nav-links a:not(.btn):hover { text-decoration: underline; }
+
+.landing-hero {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 72px 24px 56px;
+  text-align: center;
+}
+.landing-hero h1 {
+  font-family: var(--font-display);
+  font-size: 2.6rem;
+  line-height: 1.1;
+  margin: 0 0 18px;
+  color: var(--phx-blue);
+}
+.landing-hero p {
+  font-size: 1.1rem;
+  color: var(--phx-gray);
+  margin: 0 0 28px;
+  line-height: 1.5;
+}
+.landing-hero-ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+.landing-features {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 20px 24px 64px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 20px;
+}
+.landing-feature {
+  background: var(--phx-white);
+  border: 1px solid var(--phx-border);
+  border-radius: 14px;
+  padding: 22px 20px;
+  box-shadow: var(--shadow-sm);
+}
+.landing-feature h3 {
+  font-family: var(--font-display);
+  margin: 0 0 8px;
+  color: var(--phx-blue);
+}
+.landing-feature p { margin: 0; color: var(--phx-gray); font-size: 0.92rem; line-height: 1.5; }
+
+.landing-cta-band {
+  background: var(--phx-blue);
+  color: #fff;
+  text-align: center;
+  padding: 56px 24px;
+}
+.landing-cta-band h2 {
+  font-family: var(--font-display);
+  margin: 0 0 20px;
+  font-size: 1.6rem;
+}
+
+.landing-footer {
+  text-align: center;
+  padding: 24px;
+  color: var(--phx-gray);
+  font-size: 0.85rem;
+}
+.landing-footer a { color: var(--phx-gray); }
+
+@media (max-width: 640px) {
+  .landing-hero h1 { font-size: 1.9rem; }
+  .landing-hero-ctas { flex-direction: column; align-items: stretch; }
+}
+
 .sound-hint {
   position: absolute;
   top: 50%;

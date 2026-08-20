@@ -3,14 +3,22 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Choose Your Organization - Swarm Baseball</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-  <link rel="icon" href="{{ url_for('static', filename='img/swarm-badge.png') }}">
+  <title>Choose Your Organization - {{ platform_name }}</title>
+  <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
+  <link rel="icon" href="{{ static_url('img/default-badge.svg') }}">
+  <style>
+    :root {
+      --phx-blue: #1e293b;
+      --phx-blue-dark: #0f172a;
+      --phx-orange: #14b8a6;
+      --phx-orange-dark: #0d9488;
+    }
+  </style>
 </head>
 <body>
   <div class="login-wrap">
     <div class="login-card">
-      <img src="{{ url_for('static', filename='img/swarm-badge.png') }}" alt="Swarm Baseball logo" class="login-logo">
+      <a href="{{ url_for('landing') }}"><img src="{{ static_url('img/default-badge.svg') }}" alt="{{ platform_name }} logo" class="login-logo"></a>
       <h1>Choose Your Organization</h1>
       <p class="login-sub">Pick your team to sign in.</p>
 
@@ -19,6 +27,10 @@
           <a class="btn" style="width:100%; text-align:center;" href="{{ url_for('login', org_slug=org['slug']) }}">{{ org['name'] }}</a>
         {% endfor %}
       </div>
+
+      <p class="login-sub" style="margin-top:16px; margin-bottom:0;">
+        Don't have an organization yet? <a href="{{ url_for('start') }}">Create one</a>
+      </p>
     </div>
   </div>
 </body>

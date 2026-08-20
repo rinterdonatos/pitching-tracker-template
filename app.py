@@ -187,6 +187,16 @@ def static_url(filename):
 
 app.jinja_env.globals["static_url"] = static_url
 
+# Neutral platform brand - used only on pages that aren't scoped to any one
+# organization (the public marketing landing page, the self-serve org signup
+# flow, and the cross-org "choose your organization" login picker). This is
+# a placeholder name and can be swapped for a real brand later by changing
+# this one constant (plus static/img/default-badge.svg, which doubles as the
+# placeholder platform logo).
+PLATFORM_NAME = "DiamondTrack"
+app.jinja_env.globals["platform_name"] = PLATFORM_NAME
+app.jinja_env.globals["current_year"] = lambda: datetime.now().year
+
 
 # ---------- Database helpers ----------
 
@@ -216,7 +226,7 @@ def get_db():
 # unchanged because the endpoint name itself never changes, only the URL
 # pattern behind it.
 ORG_EXEMPT_ENDPOINTS = {
-    "static", "org_picker", "setup", "join", "calendar_feed",
+    "static", "landing", "org_picker", "setup", "start", "join", "calendar_feed",
     # College-recruiting coach portal: coaches aren't members of any one
     # organization - they browse opted-in players across all of them - so
     # these routes live outside the /<org_slug>/ scheme entirely and use
@@ -1191,11 +1201,26 @@ def require_login():
 
 
 @app.route("/")
+def landing():
+    """Public marketing home page. A returning, already-logged-in user skips
+    straight past this to their own organization; everyone else sees the
+    pitch, with "Get Started" (self-serve org signup) and "Log In" as the
+    two ways in."""
+    if session.get("user_id") and session.get("organization_id"):
+        conn = get_db()
+        org = conn.execute("SELECT * FROM organizations WHERE id = ?", (session["organization_id"],)).fetchone()
+        conn.close()
+        if org:
+            return redirect(url_for("index", org_slug=org["slug"]))
+    return render_template("landing.html")
+
+
+@app.route("/login")
 def org_picker():
-    """The one truly global landing page. Sends a returning, already-logged-in
-    user straight back to their own organization; otherwise sends a
-    single-organization site straight to that org's login (today's reality
-    for everyone on this platform), or shows a picker if more than one
+    """Cross-org login entry point (not the marketing home page - that's
+    landing() at "/"). Sends a returning, already-logged-in user straight
+    back to their own organization; otherwise sends a single-organization
+    site straight to that org's login, or shows a picker if more than one
     organization exists."""
     conn = get_db()
     if session.get("user_id") and session.get("organization_id"):
@@ -1212,6 +1237,71 @@ def org_picker():
     if len(orgs) == 1:
         return redirect(url_for("login", org_slug=orgs[0]["slug"]))
     return render_template("org_picker.html", organizations=orgs)
+
+
+@app.route("/start", methods=["GET", "POST"])
+def start():
+    """Public self-serve signup: any new organization can create itself and
+    its owner account here, no manual onboarding required. This is distinct
+    from setup(), which only ever runs once - for the platform's very first
+    organization/owner - and grants the platform-admin role that implies.
+    Every org created here is a normal, independent tenant."""
+    if request.method == "POST":
+        org_name = request.form.get("org_name", "").strip()
+        name = request.form.get("name", "").strip()
+        email = request.form.get("email", "").strip().lower()
+        phone = normalize_phone(request.form.get("phone", ""))
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm", "")
+
+        slug = re.sub(r"[^a-z0-9]+", "-", org_name.lower()).strip("-")
+
+        conn = get_db()
+        if not org_name or not slug:
+            flash("Enter a name for your organization.", "error")
+        elif not name:
+            flash("Enter your name.", "error")
+        elif not email and not phone:
+            flash("Enter an email or a phone number (or both).", "error")
+        elif len(password) < 6:
+            flash("Password needs at least 6 characters.", "error")
+        elif password != confirm:
+            flash("Those passwords don't match.", "error")
+        else:
+            # Org names collide sometimes ("Elite Baseball" is popular) - keep
+            # the URL slug unique by appending a short numeric suffix rather
+            # than failing the signup outright.
+            if conn.execute("SELECT id FROM organizations WHERE slug = ?", (slug,)).fetchone():
+                base_slug, suffix = slug, 2
+                while conn.execute("SELECT id FROM organizations WHERE slug = ?", (slug,)).fetchone():
+                    slug = f"{base_slug}-{suffix}"
+                    suffix += 1
+
+            org_cur = conn.execute(
+                "INSERT INTO organizations (name, slug) VALUES (?, ?)", (org_name, slug)
+            )
+            org_id = org_cur.lastrowid
+            cur = conn.execute(
+                "INSERT INTO users (organization_id, name, email, phone, password_hash, is_admin, is_owner) "
+                "VALUES (?, ?, ?, ?, ?, 1, 1)",
+                (org_id, name, email or None, phone, generate_password_hash(password)),
+            )
+            conn.commit()
+            session.permanent = True
+            session["user_id"] = cur.lastrowid
+            session["user_name"] = name
+            session["is_admin"] = True
+            session["is_owner"] = True
+            session["is_platform_admin"] = False
+            session["player_id"] = None
+            session["organization_id"] = org_id
+            conn.close()
+            flash(f"{org_name} is live. Welcome aboard!", "success")
+            return redirect(url_for("index", org_slug=slug))
+        conn.close()
+        return redirect(url_for("start"))
+
+    return render_template("start.html")
 
 
 @app.route("/setup", methods=["GET", "POST"])
