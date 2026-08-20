@@ -3,6 +3,7 @@ import re
 import csv
 import io
 import base64
+import random
 import secrets
 import smtplib
 import urllib.parse
@@ -223,6 +224,7 @@ ORG_EXEMPT_ENDPOINTS = {
     # below), not the team-user session this before_request hook checks.
     "coach_signup", "coach_login", "coach_logout", "coach_players",
     "coach_leaderboards", "coach_feed", "coach_favorite_toggle", "coach_favorites",
+    "coach_player_detail", "coach_player_follow_toggle", "coach_following",
     "platform_coaches", "platform_approve_coach", "platform_reject_coach", "platform_revoke_coach",
 }
 
@@ -744,6 +746,23 @@ def init_db():
     )
     conn.execute(
         "CREATE UNIQUE INDEX IF NOT EXISTS idx_video_favorites_coach_video ON video_favorites(coach_id, video_id)"
+    )
+    conn.commit()
+
+    # Coaches can also follow a PLAYER directly (not just favorite one video) -
+    # a standing watchlist entry, separate from video favorites.
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS player_follows (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            coach_id INTEGER NOT NULL,
+            player_id INTEGER NOT NULL,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (coach_id) REFERENCES coaches (id) ON DELETE CASCADE,
+            FOREIGN KEY (player_id) REFERENCES players (id) ON DELETE CASCADE
+        )"""
+    )
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_player_follows_coach_player ON player_follows(coach_id, player_id)"
     )
     conn.commit()
 
@@ -1628,13 +1647,14 @@ def coach_players():
     conn = get_db()
     where_sql, params, filters = _coach_player_filters()
     players = conn.execute(
-        f"""SELECT p.*, t.name AS team_name, o.name AS org_name
+        f"""SELECT p.*, t.name AS team_name, o.name AS org_name, o.slug AS org_slug,
+                   EXISTS(SELECT 1 FROM player_follows pf WHERE pf.player_id = p.id AND pf.coach_id = ?) AS is_followed
             FROM players p
             LEFT JOIN teams t ON t.id = p.team_id
             JOIN organizations o ON o.id = p.organization_id
             WHERE {where_sql}
             ORDER BY p.name COLLATE NOCASE ASC""",
-        params,
+        [g.coach["id"]] + params,
     ).fetchall()
     teams, grad_years, positions = _coach_filter_options(conn)
     conn.close()
@@ -1692,23 +1712,83 @@ def coach_leaderboards():
     )
 
 
+def _rank_feed_videos(videos):
+    """Order the feed by a blended score instead of pure recency: harder
+    velocity readings and bullpen/game reps are what a coach actually wants
+    to evaluate first, recent uploads get a boost so the feed stays fresh,
+    and a small random jitter keeps the order from going stale on repeat
+    visits without overriding the real signal."""
+    if not videos:
+        return videos
+
+    velos = [v["player_best_velo"] for v in videos if v["player_best_velo"] is not None]
+    max_velo = max(velos) if velos else None
+    min_velo = min(velos) if velos else None
+    today = date.today()
+
+    scored = []
+    for v in videos:
+        velo = v["player_best_velo"]
+        if velo is not None and max_velo is not None and max_velo > min_velo:
+            velo_score = (velo - min_velo) / (max_velo - min_velo)
+        elif velo is not None:
+            velo_score = 1.0
+        else:
+            # No recorded velo (common for position players) shouldn't bury
+            # the clip - treat it as a neutral middle score, not a penalty.
+            velo_score = 0.35
+
+        category = (v["category"] or "").strip().lower()
+        category_score = 1.0 if category in ("bullpen", "game") else 0.4
+
+        try:
+            entry_date = date.fromisoformat((v["entry_date"] or "")[:10])
+            days_old = max((today - entry_date).days, 0)
+        except ValueError:
+            days_old = 365
+        recency_score = 1.0 / (1.0 + days_old / 30.0)
+
+        weighted = (0.35 * velo_score) + (0.25 * category_score) + (0.25 * recency_score)
+        jitter = random.random() * 0.15
+        scored.append((weighted + jitter, v))
+
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return [v for _, v in scored]
+
+
 @app.route("/coach/feed")
 @coach_required
 def coach_feed():
     conn = get_db()
     where_sql, params, filters = _coach_player_filters()
+
+    following_only = request.args.get("following") == "1"
+    filters["following"] = following_only
+    if following_only:
+        where_sql += " AND p.id IN (SELECT player_id FROM player_follows WHERE coach_id = ?)"
+        params = params + [g.coach["id"]]
+
     videos = conn.execute(
         f"""SELECT v.*, p.name AS player_name, p.position, p.grad_year,
                    t.name AS team_name, o.name AS org_name,
-                   EXISTS(SELECT 1 FROM video_favorites vf WHERE vf.video_id = v.id AND vf.coach_id = ?) AS is_favorited
+                   EXISTS(SELECT 1 FROM video_favorites vf WHERE vf.video_id = v.id AND vf.coach_id = ?) AS is_favorited,
+                   EXISTS(SELECT 1 FROM player_follows pf WHERE pf.player_id = v.player_id AND pf.coach_id = ?) AS is_followed,
+                   bv.best_velo AS player_best_velo
             FROM videos v
             JOIN players p ON p.id = v.player_id
             LEFT JOIN teams t ON t.id = p.team_id
             JOIN organizations o ON o.id = p.organization_id
+            LEFT JOIN (
+                SELECT player_id, MAX(stat_value) AS best_velo
+                FROM stat_entries
+                WHERE lower(stat_name) LIKE '%velo%'
+                GROUP BY player_id
+            ) bv ON bv.player_id = v.player_id
             WHERE {where_sql}
             ORDER BY v.entry_date DESC, v.id DESC""",
-        [g.coach["id"]] + params,
+        [g.coach["id"], g.coach["id"]] + params,
     ).fetchall()
+    videos = _rank_feed_videos(videos)
     teams, grad_years, positions = _coach_filter_options(conn)
     conn.close()
     return render_template(
@@ -1771,6 +1851,97 @@ def coach_favorites():
     ).fetchall()
     conn.close()
     return render_template("coach_favorites.html", videos=videos)
+
+
+@app.route("/coach/player/<int:player_id>")
+@coach_required
+def coach_player_detail(player_id):
+    conn = get_db()
+    # Cross-org lookup (a coach isn't scoped to one organization), gated on
+    # recruiting_opt_in same as everywhere else in the coach portal - a
+    # player who isn't opted in doesn't exist as far as this route is
+    # concerned, full stop.
+    player = conn.execute(
+        """SELECT p.*, t.name AS team_name, o.name AS org_name
+           FROM players p
+           LEFT JOIN teams t ON t.id = p.team_id
+           JOIN organizations o ON o.id = p.organization_id
+           WHERE p.id = ? AND p.recruiting_opt_in = 1""",
+        (player_id,),
+    ).fetchone()
+    if not player:
+        conn.close()
+        abort(404)
+
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
+    ctx = _build_player_profile_context(conn, player_id, date_from, date_to)
+
+    is_followed = conn.execute(
+        "SELECT 1 FROM player_follows WHERE coach_id = ? AND player_id = ?",
+        (g.coach["id"], player_id),
+    ).fetchone() is not None
+
+    conn.close()
+    # Reuses the exact same player.html template org members see - same
+    # stats, charts, video timeline - just with editing, printing, and
+    # adding stats/video/comments hidden via is_coach_view (enforced in the
+    # template, not just cosmetically: those routes require an org_slug a
+    # coach session doesn't have, so they'd 500 if ever rendered here).
+    return render_template(
+        "player.html", player=player, is_coach_view=True, is_followed=is_followed, **ctx
+    )
+
+
+@app.route("/coach/players/<int:player_id>/follow", methods=["POST"])
+@coach_required
+def coach_player_follow_toggle(player_id):
+    conn = get_db()
+    # Re-check opt-in on every toggle, same reasoning as favoriting a video -
+    # a family can turn recruiting visibility off at any time.
+    player = conn.execute(
+        "SELECT id FROM players WHERE id = ? AND recruiting_opt_in = 1", (player_id,)
+    ).fetchone()
+    if not player:
+        conn.close()
+        abort(404)
+
+    existing = conn.execute(
+        "SELECT id FROM player_follows WHERE coach_id = ? AND player_id = ?",
+        (g.coach["id"], player_id),
+    ).fetchone()
+    if existing:
+        conn.execute("DELETE FROM player_follows WHERE id = ?", (existing["id"],))
+        followed = False
+    else:
+        conn.execute(
+            "INSERT INTO player_follows (coach_id, player_id) VALUES (?, ?)", (g.coach["id"], player_id)
+        )
+        followed = True
+    conn.commit()
+    conn.close()
+
+    if request.headers.get("X-Requested-With") == "fetch":
+        return {"followed": followed}
+    return redirect(request.referrer or url_for("coach_player_detail", player_id=player_id))
+
+
+@app.route("/coach/following")
+@coach_required
+def coach_following():
+    conn = get_db()
+    players = conn.execute(
+        """SELECT p.*, t.name AS team_name, o.name AS org_name, o.slug AS org_slug
+           FROM player_follows pf
+           JOIN players p ON p.id = pf.player_id
+           LEFT JOIN teams t ON t.id = p.team_id
+           JOIN organizations o ON o.id = p.organization_id
+           WHERE pf.coach_id = ? AND p.recruiting_opt_in = 1
+           ORDER BY pf.created_at DESC""",
+        (g.coach["id"],),
+    ).fetchall()
+    conn.close()
+    return render_template("coach_following.html", players=players)
 
 
 # ---------- Routes: platform admin (coach approvals) ----------
@@ -2379,21 +2550,12 @@ def add_player():
     return render_template("add_player.html", teams=all_teams, contacts=[])
 
 
-@app.route("/<org_slug>/players/<int:player_id>")
-def player_detail(player_id):
-    conn = get_db()
-    player = conn.execute(
-        "SELECT p.*, t.name AS team_name FROM players p LEFT JOIN teams t ON t.id = p.team_id WHERE p.id = ? AND p.organization_id = ?",
-        (player_id, g.org["id"]),
-    ).fetchone()
-    if not player:
-        conn.close()
-        abort(404)
-
-    # Optional ?date_from= / ?date_to= narrow every dated thing on the page
-    # (charts, stat tables, videos) to that range. Missing ends are open.
-    date_from = request.args.get("date_from", "").strip()
-    date_to = request.args.get("date_to", "").strip()
+def _build_player_profile_context(conn, player_id, date_from, date_to):
+    """Everything a player's profile page needs, besides the `player` row
+    itself: stat tables, velocity charts, video timeline, comments, TrackMan
+    sessions. Shared between the org-member player page and the coach
+    portal's read-only view of the same player, so both stay in sync
+    automatically instead of drifting apart as two separate implementations."""
     date_conds = ""
     date_params = []
     if date_from:
@@ -2460,8 +2622,6 @@ def player_detail(player_id):
         f"SELECT * FROM trackman_pitches WHERE player_id = ?{date_conds} ORDER BY entry_date DESC, id ASC",
         (player_id, *date_params),
     ).fetchall()
-
-    conn.close()
 
     # TrackMan Reports: one entry per session (date + type), each with a
     # per-pitch-type summary and the full pitch-by-pitch detail.
@@ -2568,21 +2728,39 @@ def player_detail(player_id):
     for c in video_comment_rows:
         comments_by_video.setdefault(c["video_id"], []).append(c)
 
-    return render_template(
-        "player.html",
-        player=player,
-        category_tables=category_tables,
-        velocity_by_stat=velocity_by_stat,
-        video_groups=video_groups,
-        stats_by_date=stats_by_date,
-        pinned_videos=pinned_videos,
-        comments_by_video=comments_by_video,
-        general_comments=general_comments,
-        contacts=contacts,
-        date_from=date_from,
-        date_to=date_to,
-        tm_sessions=tm_sessions,
-    )
+    return {
+        "category_tables": category_tables,
+        "velocity_by_stat": velocity_by_stat,
+        "video_groups": video_groups,
+        "stats_by_date": stats_by_date,
+        "pinned_videos": pinned_videos,
+        "comments_by_video": comments_by_video,
+        "general_comments": general_comments,
+        "contacts": contacts,
+        "date_from": date_from,
+        "date_to": date_to,
+        "tm_sessions": tm_sessions,
+    }
+
+
+@app.route("/<org_slug>/players/<int:player_id>")
+def player_detail(player_id):
+    conn = get_db()
+    player = conn.execute(
+        "SELECT p.*, t.name AS team_name FROM players p LEFT JOIN teams t ON t.id = p.team_id WHERE p.id = ? AND p.organization_id = ?",
+        (player_id, g.org["id"]),
+    ).fetchone()
+    if not player:
+        conn.close()
+        abort(404)
+
+    # Optional ?date_from= / ?date_to= narrow every dated thing on the page
+    # (charts, stat tables, videos) to that range. Missing ends are open.
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
+    ctx = _build_player_profile_context(conn, player_id, date_from, date_to)
+    conn.close()
+    return render_template("player.html", player=player, is_coach_view=False, **ctx)
 
 
 @app.route("/<org_slug>/players/<int:player_id>/report")

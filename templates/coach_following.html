@@ -1,0 +1,32 @@
+{% extends "coach_base.html" %}
+{% block title %}Following - Recruiting Portal{% endblock %}
+{% block content %}
+  <div class="page-title"><h2>Players You Follow</h2></div>
+
+  {% if not players %}
+    <div class="coach-empty">
+      <p>Not following anyone yet. Head to <a href="{{ url_for('coach_players') }}">Players</a> and tap Follow on a prospect to track them here.</p>
+    </div>
+  {% else %}
+    <div class="coach-player-grid">
+      {% for p in players %}
+        <div class="coach-card coach-player-card">
+          <img class="card-team-logo" src="{{ static_url('img/swarm-badge.png') if p['org_slug'] == 'swarm-baseball' else static_url('img/default-badge.svg') }}" alt="{{ p['org_name'] }} logo">
+          <span class="org-tag">{{ p['org_name'] }}</span>
+          <a class="name" style="display:block;" href="{{ url_for('coach_player_detail', player_id=p['id']) }}">{{ p['name'] }}</a>
+          <div class="meta">
+            {{ p['position'] or 'Position n/a' }}
+            {% if p['grad_year'] %} · Class of {{ p['grad_year'] }}{% endif %}
+            {% if p['team_name'] %} · {{ p['team_name'] }}{% endif %}
+          </div>
+          <div style="display:flex; gap:8px; margin-top:6px;">
+            <a class="btn secondary" style="flex:1; text-align:center;" href="{{ url_for('coach_feed', player=p['id']) }}">Watch Video</a>
+            <form method="POST" action="{{ url_for('coach_player_follow_toggle', player_id=p['id']) }}" style="flex:1;">
+              <button class="btn follow-btn following" style="width:100%;" type="submit">Following</button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endblock %}

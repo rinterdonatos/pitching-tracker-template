@@ -18,6 +18,10 @@
 </head>
 <body class="coach-shell">
   <a class="feed-back-link" href="{{ url_for('coach_players') }}">&larr; Players</a>
+  <div class="feed-tabs">
+    <a class="feed-tab {{ 'active' if not filters['following'] }}" href="{{ url_for('coach_feed', team=filters['team'], grad_year=filters['grad_year'], position=filters['position'], q=filters['q'], player=filters['player']) }}">For You</a>
+    <a class="feed-tab {{ 'active' if filters['following'] }}" href="{{ url_for('coach_feed', team=filters['team'], grad_year=filters['grad_year'], position=filters['position'], q=filters['q'], player=filters['player'], following=1) }}">Following</a>
+  </div>
   <button class="feed-back-link" id="feed-filter-toggle" type="button" style="left:auto; right:14px;">Filters</button>
 
   <div id="feed-filter-panel" style="display:none; position:fixed; top:60px; right:14px; z-index:6; background:#fff; border-radius:12px; padding:16px; width:min(260px, 80vw); box-shadow:var(--shadow-lg);">
@@ -59,8 +63,13 @@
   {% if not videos %}
     <div class="feed-empty">
       <div>
-        <p style="font-size:1.1rem; font-weight:600;">No videos match yet.</p>
-        <p style="opacity:0.8;">Try clearing your filters, or check back soon.</p>
+        {% if filters['following'] %}
+          <p style="font-size:1.1rem; font-weight:600;">Not following anyone with videos yet.</p>
+          <p style="opacity:0.8;">Follow players from their profile or the For You feed to see them here.</p>
+        {% else %}
+          <p style="font-size:1.1rem; font-weight:600;">No videos match yet.</p>
+          <p style="opacity:0.8;">Try clearing your filters, or check back soon.</p>
+        {% endif %}
       </div>
     </div>
   {% else %}
@@ -70,12 +79,12 @@
           <video
             src="{{ url_for('static', filename='uploads/videos/' ~ v['filename']) }}"
             playsinline
-            muted
             loop
             preload="metadata"
           ></video>
+          <div class="sound-hint">🔇 Tap for sound</div>
           <div class="feed-item-info">
-            <div class="player-name">{{ v['player_name'] }}</div>
+            <a class="player-name" href="{{ url_for('coach_player_detail', player_id=v['player_id']) }}">{{ v['player_name'] }}</a>
             <div class="player-meta">
               {{ v['org_name'] }}{% if v['team_name'] %} · {{ v['team_name'] }}{% endif %}
               {% if v['position'] %} · {{ v['position'] }}{% endif %}
@@ -84,6 +93,9 @@
             {% if v['title'] %}<div class="video-title">{{ v['title'] }}{% if v['category'] %} &middot; {{ v['category'] }}{% endif %}</div>{% endif %}
           </div>
           <div class="feed-item-actions">
+            <button class="feed-follow-btn {{ 'following' if v['is_followed'] }}" data-player-id="{{ v['player_id'] }}" type="button" aria-label="Follow player">
+              {{ '★' if v['is_followed'] else '☆' }}
+            </button>
             <button class="feed-fav-btn {{ 'favorited' if v['is_favorited'] }}" data-video-id="{{ v['id'] }}" type="button" aria-label="Favorite">
               {{ '♥' if v['is_favorited'] else '♡' }}
             </button>
@@ -108,12 +120,25 @@
 
       // Play whichever item is actually on screen, pause everything else -
       // keeps this smooth on mobile instead of every clip playing at once.
+      // Sound is on by default (coaches want arm-action/velo call-outs to
+      // be audible without having to tap first); browsers block unmuted
+      // autoplay unless the user already interacted with the page, so if
+      // that gets rejected we fall back to a muted autoplay and show a
+      // small "tap for sound" hint instead of the clip just sitting frozen.
       var observer = new IntersectionObserver(function (entries) {
         entries.forEach(function (entry) {
           var video = entry.target.querySelector('video');
           if (!video) return;
           if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
-            video.play().catch(function () {});
+            video.muted = false;
+            var playPromise = video.play();
+            if (playPromise && playPromise.catch) {
+              playPromise.catch(function () {
+                video.muted = true;
+                entry.target.classList.add('needs-tap-for-sound');
+                video.play().catch(function () {});
+              });
+            }
           } else {
             video.pause();
           }
@@ -124,10 +149,13 @@
         observer.observe(item);
         var video = item.querySelector('video');
         if (video) {
-          // Tap the video to toggle mute (autoplay only works muted, but a
-          // coach will usually want sound for arm-action/velo call-outs).
+          // Tap the video to toggle mute.
           video.addEventListener('click', function () {
             video.muted = !video.muted;
+            if (!video.muted) {
+              item.classList.remove('needs-tap-for-sound');
+              video.play().catch(function () {});
+            }
           });
         }
       });
@@ -153,6 +181,30 @@
               // Network hiccup - revert the optimistic change.
               btn.classList.toggle('favorited', wasFavorited);
               btn.textContent = wasFavorited ? '♥' : '♡';
+            });
+        });
+      });
+
+      // Following a player: same optimistic-update pattern as favoriting.
+      document.querySelectorAll('.feed-follow-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var playerId = btn.getAttribute('data-player-id');
+          var wasFollowing = btn.classList.contains('following');
+          btn.classList.toggle('following');
+          btn.textContent = wasFollowing ? '☆' : '★';
+
+          fetch('/coach/players/' + playerId + '/follow', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'fetch' },
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              btn.classList.toggle('following', !!data.followed);
+              btn.textContent = data.followed ? '★' : '☆';
+            })
+            .catch(function () {
+              btn.classList.toggle('following', wasFollowing);
+              btn.textContent = wasFollowing ? '★' : '☆';
             });
         });
       });

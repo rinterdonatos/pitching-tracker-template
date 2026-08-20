@@ -1,7 +1,8 @@
-{% extends "base.html" %}
-{% block title %}{{ player['name'] }} - {{ org_name }}{% endblock %}
+{% extends "coach_base.html" if is_coach_view else "base.html" %}
+{% block title %}{{ player['name'] }} - {{ org_name if not is_coach_view else 'Recruiting Portal' }}{% endblock %}
 {% block content %}
-  {% set can_edit = session.get('is_admin') or session.get('player_id') == player['id'] %}
+  {% set can_edit = (not is_coach_view) and (session.get('is_admin') or session.get('player_id') == player['id']) %}
+  {% set self_url = url_for('coach_player_detail', player_id=player['id']) if is_coach_view else url_for('player_detail', player_id=player['id']) %}
   <div class="page-title">
     <div class="player-header" style="margin-bottom:0;">
       {% if player['photo_filename'] %}
@@ -12,22 +13,30 @@
       <div>
         <h2 style="margin:0;">{{ player['name'] }}{% if player['jersey_number'] %} #{{ player['jersey_number'] }}{% endif %}</h2>
         <div class="meta">
-          {{ player['position'] or 'Position not set' }}{% if player['grad_year'] %} &middot; Class of {{ player['grad_year'] }}{% endif %}{% if player['team_name'] %} &middot; {{ player['team_name'] }}{% endif %}
+          {% if is_coach_view and player['org_name'] %}{{ player['org_name'] }} &middot; {% endif %}{{ player['position'] or 'Position not set' }}{% if player['grad_year'] %} &middot; Class of {{ player['grad_year'] }}{% endif %}{% if player['team_name'] %} &middot; {{ player['team_name'] }}{% endif %}
         </div>
       </div>
     </div>
     <div>
-      {% if player['team_id'] %}
-        <a class="btn secondary" href="{{ url_for('lesson_calendar', team=player['team_id']) }}">{{ player['team_name'] }} Calendar</a>
-      {% endif %}
-      <a class="btn secondary" href="{{ url_for('player_report', player_id=player['id']) }}">Recruiting Report</a>
-      {% if can_edit %}
-        <a class="btn secondary" href="{{ url_for('edit_player', player_id=player['id']) }}">Edit Info</a>
-      {% endif %}
-      <a class="btn secondary" href="{{ url_for('upload_csv', player=player['name']) }}">+ Add Stats/Video</a>
-      {% if session.get('is_admin') %}
-        <form method="POST" action="{{ url_for('delete_player', player_id=player['id']) }}" style="display:inline;" onsubmit="return confirm('Remove {{ player['name'] }} and all their data?');">
-          <button class="btn danger" type="submit">Remove Player</button>
+      {% if not is_coach_view %}
+        {% if player['team_id'] %}
+          <a class="btn secondary" href="{{ url_for('lesson_calendar', team=player['team_id']) }}">{{ player['team_name'] }} Calendar</a>
+        {% endif %}
+        <a class="btn secondary" href="{{ url_for('player_report', player_id=player['id']) }}">Recruiting Report</a>
+        {% if can_edit %}
+          <a class="btn secondary" href="{{ url_for('edit_player', player_id=player['id']) }}">Edit Info</a>
+        {% endif %}
+        <a class="btn secondary" href="{{ url_for('upload_csv', player=player['name']) }}">+ Add Stats/Video</a>
+        {% if session.get('is_admin') %}
+          <form method="POST" action="{{ url_for('delete_player', player_id=player['id']) }}" style="display:inline;" onsubmit="return confirm('Remove {{ player['name'] }} and all their data?');">
+            <button class="btn danger" type="submit">Remove Player</button>
+          </form>
+        {% endif %}
+      {% else %}
+        <form method="POST" action="{{ url_for('coach_player_follow_toggle', player_id=player['id']) }}">
+          <button class="btn follow-btn {{ 'following' if is_followed }}" type="submit">
+            {{ 'Following' if is_followed else '+ Follow' }}
+          </button>
         </form>
       {% endif %}
     </div>
@@ -119,7 +128,7 @@
       <input type="date" id="date_to" name="date_to" value="{{ date_to }}" onchange="this.form.submit()">
     </div>
     {% if date_from or date_to %}
-      <a class="btn secondary" href="{{ url_for('player_detail', player_id=player['id']) }}">Show All Data</a>
+      <a class="btn secondary" href="{{ self_url }}">Show All Data</a>
     {% endif %}
     <span class="hint" style="align-self:center;">
       {% if date_from or date_to %}
@@ -190,10 +199,12 @@
     <div class="empty-state">
       {% if date_from or date_to %}
         <p>No stats in this date range.</p>
-        <a class="btn secondary" href="{{ url_for('player_detail', player_id=player['id']) }}">Show All Data</a>
+        <a class="btn secondary" href="{{ self_url }}">Show All Data</a>
       {% else %}
-        <p>No stats yet. Import a CSV to start tracking {{ player['name'] }}'s progress.</p>
-        <a class="btn" href="{{ url_for('upload_csv') }}">Import Stats CSV</a>
+        <p>No stats yet{% if not is_coach_view %} for {{ player['name'] }}{% endif %}.</p>
+        {% if not is_coach_view %}
+          <a class="btn" href="{{ url_for('upload_csv') }}">Import Stats CSV</a>
+        {% endif %}
       {% endif %}
     </div>
   {% endif %}
@@ -301,32 +312,34 @@
                 </form>
               {% endif %}
 
-              {% set video_comments = comments_by_video.get(v['id'], []) %}
-              <details class="video-comments" {% if video_comments %}open{% endif %}>
-                <summary>Comments ({{ video_comments | length }})</summary>
-                {% if video_comments %}
-                  <div class="comment-list">
-                    {% for c in video_comments %}
-                      <div class="comment">
-                        <div class="comment-meta">{{ c['commenter_name'] }}<span class="comment-time">{{ c['created_at'] | friendly_time }}</span></div>
-                        <div class="comment-body">{{ c['body'] }}</div>
-                        {% if session.get('is_admin') %}
-                          <form method="POST" action="{{ url_for('delete_comment', comment_id=c['id']) }}" onsubmit="return confirm('Delete this comment?');">
-                            <button class="comment-delete" type="submit">Delete</button>
-                          </form>
-                        {% endif %}
-                      </div>
-                    {% endfor %}
-                  </div>
-                {% endif %}
-                <form class="comment-form" method="POST" action="{{ url_for('add_video_comment', video_id=v['id']) }}">
-                  <div class="comment-form-row">
-                    <input type="text" name="commenter_name" placeholder="Your name" required>
-                  </div>
-                  <textarea name="body" placeholder="What do you see on this clip?" required></textarea>
-                  <button class="btn secondary" type="submit">Post Comment</button>
-                </form>
-              </details>
+              {% if not is_coach_view %}
+                {% set video_comments = comments_by_video.get(v['id'], []) %}
+                <details class="video-comments" {% if video_comments %}open{% endif %}>
+                  <summary>Comments ({{ video_comments | length }})</summary>
+                  {% if video_comments %}
+                    <div class="comment-list">
+                      {% for c in video_comments %}
+                        <div class="comment">
+                          <div class="comment-meta">{{ c['commenter_name'] }}<span class="comment-time">{{ c['created_at'] | friendly_time }}</span></div>
+                          <div class="comment-body">{{ c['body'] }}</div>
+                          {% if session.get('is_admin') %}
+                            <form method="POST" action="{{ url_for('delete_comment', comment_id=c['id']) }}" onsubmit="return confirm('Delete this comment?');">
+                              <button class="comment-delete" type="submit">Delete</button>
+                            </form>
+                          {% endif %}
+                        </div>
+                      {% endfor %}
+                    </div>
+                  {% endif %}
+                  <form class="comment-form" method="POST" action="{{ url_for('add_video_comment', video_id=v['id']) }}">
+                    <div class="comment-form-row">
+                      <input type="text" name="commenter_name" placeholder="Your name" required>
+                    </div>
+                    <textarea name="body" placeholder="What do you see on this clip?" required></textarea>
+                    <button class="btn secondary" type="submit">Post Comment</button>
+                  </form>
+                </details>
+              {% endif %}
             </div>
           </div>
         </div>
@@ -367,32 +380,34 @@
                   </form>
                 {% endif %}
 
-                {% set video_comments = comments_by_video.get(v['id'], []) %}
-                <details class="video-comments" {% if video_comments %}open{% endif %}>
-                  <summary>Comments ({{ video_comments | length }})</summary>
-                  {% if video_comments %}
-                    <div class="comment-list">
-                      {% for c in video_comments %}
-                        <div class="comment">
-                          <div class="comment-meta">{{ c['commenter_name'] }}<span class="comment-time">{{ c['created_at'] | friendly_time }}</span></div>
-                          <div class="comment-body">{{ c['body'] }}</div>
-                          {% if session.get('is_admin') %}
-                            <form method="POST" action="{{ url_for('delete_comment', comment_id=c['id']) }}" onsubmit="return confirm('Delete this comment?');">
-                              <button class="comment-delete" type="submit">Delete</button>
-                            </form>
-                          {% endif %}
-                        </div>
-                      {% endfor %}
-                    </div>
-                  {% endif %}
-                  <form class="comment-form" method="POST" action="{{ url_for('add_video_comment', video_id=v['id']) }}">
-                    <div class="comment-form-row">
-                      <input type="text" name="commenter_name" placeholder="Your name" required>
-                    </div>
-                    <textarea name="body" placeholder="What do you see on this clip?" required></textarea>
-                    <button class="btn secondary" type="submit">Post Comment</button>
-                  </form>
-                </details>
+                {% if not is_coach_view %}
+                  {% set video_comments = comments_by_video.get(v['id'], []) %}
+                  <details class="video-comments" {% if video_comments %}open{% endif %}>
+                    <summary>Comments ({{ video_comments | length }})</summary>
+                    {% if video_comments %}
+                      <div class="comment-list">
+                        {% for c in video_comments %}
+                          <div class="comment">
+                            <div class="comment-meta">{{ c['commenter_name'] }}<span class="comment-time">{{ c['created_at'] | friendly_time }}</span></div>
+                            <div class="comment-body">{{ c['body'] }}</div>
+                            {% if session.get('is_admin') %}
+                              <form method="POST" action="{{ url_for('delete_comment', comment_id=c['id']) }}" onsubmit="return confirm('Delete this comment?');">
+                                <button class="comment-delete" type="submit">Delete</button>
+                              </form>
+                            {% endif %}
+                          </div>
+                        {% endfor %}
+                      </div>
+                    {% endif %}
+                    <form class="comment-form" method="POST" action="{{ url_for('add_video_comment', video_id=v['id']) }}">
+                      <div class="comment-form-row">
+                        <input type="text" name="commenter_name" placeholder="Your name" required>
+                      </div>
+                      <textarea name="body" placeholder="What do you see on this clip?" required></textarea>
+                      <button class="btn secondary" type="submit">Post Comment</button>
+                    </form>
+                  </details>
+                {% endif %}
               </div>
             </div>
           {% endfor %}
@@ -409,10 +424,12 @@
     <div class="empty-state">
       {% if date_from or date_to %}
         <p>No videos in this date range.</p>
-        <a class="btn secondary" href="{{ url_for('player_detail', player_id=player['id']) }}">Show All Data</a>
+        <a class="btn secondary" href="{{ self_url }}">Show All Data</a>
       {% else %}
         <p>No videos yet for {{ player['name'] }}.</p>
-        <a class="btn" href="{{ url_for('upload_video') }}">Add Video</a>
+        {% if not is_coach_view %}
+          <a class="btn" href="{{ url_for('upload_video') }}">Add Video</a>
+        {% endif %}
       {% endif %}
     </div>
   {% endif %}
@@ -478,33 +495,35 @@
     }
   </script>
 
-  <div class="section-title" id="feedback">Player Feedback</div>
-  <div class="feedback-section">
-    {% if general_comments %}
-      <div class="comment-list">
-        {% for c in general_comments %}
-          <div class="comment">
-            <div class="comment-meta">{{ c['commenter_name'] }}<span class="comment-time">{{ c['created_at'] | friendly_time }}</span></div>
-            <div class="comment-body">{{ c['body'] }}</div>
-            {% if session.get('is_admin') %}
-              <form method="POST" action="{{ url_for('delete_comment', comment_id=c['id']) }}" onsubmit="return confirm('Delete this comment?');">
-                <button class="comment-delete" type="submit">Delete</button>
-              </form>
-            {% endif %}
-          </div>
-        {% endfor %}
-      </div>
-    {% else %}
-      <p style="color:#6b6564; font-size:0.9rem; margin-top:0;">No general feedback yet on {{ player['name'] }}.</p>
-    {% endif %}
-    <form class="comment-form" method="POST" action="{{ url_for('add_player_comment', player_id=player['id']) }}">
-      <div class="comment-form-row">
-        <input type="text" name="commenter_name" placeholder="Your name" required>
-      </div>
-      <textarea name="body" placeholder="Overall thoughts on {{ player['name'] }}'s development" required></textarea>
-      <button class="btn secondary" type="submit">Post Comment</button>
-    </form>
-  </div>
+  {% if not is_coach_view %}
+    <div class="section-title" id="feedback">Player Feedback</div>
+    <div class="feedback-section">
+      {% if general_comments %}
+        <div class="comment-list">
+          {% for c in general_comments %}
+            <div class="comment">
+              <div class="comment-meta">{{ c['commenter_name'] }}<span class="comment-time">{{ c['created_at'] | friendly_time }}</span></div>
+              <div class="comment-body">{{ c['body'] }}</div>
+              {% if session.get('is_admin') %}
+                <form method="POST" action="{{ url_for('delete_comment', comment_id=c['id']) }}" onsubmit="return confirm('Delete this comment?');">
+                  <button class="comment-delete" type="submit">Delete</button>
+                </form>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p style="color:#6b6564; font-size:0.9rem; margin-top:0;">No general feedback yet on {{ player['name'] }}.</p>
+      {% endif %}
+      <form class="comment-form" method="POST" action="{{ url_for('add_player_comment', player_id=player['id']) }}">
+        <div class="comment-form-row">
+          <input type="text" name="commenter_name" placeholder="Your name" required>
+        </div>
+        <textarea name="body" placeholder="Overall thoughts on {{ player['name'] }}'s development" required></textarea>
+        <button class="btn secondary" type="submit">Post Comment</button>
+      </form>
+    </div>
+  {% endif %}
 
   {% if velocity_by_stat %}
   <script>
