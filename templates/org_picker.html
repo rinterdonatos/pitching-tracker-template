@@ -29,11 +29,11 @@
         </div>
       {% endif %}
 
-      <div style="display:flex; flex-direction:column; gap:10px;">
-        {% for org in organizations %}
-          <a class="btn {{ 'secondary' if current_org and org['id'] == current_org['id'] }}" style="width:100%; text-align:center;" href="{{ url_for('login', org_slug=org['slug']) }}">{{ org['name'] }}</a>
-        {% endfor %}
+      <div class="field" style="text-align:left; margin-bottom:0;">
+        <label for="org-search">Search for your organization</label>
+        <input type="text" id="org-search" placeholder="Start typing your team or program name..." autocomplete="off" autofocus>
       </div>
+      <div id="org-results" style="display:flex; flex-direction:column; gap:8px; margin-top:10px;"></div>
 
       <p class="login-sub" style="margin-top:16px; margin-bottom:0;">
         Don't have an organization yet? <a href="{{ url_for('start') }}">Create one</a>
@@ -45,5 +45,49 @@
       <a class="btn secondary" style="width:100%; text-align:center; margin-top:8px;" href="{{ url_for('coach_login') }}">Recruiting Portal Login</a>
     </div>
   </div>
+
+  <script>
+    var ORGS = [
+      {% for org in organizations %}
+      { name: {{ org['name']|tojson }}, url: {{ url_for('login', org_slug=org['slug'])|tojson }} }{{ "," if not loop.last }}
+      {% endfor %}
+    ];
+
+    (function () {
+      var input = document.getElementById('org-search');
+      var results = document.getElementById('org-results');
+
+      function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+      }
+
+      input.addEventListener('input', function () {
+        var q = input.value.trim().toLowerCase();
+        results.innerHTML = '';
+        if (!q) return;
+
+        var matches = ORGS.filter(function (org) {
+          return org.name.toLowerCase().indexOf(q) !== -1;
+        });
+
+        if (matches.length === 0) {
+          results.innerHTML = '<p class="login-sub" style="margin:8px 0 0;">No organizations match "' + escapeHtml(input.value.trim()) + '".</p>';
+          return;
+        }
+
+        matches.slice(0, 8).forEach(function (org) {
+          var a = document.createElement('a');
+          a.className = 'btn';
+          a.style.width = '100%';
+          a.style.textAlign = 'center';
+          a.href = org.url;
+          a.textContent = org.name;
+          results.appendChild(a);
+        });
+      });
+    })();
+  </script>
 </body>
 </html>
