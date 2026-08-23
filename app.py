@@ -53,13 +53,17 @@ def sms_configured():
     return bool(TWILIO_SID and TWILIO_TOKEN and TWILIO_FROM)
 
 
-def send_reset_email(to_addr, code):
+def send_reset_email(to_addr, code, org_name=None):
+    # Every organization on the platform shares this one function - it must
+    # say who the code is actually for, not a hardcoded org name left over
+    # from before this app went multi-tenant.
+    label = org_name or PLATFORM_NAME
     msg = EmailMessage()
-    msg["Subject"] = "Swarm Baseball password reset code"
+    msg["Subject"] = f"{label} password reset code"
     msg["From"] = SMTP_FROM
     msg["To"] = to_addr
     msg.set_content(
-        f"Your Swarm Baseball password reset code is: {code}\n\n"
+        f"Your {label} password reset code is: {code}\n\n"
         f"Enter it on the reset page within {RESET_CODE_MINUTES} minutes. "
         "If you didn't request this, you can ignore this email."
     )
@@ -73,13 +77,14 @@ def send_reset_email(to_addr, code):
         return False
 
 
-def send_reset_sms(to_phone, code):
+def send_reset_sms(to_phone, code, org_name=None):
+    label = org_name or PLATFORM_NAME
     to_number = f"+1{to_phone}" if len(to_phone) == 10 else f"+{to_phone}"
     url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_SID}/Messages.json"
     data = urllib.parse.urlencode({
         "To": to_number,
         "From": TWILIO_FROM,
-        "Body": f"Swarm Baseball password reset code: {code} (expires in {RESET_CODE_MINUTES} min)",
+        "Body": f"{label} password reset code: {code} (expires in {RESET_CODE_MINUTES} min)",
     }).encode()
     req = urllib.request.Request(url, data=data)
     auth = base64.b64encode(f"{TWILIO_SID}:{TWILIO_TOKEN}".encode()).decode()
@@ -91,7 +96,22 @@ def send_reset_sms(to_phone, code):
         return False
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "pvtracker.db")
+
+# The database lives wherever PHX_DATA_DIR points - in production that's a
+# mounted persistent disk (e.g. Render's /var/data), so it survives
+# redeploys instead of being wiped along with the rest of the container.
+# Left unset, it defaults next to app.py like before - local dev unaffected.
+DATA_DIR = os.environ.get("PHX_DATA_DIR", BASE_DIR)
+os.makedirs(DATA_DIR, exist_ok=True)
+DB_PATH = os.path.join(DATA_DIR, "pvtracker.db")
+
+# Uploaded videos/photos/logos stay under static/uploads on purpose - Flask
+# serves them straight through its built-in /static/ route (see every
+# `url_for('static', filename='uploads/...')` in the templates), so moving
+# this elsewhere would break every video, photo, and logo on the site. To
+# persist these across redeploys, mount the same persistent disk directly at
+# this path (static/uploads) in Render's dashboard instead of introducing a
+# second storage location here.
 VIDEO_DIR = os.path.join(BASE_DIR, "static", "uploads", "videos")
 PHOTO_DIR = os.path.join(BASE_DIR, "static", "uploads", "photos")
 LOGO_DIR = os.path.join(BASE_DIR, "static", "uploads", "logos")
@@ -195,7 +215,7 @@ app.jinja_env.globals["static_url"] = static_url
 # a placeholder name and can be swapped for a real brand later by changing
 # this one constant (plus static/img/default-badge.svg, which doubles as the
 # placeholder platform logo).
-PLATFORM_NAME = "DiamondTrack"
+PLATFORM_NAME = "Mound HQ"
 app.jinja_env.globals["platform_name"] = PLATFORM_NAME
 app.jinja_env.globals["current_year"] = lambda: datetime.now().year
 
@@ -1625,9 +1645,9 @@ def forgot_password():
         prefer_email = "@" in identifier
         attempts = []
         if user["email"] and email_configured():
-            attempts.append(("email", lambda: send_reset_email(user["email"], code)))
+            attempts.append(("email", lambda: send_reset_email(user["email"], code, g.org["name"])))
         if user["phone"] and sms_configured():
-            attempts.append(("text", lambda: send_reset_sms(user["phone"], code)))
+            attempts.append(("text", lambda: send_reset_sms(user["phone"], code, g.org["name"])))
         if not prefer_email:
             attempts.reverse()
 
