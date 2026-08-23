@@ -151,7 +151,7 @@
   <div class="resume">
     <div class="resume-header">
       {% if player['photo_filename'] %}
-        <img class="resume-avatar" src="{{ url_for('static', filename='uploads/photos/' ~ player['photo_filename']) }}" alt="{{ player['name'] }}">
+        <img class="resume-avatar" src="{{ media_url('uploads/photos/' ~ player['photo_filename']) }}" alt="{{ player['name'] }}">
       {% else %}
         <div class="resume-avatar">{{ player['name'] | initials }}</div>
       {% endif %}

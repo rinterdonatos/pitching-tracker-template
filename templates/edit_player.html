@@ -34,7 +34,7 @@
     {% if player['photo_filename'] %}
       <div class="field">
         <label>Current photo</label>
-        <img src="{{ url_for('static', filename='uploads/photos/' ~ player['photo_filename']) }}" alt="{{ player['name'] }}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;display:block;">
+        <img src="{{ media_url('uploads/photos/' ~ player['photo_filename']) }}" alt="{{ player['name'] }}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;display:block;">
         <div class="hint">Choose a new file below to replace it, or leave blank to keep it.</div>
       </div>
     {% endif %}

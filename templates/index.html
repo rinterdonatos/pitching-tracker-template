@@ -30,7 +30,7 @@
       {% for p in players %}
         <a class="player-card" href="{{ url_for('player_detail', player_id=p['id']) }}">
           {% if p['photo_filename'] %}
-            <img class="avatar" src="{{ url_for('static', filename='uploads/photos/' ~ p['photo_filename']) }}" alt="{{ p['name'] }}">
+            <img class="avatar" src="{{ media_url('uploads/photos/' ~ p['photo_filename']) }}" alt="{{ p['name'] }}">
           {% else %}
             <div class="avatar">{{ p['name'] | initials }}</div>
           {% endif %}

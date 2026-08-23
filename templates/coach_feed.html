@@ -77,7 +77,7 @@
       {% for v in videos %}
         <div class="feed-item" data-video-id="{{ v['id'] }}">
           <video
-            src="{{ url_for('static', filename='uploads/videos/' ~ v['filename']) }}"
+            src="{{ media_url('uploads/videos/' ~ v['filename']) }}"
             playsinline
             loop
             preload="metadata"

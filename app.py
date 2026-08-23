@@ -303,6 +303,72 @@ def backup_db():
             pass
 
 
+# ---------- Uploaded media (Cloudflare R2) ----------
+#
+# Player photos, videos, and org logos are uploaded straight to a public R2
+# bucket instead of the local disk - a persistent disk works fine for the
+# database, but every GB of video anyone uploads would otherwise sit on that
+# same paid disk and can't be shared across multiple app instances later.
+# This is a separate bucket (and separate credentials) from the one the
+# nightly backup job writes to on purpose: that bucket holds full database
+# snapshots and must stay private, while this one is deliberately public so
+# a plain <img>/<video> tag can point straight at it without the Flask app
+# having to proxy every byte through itself.
+R2_MEDIA_BUCKET_NAME = os.environ.get("R2_MEDIA_BUCKET_NAME", "")
+R2_MEDIA_ACCESS_KEY_ID = os.environ.get("R2_MEDIA_ACCESS_KEY_ID", "")
+R2_MEDIA_SECRET_ACCESS_KEY = os.environ.get("R2_MEDIA_SECRET_ACCESS_KEY", "")
+# Same Cloudflare account as the backup bucket unless overridden.
+R2_MEDIA_ACCOUNT_ID = os.environ.get("R2_MEDIA_ACCOUNT_ID", "") or R2_ACCOUNT_ID
+# Public base URL for the bucket - either its free https://pub-xxxx.r2.dev
+# subdomain, or a custom domain (e.g. https://cdn.moundhq.com). No trailing
+# slash.
+R2_MEDIA_PUBLIC_URL = os.environ.get("R2_MEDIA_PUBLIC_URL", "").rstrip("/")
+
+MEDIA_ENABLED = bool(
+    R2_MEDIA_BUCKET_NAME and R2_MEDIA_ACCESS_KEY_ID and R2_MEDIA_SECRET_ACCESS_KEY
+    and R2_MEDIA_ACCOUNT_ID and R2_MEDIA_PUBLIC_URL
+)
+
+
+def r2_media_client():
+    import boto3
+    return boto3.client(
+        "s3",
+        endpoint_url=f"https://{R2_MEDIA_ACCOUNT_ID}.r2.cloudflarestorage.com",
+        aws_access_key_id=R2_MEDIA_ACCESS_KEY_ID,
+        aws_secret_access_key=R2_MEDIA_SECRET_ACCESS_KEY,
+        region_name="auto",
+    )
+
+
+def upload_media(fileobj, key, content_type=None):
+    """Upload one already-open file-like object to the public media bucket
+    under `key` (e.g. "uploads/videos/20260823_foo.mp4")."""
+    extra = {"ContentType": content_type} if content_type else {}
+    fileobj.seek(0)
+    r2_media_client().upload_fileobj(fileobj, R2_MEDIA_BUCKET_NAME, key, ExtraArgs=extra)
+
+
+def delete_media(key):
+    if not (MEDIA_ENABLED and key):
+        return
+    try:
+        r2_media_client().delete_object(Bucket=R2_MEDIA_BUCKET_NAME, Key=key)
+    except Exception:
+        pass  # best-effort - a stray orphaned object in R2 isn't worth failing the request over
+
+
+def media_url(key):
+    """Public URL for something stored in the media bucket. `key` is the
+    same relative path used everywhere else, e.g. "uploads/photos/x.jpg"."""
+    if not key:
+        return ""
+    return f"{R2_MEDIA_PUBLIC_URL}/{key}"
+
+
+app.jinja_env.globals["media_url"] = media_url
+
+
 # ---------- Multi-tenant: organization resolution from the URL ----------
 #
 # Every route lives under /<org_slug>/... except a small always-global set
@@ -471,7 +537,7 @@ def branding_context_for_org(org):
             accent = org["theme_accent"] or primary
             return {
                 "org_name": org["name"],
-                "org_logo": url_for("static", filename=f"uploads/logos/{org['logo_filename']}"),
+                "org_logo": media_url(f"uploads/logos/{org['logo_filename']}"),
                 "org_theme_override": True,
                 "org_theme_blue": primary,
                 "org_theme_blue_dark": darken_hex(primary),
@@ -1513,11 +1579,17 @@ def start():
             if logo and logo.filename and allowed_file(logo.filename, ALLOWED_PHOTO_EXT):
                 safe_name = secure_filename(logo.filename)
                 logo_filename = f"{slug}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_name}"
-                logo_path = os.path.join(LOGO_DIR, logo_filename)
-                logo.save(logo_path)
-                colors = extract_theme_colors(logo_path)
+                # Read once into memory: Pillow reads color data from the
+                # bytes directly (no local file needed), and the same bytes
+                # get uploaded to R2 - nothing touches local disk.
+                logo_bytes = io.BytesIO(logo.read())
+                colors = extract_theme_colors(logo_bytes)
                 if colors:
                     theme_primary, theme_accent = colors
+                if MEDIA_ENABLED:
+                    upload_media(logo_bytes, f"uploads/logos/{logo_filename}", logo.content_type)
+                else:
+                    logo_filename = None
 
             org_cur = conn.execute(
                 "INSERT INTO organizations (name, slug, logo_filename, theme_primary, theme_accent) "
@@ -2855,10 +2927,10 @@ def add_player():
 
         photo_filename = None
         photo = request.files.get("photo")
-        if photo and photo.filename and allowed_file(photo.filename, ALLOWED_PHOTO_EXT):
+        if photo and photo.filename and allowed_file(photo.filename, ALLOWED_PHOTO_EXT) and MEDIA_ENABLED:
             safe_name = secure_filename(photo.filename)
             photo_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_name}"
-            photo.save(os.path.join(PHOTO_DIR, photo_filename))
+            upload_media(photo.stream, f"uploads/photos/{photo_filename}", photo.content_type)
 
         conn = get_db()
         team_id = _team_id_from_form(conn, g.org["id"])
@@ -3206,10 +3278,13 @@ def edit_player(player_id):
 
         photo_filename = player["photo_filename"]
         photo = request.files.get("photo")
-        if photo and photo.filename and allowed_file(photo.filename, ALLOWED_PHOTO_EXT):
+        if photo and photo.filename and allowed_file(photo.filename, ALLOWED_PHOTO_EXT) and MEDIA_ENABLED:
             safe_name = secure_filename(photo.filename)
+            old_photo_filename = photo_filename
             photo_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_name}"
-            photo.save(os.path.join(PHOTO_DIR, photo_filename))
+            upload_media(photo.stream, f"uploads/photos/{photo_filename}", photo.content_type)
+            if old_photo_filename:
+                delete_media(f"uploads/photos/{old_photo_filename}")
 
         contact_sets = ", ".join(f"{f} = ?" for f in PLAYER_CONTACT_FIELDS)
         measurable_sets = ", ".join(f"{f} = ?" for f in PLAYER_MEASURABLE_FIELDS)
@@ -4023,13 +4098,13 @@ def upload_video():
         uploaded_count = 0
         skipped_names = []
         for file in files:
-            if not allowed_file(file.filename, ALLOWED_VIDEO_EXT):
+            if not allowed_file(file.filename, ALLOWED_VIDEO_EXT) or not MEDIA_ENABLED:
                 skipped_names.append(file.filename)
                 continue
 
             safe_name = secure_filename(file.filename)
             stored_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{safe_name}"
-            file.save(os.path.join(VIDEO_DIR, stored_filename))
+            upload_media(file.stream, f"uploads/videos/{stored_filename}", file.content_type)
 
             conn.execute(
                 "INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -4064,10 +4139,7 @@ def delete_video(video_id):
         "SELECT * FROM videos WHERE id = ? AND organization_id = ?", (video_id, g.org["id"])
     ).fetchone()
     if video:
-        try:
-            os.remove(os.path.join(VIDEO_DIR, video["filename"]))
-        except OSError:
-            pass
+        delete_media(f"uploads/videos/{video['filename']}")
         player_id = video["player_id"]
         conn.execute("DELETE FROM videos WHERE id = ?", (video_id,))
         conn.commit()
