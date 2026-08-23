@@ -6,6 +6,7 @@ import base64
 import random
 import secrets
 import smtplib
+import tempfile
 import urllib.parse
 import urllib.request
 from email.message import EmailMessage
@@ -229,6 +230,79 @@ def get_db():
     return conn
 
 
+# ---------- Database backups (Cloudflare R2) ----------
+#
+# A standalone Render Cron Job can't reach this service's persistent disk
+# directly - Render disks are attached to exactly one service - so rather
+# than run the backup as its own separate job, the cron job just pings this
+# token-protected endpoint on a schedule, and the actual backup happens here,
+# inside the web service that already has the disk mounted. sqlite3's own
+# backup() API is used instead of a raw file copy so a snapshot taken while
+# the app is mid-write still comes out consistent rather than corrupted.
+
+R2_ACCOUNT_ID = os.environ.get("R2_ACCOUNT_ID", "")
+R2_ACCESS_KEY_ID = os.environ.get("R2_ACCESS_KEY_ID", "")
+R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY", "")
+R2_BUCKET_NAME = os.environ.get("R2_BUCKET_NAME", "")
+BACKUP_TOKEN = os.environ.get("PHX_BACKUP_TOKEN", "")
+BACKUP_RETENTION = 30  # keep the last 30 nightly snapshots, prune anything older
+
+
+def r2_client():
+    import boto3
+    return boto3.client(
+        "s3",
+        endpoint_url=f"https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com",
+        aws_access_key_id=R2_ACCESS_KEY_ID,
+        aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+        region_name="auto",
+    )
+
+
+@app.route("/internal/backup-db", methods=["POST"])
+def backup_db():
+    """Snapshot the live database and ship it to R2. Called only by the
+    scheduled cron job (see trigger_backup.py), authenticated with a shared
+    secret rather than a login since there's no human on the other end."""
+    if not BACKUP_TOKEN or request.headers.get("X-Backup-Token") != BACKUP_TOKEN:
+        abort(403)
+    if not (R2_ACCOUNT_ID and R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY and R2_BUCKET_NAME):
+        return {"ok": False, "error": "R2 isn't configured (missing env vars)"}, 500
+
+    stamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    key = f"backups/pvtracker-{stamp}.db"
+
+    tmp_fd, tmp_path = tempfile.mkstemp(suffix=".db")
+    os.close(tmp_fd)
+    try:
+        src = sqlite3.connect(DB_PATH)
+        dst = sqlite3.connect(tmp_path)
+        with dst:
+            src.backup(dst)
+        src.close()
+        dst.close()
+
+        client = r2_client()
+        client.upload_file(tmp_path, R2_BUCKET_NAME, key)
+
+        # Prune anything past the retention window so storage cost doesn't
+        # grow forever.
+        existing = client.list_objects_v2(Bucket=R2_BUCKET_NAME, Prefix="backups/pvtracker-")
+        objects = sorted(existing.get("Contents", []), key=lambda o: o["Key"])
+        stale = objects[:-BACKUP_RETENTION] if len(objects) > BACKUP_RETENTION else []
+        for obj in stale:
+            client.delete_object(Bucket=R2_BUCKET_NAME, Key=obj["Key"])
+
+        return {"ok": True, "key": key, "pruned": len(stale)}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}, 500
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
+
 # ---------- Multi-tenant: organization resolution from the URL ----------
 #
 # Every route lives under /<org_slug>/... except a small always-global set
@@ -249,6 +323,10 @@ def get_db():
 # pattern behind it.
 ORG_EXEMPT_ENDPOINTS = {
     "static", "landing", "org_picker", "setup", "start", "join", "calendar_feed",
+    # Machine-to-machine only, authenticated with its own shared-secret
+    # token (see backup_db) rather than a user session - there's no human
+    # login involved, so it must never be routed through the login redirect.
+    "backup_db",
     # College-recruiting coach portal: coaches aren't members of any one
     # organization - they browse opted-in players across all of them - so
     # these routes live outside the /<org_slug>/ scheme entirely and use
