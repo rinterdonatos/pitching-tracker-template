@@ -24,6 +24,7 @@
     <nav id="site-nav">
       <a href="{{ url_for('platform_organizations') }}" class="{{ 'active' if request.endpoint in ['platform_organizations', 'platform_org_detail'] }}">Organizations</a>
       <a href="{{ url_for('platform_coaches') }}" class="{{ 'active' if request.endpoint == 'platform_coaches' }}">Coach Approvals</a>
+      <a href="{{ url_for('platform_admins_page') }}" class="{{ 'active' if request.endpoint == 'platform_admins_page' }}">Admins</a>
       <form method="POST" action="{{ url_for('platform_logout') }}" style="display:inline;">
         <button type="submit" class="nav-logout">Log Out</button>
       </form>

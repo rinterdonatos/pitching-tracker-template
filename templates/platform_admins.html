@@ -1,0 +1,51 @@
+{% extends "platform_base.html" %}
+{% block title %}Admins - Platform Admin{% endblock %}
+{% block content %}
+  <div class="page-title"><h2>Platform Admins</h2></div>
+  <p class="hint" style="margin-top:-14px; margin-bottom:20px;">
+    People with this same full cross-org access. Passwords are one-way hashed the moment they're set, the same as
+    every other login on this site - there's no way for anyone, including you, to look one back up. Give a new
+    admin their password directly when you add them below.
+  </p>
+
+  {% if admins %}
+    <table class="data-table">
+      <thead>
+        <tr><th>Name</th><th>Email</th><th>Added</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for a in admins %}
+          <tr>
+            <td>{{ a['name'] }}</td>
+            <td>{{ a['email'] }}</td>
+            <td>{{ a['created_at'] | friendly_time }}</td>
+            <td>
+              <form method="POST" action="{{ url_for('platform_admin_delete', admin_id=a['id']) }}"
+                    onsubmit="return confirm('Remove {{ a['name'] }} as a platform admin?');">
+                <button class="btn danger" type="submit" style="padding:6px 12px; font-size:0.85rem;">Remove</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+
+  <div class="section-title">Add a Platform Admin</div>
+  <form class="card-form" method="POST" action="{{ url_for('platform_admin_add') }}">
+    <div class="field">
+      <label for="name">Name</label>
+      <input type="text" id="name" name="name" required>
+    </div>
+    <div class="field">
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" required>
+    </div>
+    <div class="field">
+      <label for="password">Set their password</label>
+      <input type="text" id="password" name="password" required minlength="8">
+      <div class="hint">At least 8 characters. Send this to them yourself - it won't be shown again.</div>
+    </div>
+    <button class="btn" type="submit">Add Admin</button>
+  </form>
+{% endblock %}

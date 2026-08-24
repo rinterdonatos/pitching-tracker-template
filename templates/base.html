@@ -47,6 +47,15 @@
       </form>
     </nav>
   </header>
+  {% if session.get('platform_admin_id') %}
+    {# Only ever true for you, viewing an org through "Enter Site" from the
+       platform dashboard - a real org owner's session never has this key
+       set, so this banner is invisible to every actual customer. #}
+    <div class="flash" style="background:#1e1b4b; color:#fff; border-left-color:#818cf8; border-radius:0; margin-bottom:0; text-align:center;">
+      Viewing {{ org_name }} as its owner, via Platform Admin.
+      <a href="{{ url_for('platform_org_detail', org_id=g.org['id']) }}" style="color:#c7d2fe; font-weight:700; margin-left:10px;">&larr; Back to Platform Admin</a>
+    </div>
+  {% endif %}
   <main>
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}

@@ -480,7 +480,8 @@ ORG_EXEMPT_ENDPOINTS = {
     # any one org), and deliberately not part of the /<org_slug>/ scheme so
     # one org's data is never confused with another's.
     "platform_organizations", "platform_org_detail", "platform_save_team", "platform_delete_team",
-    "platform_delete_player", "platform_verify_video", "platform_delete_video",
+    "platform_delete_player", "platform_verify_video", "platform_delete_video", "platform_enter_org",
+    "platform_admins_page", "platform_admin_add", "platform_admin_delete",
 }
 
 
@@ -2693,6 +2694,94 @@ def platform_delete_video(org_id, video_id):
     conn.close()
     flash("Video removed.", "success")
     return redirect(url_for("platform_org_detail", org_id=org_id))
+
+
+@app.route("/platform/organizations/<int:org_id>/enter", methods=["POST"])
+@platform_admin_required
+def platform_enter_org(org_id):
+    """Drop the platform admin straight into an org's own real site, with
+    full owner permissions, using that org's own existing owner account
+    rather than creating any new/visible one - there's nothing for that
+    org's own staff to spot on their Users page, since no new row exists.
+    Deliberately does NOT clear platform_admin_id from the session, so the
+    "Exit to Platform Admin" banner (see base.html) can tell this apart
+    from a real owner logging in, and so leaving doesn't require logging
+    into /platform/login again."""
+    conn = get_db()
+    org = conn.execute("SELECT * FROM organizations WHERE id = ?", (org_id,)).fetchone()
+    if not org:
+        conn.close()
+        abort(404)
+    owner = conn.execute(
+        "SELECT * FROM users WHERE organization_id = ? AND is_owner = 1 ORDER BY id ASC LIMIT 1", (org_id,)
+    ).fetchone()
+    conn.close()
+    if not owner:
+        flash(f"{org['name']} doesn't have an owner account yet.", "error")
+        return redirect(url_for("platform_org_detail", org_id=org_id))
+
+    session["user_id"] = owner["id"]
+    session["user_name"] = owner["name"]
+    session["is_admin"] = True
+    session["is_owner"] = True
+    session["is_platform_admin"] = False
+    session["player_id"] = owner["player_id"]
+    session["organization_id"] = org_id
+    return redirect(url_for("index", org_slug=org["slug"]))
+
+
+# ---------- Routes: platform admins (invite/manage other platform admins) ----------
+
+@app.route("/platform/admins")
+@platform_admin_required
+def platform_admins_page():
+    conn = get_db()
+    admins = conn.execute("SELECT id, name, email, created_at FROM platform_admins ORDER BY created_at ASC").fetchall()
+    conn.close()
+    return render_template("platform_admins.html", admins=admins)
+
+
+@app.route("/platform/admins/add", methods=["POST"])
+@platform_admin_required
+def platform_admin_add():
+    name = (request.form.get("name") or "").strip()
+    email = (request.form.get("email") or "").strip().lower()
+    password = request.form.get("password") or ""
+    if not name or not email or not password:
+        flash("Name, email, and password are all required.", "error")
+        return redirect(url_for("platform_admins_page"))
+    if len(password) < 8:
+        flash("Password must be at least 8 characters.", "error")
+        return redirect(url_for("platform_admins_page"))
+
+    conn = get_db()
+    try:
+        conn.execute(
+            "INSERT INTO platform_admins (name, email, password_hash) VALUES (?, ?, ?)",
+            (name, email, generate_password_hash(password)),
+        )
+        conn.commit()
+        flash(f"Added {name} as a platform admin. Give them their email and the password you just set directly - it isn't stored anywhere you can look back up.", "success")
+    except sqlite3.IntegrityError:
+        flash(f"A platform admin with email {email} already exists.", "error")
+    conn.close()
+    return redirect(url_for("platform_admins_page"))
+
+
+@app.route("/platform/admins/<int:admin_id>/delete", methods=["POST"])
+@platform_admin_required
+def platform_admin_delete(admin_id):
+    conn = get_db()
+    total = conn.execute("SELECT COUNT(*) FROM platform_admins").fetchone()[0]
+    if total <= 1:
+        conn.close()
+        flash("Can't remove the last platform admin - you'd lock everyone out of this area.", "error")
+        return redirect(url_for("platform_admins_page"))
+    conn.execute("DELETE FROM platform_admins WHERE id = ?", (admin_id,))
+    conn.commit()
+    conn.close()
+    flash("Platform admin removed.", "success")
+    return redirect(url_for("platform_admins_page"))
 
 
 # ---------- Routes: user management (admin only) ----------

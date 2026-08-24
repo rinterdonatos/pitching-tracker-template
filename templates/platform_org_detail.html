@@ -3,9 +3,17 @@
 {% block content %}
   <div class="page-title">
     <h2>{{ org['name'] }}</h2>
-    <a class="btn secondary" href="{{ url_for('platform_organizations') }}">&larr; All Organizations</a>
+    <div style="display:flex; gap:8px;">
+      <form method="POST" action="{{ url_for('platform_enter_org', org_id=org['id']) }}">
+        <button class="btn" type="submit">Enter Site (as Owner)</button>
+      </form>
+      <a class="btn secondary" href="{{ url_for('platform_organizations') }}">&larr; All Organizations</a>
+    </div>
   </div>
-  <p class="hint" style="margin-top:-14px; margin-bottom:20px;">Slug: {{ org['slug'] }} &middot; Created {{ org['created_at'] | friendly_time }}</p>
+  <p class="hint" style="margin-top:-14px; margin-bottom:20px;">
+    Slug: {{ org['slug'] }} &middot; Created {{ org['created_at'] | friendly_time }} &middot;
+    "Enter Site" signs you in as this org's own owner account - full access, nothing new for their staff to see on their Users page.
+  </p>
 
   <div class="section-title">Teams ({{ teams|length }})</div>
   {% if teams %}
