@@ -2040,6 +2040,46 @@ def account():
     return render_template("account.html", user=user)
 
 
+@app.route("/<org_slug>/branding", methods=["POST"])
+@admin_required
+def update_org_branding():
+    """Lets an org update its own logo (and the site theme colors extracted
+    from it) after the fact - not just at /start signup time. Mirrors that
+    same upload+extract logic exactly. branding_context_for_org() reads the
+    organizations row fresh on every request, so as soon as this commits,
+    every page across the org re-themes itself - nothing to invalidate."""
+    logo = request.files.get("logo")
+    if not logo or not logo.filename:
+        flash("Choose a logo image to upload.", "error")
+        return redirect(url_for("account"))
+    if not allowed_file(logo.filename, ALLOWED_PHOTO_EXT):
+        flash("That file isn't a supported image type (PNG, JPG, or GIF).", "error")
+        return redirect(url_for("account"))
+    if not MEDIA_ENABLED:
+        flash("Logo storage isn't configured yet - ask your platform admin.", "error")
+        return redirect(url_for("account"))
+
+    safe_name = secure_filename(logo.filename)
+    logo_filename = f"{g.org['slug']}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_name}"
+    logo_bytes = io.BytesIO(logo.read())
+    colors = extract_theme_colors(logo_bytes)
+    theme_primary, theme_accent = colors if colors else (None, None)
+    upload_media(logo_bytes, f"uploads/logos/{logo_filename}", logo.content_type)
+
+    conn = get_db()
+    old_logo_filename = g.org["logo_filename"]
+    conn.execute(
+        "UPDATE organizations SET logo_filename = ?, theme_primary = ?, theme_accent = ? WHERE id = ?",
+        (logo_filename, theme_primary, theme_accent, g.org["id"]),
+    )
+    conn.commit()
+    conn.close()
+    if old_logo_filename:
+        delete_media(f"uploads/logos/{old_logo_filename}")
+    flash("Logo updated - your site's colors have been refreshed to match.", "success")
+    return redirect(url_for("account"))
+
+
 @app.route("/<org_slug>/logout", methods=["POST"])
 def logout():
     org_slug = g.org["slug"] if getattr(g, "org", None) else None

@@ -26,4 +26,17 @@
     </div>
     <button class="btn" type="submit">Change Password</button>
   </form>
+
+  {% if user['is_admin'] %}
+    <div class="section-title">Organization Branding</div>
+    <form class="card-form" method="POST" action="{{ url_for('update_org_branding') }}" enctype="multipart/form-data">
+      <div class="field">
+        <img src="{{ org_logo }}" alt="Current logo" style="height:56px; width:56px; object-fit:cover; border-radius:10px; margin-bottom:10px;">
+        <label for="org-logo">Replace logo</label>
+        <input type="file" id="org-logo" name="logo" accept="image/png,image/jpeg,image/gif" required>
+        <div class="hint">Updates your site's theme colors to match the new logo, everywhere across your org.</div>
+      </div>
+      <button class="btn" type="submit">Update Logo</button>
+    </form>
+  {% endif %}
 {% endblock %}
