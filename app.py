@@ -248,6 +248,11 @@ R2_ACCESS_KEY_ID = os.environ.get("R2_ACCESS_KEY_ID", "")
 R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY", "")
 R2_BUCKET_NAME = os.environ.get("R2_BUCKET_NAME", "")
 BACKUP_TOKEN = os.environ.get("PHX_BACKUP_TOKEN", "")
+
+# One-time bootstrap for granting the platform-owner role (see
+# claim_platform_admin below) - separate secret from the backup token so
+# the two aren't interchangeable.
+OWNER_TOKEN = os.environ.get("PHX_OWNER_TOKEN", "")
 BACKUP_RETENTION = 30  # keep the last 30 nightly snapshots, prune anything older
 
 
@@ -304,6 +309,35 @@ def backup_db():
             os.remove(tmp_path)
         except OSError:
             pass
+
+
+@app.route("/internal/claim-platform-admin", methods=["POST"])
+def claim_platform_admin():
+    """One-time bootstrap for the actual platform owner (you, running the
+    whole product) to grant yourself is_platform_admin - the flag that
+    unlocks /platform/... (cross-org dashboard, coach approvals). Every
+    self-serve org (see /start) explicitly sets this to 0 for its own
+    owner, since a travel-ball coach who signs up for their own team site
+    should only ever have power over their own org, never anyone else's.
+    Token-protected the same way /internal/backup-db is - there's no
+    logged-in platform admin yet the first time this gets called, so a
+    session check can't be the gate."""
+    if not OWNER_TOKEN or request.headers.get("X-Owner-Token") != OWNER_TOKEN:
+        abort(403)
+    email = (request.form.get("email") or "").strip().lower()
+    if not email:
+        return {"ok": False, "error": "Missing 'email'."}, 400
+
+    conn = get_db()
+    user = conn.execute("SELECT id, name, organization_id FROM users WHERE lower(email) = ?", (email,)).fetchone()
+    if not user:
+        conn.close()
+        return {"ok": False, "error": f"No user found with email {email}."}, 404
+
+    conn.execute("UPDATE users SET is_platform_admin = 1 WHERE id = ?", (user["id"],))
+    conn.commit()
+    conn.close()
+    return {"ok": True, "granted_to": email, "user_id": user["id"]}
 
 
 # ---------- Uploaded media (Cloudflare R2) ----------
@@ -395,7 +429,7 @@ ORG_EXEMPT_ENDPOINTS = {
     # Machine-to-machine only, authenticated with its own shared-secret
     # token (see backup_db) rather than a user session - there's no human
     # login involved, so it must never be routed through the login redirect.
-    "backup_db",
+    "backup_db", "claim_platform_admin",
     # College-recruiting coach portal: coaches aren't members of any one
     # organization - they browse opted-in players across all of them - so
     # these routes live outside the /<org_slug>/ scheme entirely and use
@@ -1508,7 +1542,13 @@ def require_login():
 
     org_slug = g.org["slug"] if getattr(g, "org", None) else None
     if not session.get("user_id"):
-        return redirect(url_for("login", org_slug=org_slug, next=request.path))
+        if org_slug:
+            return redirect(url_for("login", org_slug=org_slug, next=request.path))
+        # No org context to build a login URL with - e.g. an unrecognized
+        # URL, or an endpoint that should have been added to
+        # ORG_EXEMPT_ENDPOINTS but wasn't. Send them somewhere real instead
+        # of 500ing trying to build a /<org_slug>/login URL with no slug.
+        return redirect(url_for("org_picker"))
 
     # Cross-org guard: being logged into one organization must never grant
     # access to another org's data just because its URL is known or
