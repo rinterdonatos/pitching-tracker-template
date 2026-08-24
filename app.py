@@ -458,7 +458,7 @@ app.jinja_env.globals["media_url"] = media_url
 # unchanged because the endpoint name itself never changes, only the URL
 # pattern behind it.
 ORG_EXEMPT_ENDPOINTS = {
-    "static", "landing", "org_picker", "setup", "start", "join", "calendar_feed",
+    "static", "landing", "home", "org_picker", "setup", "start", "join", "calendar_feed",
     # Machine-to-machine only, authenticated with its own shared-secret
     # token (see backup_db) rather than a user session - there's no human
     # login involved, so it must never be routed through the login redirect.
@@ -1622,13 +1622,26 @@ def landing():
     """Public marketing home page. A returning, already-logged-in user skips
     straight past this to their own organization; everyone else sees the
     pitch, with "Get Started" (self-serve org signup) and "Log In" as the
-    two ways in."""
+    two ways in. See home() below for a version that skips this redirect -
+    useful for you, since your session is often scoped to whichever org you
+    last opened via "Enter Site," and you don't want that to hijack your
+    way back to the actual marketing page."""
     if session.get("user_id") and session.get("organization_id"):
         conn = get_db()
         org = conn.execute("SELECT * FROM organizations WHERE id = ?", (session["organization_id"],)).fetchone()
         conn.close()
         if org:
             return redirect(url_for("index", org_slug=org["slug"]))
+    return render_template("landing.html")
+
+
+@app.route("/home")
+def home():
+    """Always shows the public marketing page, even if you're currently
+    logged into an org - unlike landing() (/) above, which intentionally
+    bounces a logged-in customer straight to their own dashboard. This is
+    the one to link to from anywhere you want a guaranteed way back to the
+    actual landing page."""
     return render_template("landing.html")
 
 
