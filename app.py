@@ -17,6 +17,10 @@ from functools import wraps
 from flask import Flask, render_template, request, redirect, url_for, flash, send_from_directory, abort, session, Response, g
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.middleware.proxy_fix import ProxyFix
+from flask_wtf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 # ---------------------------------------------------------------------------
 # Password-reset delivery (both optional; resets fall back to an admin doing
@@ -232,6 +236,25 @@ app.secret_key = os.environ.get("PHX_SECRET_KEY", "phoenix-pitching-lab-tracker"
 app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024  # 1 GB max upload (videos)
 app.permanent_session_lifetime = timedelta(days=365)
 
+# Render terminates TLS at its own reverse proxy before traffic ever reaches
+# gunicorn, so without this, Flask would see every request as plain http and
+# secure-only cookies below would silently never get set.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+# Render sets RENDER=true on every deployed service automatically - this
+# tells "running in production" apart from "running on someone's laptop via
+# `python app.py`" without needing yet another env var to remember to set.
+IS_PRODUCTION = bool(os.environ.get("RENDER"))
+app.config.update(
+    SESSION_COOKIE_SECURE=IS_PRODUCTION,  # only send the session cookie over https
+    SESSION_COOKIE_HTTPONLY=True,         # never readable from JS
+    SESSION_COOKIE_SAMESITE="Lax",
+    PREFERRED_URL_SCHEME="https" if IS_PRODUCTION else "http",
+)
+
+csrf = CSRFProtect(app)
+limiter = Limiter(get_remote_address, app=app, default_limits=[], storage_uri="memory://")
+
 os.makedirs(VIDEO_DIR, exist_ok=True)
 os.makedirs(PHOTO_DIR, exist_ok=True)
 os.makedirs(LOGO_DIR, exist_ok=True)
@@ -261,6 +284,12 @@ app.jinja_env.globals["static_url"] = static_url
 PLATFORM_NAME = "Mound HQ"
 app.jinja_env.globals["platform_name"] = PLATFORM_NAME
 app.jinja_env.globals["current_year"] = lambda: datetime.now().year
+
+# Contact address shown on the Terms/Privacy pages - falls back to whatever
+# the SMTP "from" address is configured as, then to a placeholder, so this
+# never renders blank even on a fresh install with no env vars set yet.
+SUPPORT_EMAIL = os.environ.get("PHX_SUPPORT_EMAIL", "") or SMTP_FROM or "support@moundhq.com"
+app.jinja_env.globals["support_email"] = SUPPORT_EMAIL
 
 
 # ---------- Database helpers ----------
@@ -307,6 +336,8 @@ def r2_client():
 
 
 @app.route("/internal/backup-db", methods=["POST"])
+@csrf.exempt  # authenticated with X-Backup-Token, not a session - there's no
+              # browser involved to have a CSRF token in the first place.
 def backup_db():
     """Snapshot the live database and ship it to R2. Called only by the
     scheduled cron job (see trigger_backup.py), authenticated with a shared
@@ -351,6 +382,7 @@ def backup_db():
 
 
 @app.route("/internal/create-platform-admin", methods=["POST"])
+@csrf.exempt  # authenticated with X-Owner-Token, not a session - same reasoning as backup_db.
 def create_platform_admin():
     """One-time bootstrap for the actual platform owner (you, running the
     whole product) to create your own standalone login - completely
@@ -384,6 +416,7 @@ def create_platform_admin():
 
 
 @app.route("/platform/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute", methods=["POST"])
 def platform_login():
     if request.method == "POST":
         email = request.form.get("email", "").strip().lower()
@@ -498,6 +531,7 @@ app.jinja_env.globals["media_url"] = media_url
 # pattern behind it.
 ORG_EXEMPT_ENDPOINTS = {
     "static", "landing", "home", "org_picker", "setup", "start", "join", "calendar_feed",
+    "terms", "privacy",
     # Machine-to-machine only, authenticated with its own shared-secret
     # token (see backup_db) rather than a user session - there's no human
     # login involved, so it must never be routed through the login redirect.
@@ -1685,6 +1719,19 @@ def home():
     return render_template("landing.html")
 
 
+@app.route("/terms")
+def terms():
+    """One Terms of Service for the whole platform, not per-organization -
+    Mound HQ is the operator regardless of which org you're looking at."""
+    return render_template("terms.html")
+
+
+@app.route("/privacy")
+def privacy():
+    """One Privacy Policy for the whole platform - see terms() above."""
+    return render_template("privacy.html")
+
+
 @app.route("/login")
 def org_picker():
     """Cross-identity entry point (not the marketing home page - that's
@@ -1710,6 +1757,7 @@ def org_picker():
 
 
 @app.route("/start", methods=["GET", "POST"])
+@limiter.limit("5 per hour", methods=["POST"])
 def start():
     """Public self-serve signup: any new organization can create itself and
     its owner account here, no manual onboarding required. This is distinct
@@ -1858,6 +1906,7 @@ def setup():
 
 
 @app.route("/<org_slug>/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute", methods=["POST"])
 def login():
     conn = get_db()
     org_row_count = conn.execute(
@@ -1901,6 +1950,7 @@ def login():
 
 
 @app.route("/<org_slug>/set-password", methods=["GET", "POST"])
+@limiter.limit("10 per hour", methods=["POST"])
 def set_password():
     pending_id = session.get("pending_user_id")
     if not pending_id:
@@ -1946,6 +1996,7 @@ def set_password():
 
 
 @app.route("/<org_slug>/forgot", methods=["GET", "POST"])
+@limiter.limit("5 per hour", methods=["POST"])
 def forgot_password():
     if request.method == "POST":
         identifier = request.form.get("identifier", "").strip()
@@ -1992,6 +2043,7 @@ def forgot_password():
 
 
 @app.route("/<org_slug>/forgot/verify", methods=["GET", "POST"])
+@limiter.limit("10 per hour", methods=["POST"])
 def forgot_verify():
     user_id = session.get("reset_user_id")
     if not user_id:
@@ -2139,6 +2191,7 @@ def normalize_coach_email(raw):
 
 
 @app.route("/coach/signup", methods=["GET", "POST"])
+@limiter.limit("5 per hour", methods=["POST"])
 def coach_signup():
     if session.get("coach_id"):
         return redirect(url_for("coach_players"))
@@ -2180,6 +2233,7 @@ def coach_signup():
 
 
 @app.route("/coach/login", methods=["GET", "POST"])
+@limiter.limit("10 per minute", methods=["POST"])
 def coach_login():
     if request.method == "POST":
         email = normalize_coach_email(request.form.get("email", ""))
@@ -3037,6 +3091,7 @@ def delete_invite(invite_id):
 
 
 @app.route("/join/<token>", methods=["GET", "POST"])
+@limiter.limit("10 per hour", methods=["POST"])
 def join(token):
     conn = get_db()
     invite = conn.execute("SELECT * FROM invite_links WHERE token = ?", (token,)).fetchone()

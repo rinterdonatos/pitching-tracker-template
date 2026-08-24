@@ -59,7 +59,7 @@
           </div>
           <div style="display:flex; gap:8px; margin-top:6px;">
             <a class="btn secondary" style="flex:1; text-align:center;" href="{{ url_for('coach_feed', player=p['id']) }}">Watch Video</a>
-            <form method="POST" action="{{ url_for('coach_player_follow_toggle', player_id=p['id']) }}" style="flex:1;">
+            <form method="POST" action="{{ url_for('coach_player_follow_toggle', player_id=p['id']) }}" style="flex:1;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
               <button class="btn follow-btn {{ 'following' if p['is_followed'] }}" style="width:100%;" type="submit">
                 {{ 'Following' if p['is_followed'] else '+ Follow' }}
               </button>

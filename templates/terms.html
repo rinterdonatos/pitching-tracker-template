@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Terms of Service - {{ platform_name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
+  <link rel="icon" href="{{ static_url('img/default-badge.svg') }}">
+</head>
+<body>
+  <header class="legal-header">
+    <a href="{{ url_for('home') }}" style="display:contents;">
+      <img src="{{ static_url('img/default-badge.svg') }}" alt="{{ platform_name }} logo">
+      <span>{{ platform_name }}</span>
+    </a>
+  </header>
+
+  <div class="legal-wrap">
+    <h1>Terms of Service</h1>
+    <p class="legal-updated">Last updated {{ current_year() }}</p>
+
+    <div class="legal-callout">
+      This is a plain-language starting template, not a substitute for review by an actual attorney.
+      Because {{ platform_name }} is used to store information about student-athletes, some of whom are
+      minors, we'd strongly recommend having this reviewed by a lawyer familiar with youth-sports and
+      privacy law before relying on it. Contact <a href="mailto:{{ support_email }}">{{ support_email }}</a>
+      with any questions in the meantime.
+    </div>
+
+    <h2>1. What {{ platform_name }} is</h2>
+    <p>
+      {{ platform_name }} is a tool for baseball and softball programs, pitching labs, and travel teams
+      ("Organizations") to track player development data, such as stats, videos, and TrackMan
+      reports, and to optionally make an athlete's profile visible to college recruiters. An
+      Organization signs up, invites its own coaches, players, and parents, and controls its own
+      private space on the platform. We don't sell anything on the site, and there's currently no
+      paid subscription; that may change in the future, and this page will be updated if it does.
+    </p>
+
+    <h2>2. Who can use it, and who's responsible for what</h2>
+    <p>
+      Accounts are created by an Organization (typically a coach or program director) inviting its
+      own players, parents, and staff. If you are an Organization, you're responsible for having the
+      right to add each player's information (including a minor's information) to the platform, and
+      for getting whatever consent from a parent or guardian your own program, league, or state law
+      requires before doing so. {{ platform_name }} doesn't independently verify this; we're providing
+      software to organizations that already have a relationship with the families they're adding.
+    </p>
+    <p>
+      If you're a parent or player and believe your (or your child's) information was added without
+      appropriate permission, contact us at <a href="mailto:{{ support_email }}">{{ support_email }}</a>
+      and we'll help sort it out with the Organization or remove it.
+    </p>
+
+    <h2>3. Accounts and access</h2>
+    <ul>
+      <li>Keep your password to yourself. You're responsible for activity that happens under your login.</li>
+      <li>Organization admins can add, edit, and remove data within their own Organization; that access
+        is meant to be used to manage that Organization's own roster, not anyone else's.</li>
+      <li>We may suspend or remove an account or an Organization that violates these terms, is used to
+        harass or endanger anyone, or is used for anything illegal.</li>
+    </ul>
+
+    <h2>4. Content you upload</h2>
+    <p>
+      You (or your Organization) own the stats, videos, photos, and other content you upload. By
+      uploading it, you're giving {{ platform_name }} permission to store it, display it back to your
+      Organization's own users, and, if a player opts in to recruiting visibility, to display that
+      player's opted-in stats and video to approved college coaches browsing the recruiting portal.
+      We don't use your content for anything beyond operating the product, and we don't sell it or
+      share it with advertisers.
+    </p>
+    <p>
+      Don't upload anything you don't have the right to upload, anything that violates someone else's
+      privacy, or anything illegal.
+    </p>
+
+    <h2>5. The recruiting portal</h2>
+    <p>
+      A player's stats and video are only visible to college coaches on the recruiting portal if that
+      player (or their parent/guardian, for a minor) explicitly turns on recruiting visibility from
+      their profile. Coaches who want access to the recruiting portal are approved individually by the
+      platform operator before they can see anything. Turning recruiting visibility off removes a
+      player from the portal going forward.
+    </p>
+
+    <h2>6. No warranty</h2>
+    <p>
+      {{ platform_name }} is provided "as is." We work to keep it running and your data backed up, but
+      we can't guarantee the service will be uninterrupted or error-free, and we're not liable for
+      data loss, missed recruiting opportunities, or other damages arising from your use of the site,
+      to the fullest extent the law allows.
+    </p>
+
+    <h2>7. Changes to these terms</h2>
+    <p>
+      We may update these terms as the product changes. If we make a material change, we'll update
+      the date at the top of this page.
+    </p>
+
+    <h2>8. Contact</h2>
+    <p>
+      Questions about these terms? Reach us at <a href="mailto:{{ support_email }}">{{ support_email }}</a>.
+    </p>
+
+    <p style="margin-top:40px;"><a href="{{ url_for('privacy') }}">Read the Privacy Policy &rarr;</a></p>
+  </div>
+</body>
+</html>

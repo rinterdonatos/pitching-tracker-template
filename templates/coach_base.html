@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{% block title %}Recruiting Portal{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -25,7 +26,7 @@
       <a href="{{ url_for('coach_feed') }}" class="{{ 'active' if request.endpoint == 'coach_feed' }}">Feed</a>
       <a href="{{ url_for('coach_favorites') }}" class="{{ 'active' if request.endpoint == 'coach_favorites' }}">Favorites</a>
       <a href="{{ url_for('coach_following') }}" class="{{ 'active' if request.endpoint in ('coach_following', 'coach_player_detail') }}">Following</a>
-      <form method="POST" action="{{ url_for('coach_logout') }}" style="display:inline;">
+      <form method="POST" action="{{ url_for('coach_logout') }}" style="display:inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="nav-logout">Log Out</button>
       </form>
     </nav>
@@ -42,6 +43,10 @@
     {% endwith %}
     {% block content %}{% endblock %}
   </main>
+  <footer style="text-align:center; padding:18px 16px 28px; font-size:0.78rem; color:var(--phx-gray);">
+    <a href="{{ url_for('terms') }}" style="color:var(--phx-gray);">Terms</a> &middot;
+    <a href="{{ url_for('privacy') }}" style="color:var(--phx-gray);">Privacy</a>
+  </footer>
   <script>
     var navToggle = document.getElementById('coach-nav-toggle');
     var coachNav = document.getElementById('coach-nav');

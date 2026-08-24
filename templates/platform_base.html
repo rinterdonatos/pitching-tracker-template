@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{% block title %}Platform Admin{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -46,7 +47,7 @@
       <a href="{{ url_for('platform_coaches') }}" class="{{ 'active' if request.endpoint == 'platform_coaches' }}">Coach Approvals</a>
       <a href="{{ url_for('platform_admins_page') }}" class="{{ 'active' if request.endpoint == 'platform_admins_page' }}">Admins</a>
       <a href="{{ url_for('home') }}">Landing Page</a>
-      <form method="POST" action="{{ url_for('platform_logout') }}" style="display:inline;">
+      <form method="POST" action="{{ url_for('platform_logout') }}" style="display:inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="nav-logout">Log Out</button>
       </form>
     </nav>

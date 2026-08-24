@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
   <title>{% block title %}{{ org_name }}{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -42,7 +43,7 @@
         <a href="{{ url_for('users_page') }}" class="{{ 'active' if request.endpoint == 'users_page' }}">Users</a>
       {% endif %}
       <a href="{{ url_for('account') }}" class="{{ 'active' if request.endpoint == 'account' }}">Account</a>
-      <form method="POST" action="{{ url_for('logout') }}" style="display:inline;">
+      <form method="POST" action="{{ url_for('logout') }}" style="display:inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="nav-logout">Log Out</button>
       </form>
     </nav>
@@ -66,6 +67,10 @@
     {% endwith %}
     {% block content %}{% endblock %}
   </main>
+  <footer style="text-align:center; padding:18px 16px 28px; font-size:0.78rem; color:var(--phx-gray);">
+    <a href="{{ url_for('terms') }}" style="color:var(--phx-gray);">Terms</a> &middot;
+    <a href="{{ url_for('privacy') }}" style="color:var(--phx-gray);">Privacy</a>
+  </footer>
   <script>
     // Nav collapses into a hamburger menu below the header-nav breakpoint
     // (see style.css). No-op on desktop widths where the button is hidden.

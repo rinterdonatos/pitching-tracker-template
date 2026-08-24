@@ -28,12 +28,12 @@
         {% endif %}
         <a class="btn secondary" href="{{ url_for('upload_csv', player=player['name']) }}">+ Add Stats/Video</a>
         {% if session.get('is_admin') %}
-          <form method="POST" action="{{ url_for('delete_player', player_id=player['id']) }}" style="display:inline;" onsubmit="return confirm('Remove {{ player['name'] }} and all their data?');">
+          <form method="POST" action="{{ url_for('delete_player', player_id=player['id']) }}" style="display:inline;" onsubmit="return confirm('Remove {{ player['name'] }} and all their data?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn danger" type="submit">Remove Player</button>
           </form>
         {% endif %}
       {% else %}
-        <form method="POST" action="{{ url_for('coach_player_follow_toggle', player_id=player['id']) }}">
+        <form method="POST" action="{{ url_for('coach_player_follow_toggle', player_id=player['id']) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn follow-btn {{ 'following' if is_followed }}" type="submit">
             {{ 'Following' if is_followed else '+ Follow' }}
           </button>
@@ -304,12 +304,12 @@
               {% if v['notes'] %}<p>{{ v['notes'] }}</p>{% endif %}
               {% with day_stats = stats_by_date.get(v['entry_date']) %}{% include "_day_stats.html" %}{% endwith %}
               {% if can_edit %}
-                <form method="POST" action="{{ url_for('toggle_video_pin', video_id=v['id']) }}" style="display:inline;">
+                <form method="POST" action="{{ url_for('toggle_video_pin', video_id=v['id']) }}" style="display:inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="btn secondary" type="submit" style="margin-top:6px;">Unpin</button>
                 </form>
               {% endif %}
               {% if session.get('is_admin') %}
-                <form method="POST" action="{{ url_for('delete_video', video_id=v['id']) }}" style="display:inline;" onsubmit="return confirm('Remove this video?');">
+                <form method="POST" action="{{ url_for('delete_video', video_id=v['id']) }}" style="display:inline;" onsubmit="return confirm('Remove this video?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="btn danger" type="submit" style="margin-top:6px;">Remove</button>
                 </form>
               {% endif %}
@@ -325,7 +325,7 @@
                           <div class="comment-meta">{{ c['commenter_name'] }}<span class="comment-time">{{ c['created_at'] | friendly_time }}</span></div>
                           <div class="comment-body">{{ c['body'] }}</div>
                           {% if session.get('is_admin') %}
-                            <form method="POST" action="{{ url_for('delete_comment', comment_id=c['id']) }}" onsubmit="return confirm('Delete this comment?');">
+                            <form method="POST" action="{{ url_for('delete_comment', comment_id=c['id']) }}" onsubmit="return confirm('Delete this comment?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                               <button class="comment-delete" type="submit">Delete</button>
                             </form>
                           {% endif %}
@@ -333,7 +333,7 @@
                       {% endfor %}
                     </div>
                   {% endif %}
-                  <form class="comment-form" method="POST" action="{{ url_for('add_video_comment', video_id=v['id']) }}">
+                  <form class="comment-form" method="POST" action="{{ url_for('add_video_comment', video_id=v['id']) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="comment-form-row">
                       <input type="text" name="commenter_name" placeholder="Your name" required>
                     </div>
@@ -372,12 +372,12 @@
                 <h4>{{ v['title'] }}{% if v['category'] %} <span class="text-muted" style="font-weight:400;">&middot; {{ v['category'] }}</span>{% endif %}</h4>
                 {% if v['notes'] %}<p>{{ v['notes'] }}</p>{% endif %}
                 {% if can_edit %}
-                  <form method="POST" action="{{ url_for('toggle_video_pin', video_id=v['id']) }}" style="display:inline;">
+                  <form method="POST" action="{{ url_for('toggle_video_pin', video_id=v['id']) }}" style="display:inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn secondary" type="submit" style="margin-top:6px;">{{ 'Unpin' if v['pinned'] else 'Pin to Top' }}</button>
                   </form>
                 {% endif %}
                 {% if session.get('is_admin') %}
-                  <form method="POST" action="{{ url_for('delete_video', video_id=v['id']) }}" style="display:inline;" onsubmit="return confirm('Remove this video?');">
+                  <form method="POST" action="{{ url_for('delete_video', video_id=v['id']) }}" style="display:inline;" onsubmit="return confirm('Remove this video?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn danger" type="submit" style="margin-top:6px;">Remove</button>
                   </form>
                 {% endif %}
@@ -393,7 +393,7 @@
                             <div class="comment-meta">{{ c['commenter_name'] }}<span class="comment-time">{{ c['created_at'] | friendly_time }}</span></div>
                             <div class="comment-body">{{ c['body'] }}</div>
                             {% if session.get('is_admin') %}
-                              <form method="POST" action="{{ url_for('delete_comment', comment_id=c['id']) }}" onsubmit="return confirm('Delete this comment?');">
+                              <form method="POST" action="{{ url_for('delete_comment', comment_id=c['id']) }}" onsubmit="return confirm('Delete this comment?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <button class="comment-delete" type="submit">Delete</button>
                               </form>
                             {% endif %}
@@ -401,7 +401,7 @@
                         {% endfor %}
                       </div>
                     {% endif %}
-                    <form class="comment-form" method="POST" action="{{ url_for('add_video_comment', video_id=v['id']) }}">
+                    <form class="comment-form" method="POST" action="{{ url_for('add_video_comment', video_id=v['id']) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                       <div class="comment-form-row">
                         <input type="text" name="commenter_name" placeholder="Your name" required>
                       </div>
@@ -507,7 +507,7 @@
               <div class="comment-meta">{{ c['commenter_name'] }}<span class="comment-time">{{ c['created_at'] | friendly_time }}</span></div>
               <div class="comment-body">{{ c['body'] }}</div>
               {% if session.get('is_admin') %}
-                <form method="POST" action="{{ url_for('delete_comment', comment_id=c['id']) }}" onsubmit="return confirm('Delete this comment?');">
+                <form method="POST" action="{{ url_for('delete_comment', comment_id=c['id']) }}" onsubmit="return confirm('Delete this comment?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="comment-delete" type="submit">Delete</button>
                 </form>
               {% endif %}
@@ -517,7 +517,7 @@
       {% else %}
         <p class="hint" style="margin-top:0;">No general feedback yet on {{ player['name'] }}.</p>
       {% endif %}
-      <form class="comment-form" method="POST" action="{{ url_for('add_player_comment', player_id=player['id']) }}">
+      <form class="comment-form" method="POST" action="{{ url_for('add_player_comment', player_id=player['id']) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="comment-form-row">
           <input type="text" name="commenter_name" placeholder="Your name" required>
         </div>

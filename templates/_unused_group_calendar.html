@@ -35,7 +35,7 @@
           {% for entry in entries_by_date.get(iso, []) %}
             <div class="calendar-entry" title="{{ entry['notes'] or '' }}">
               <span>{{ entry['activity'] }}</span>
-              <form method="POST" action="{{ url_for('delete_throwing_entry', entry_id=entry['id']) }}" onsubmit="return confirm('Remove this throwing day?');">
+              <form method="POST" action="{{ url_for('delete_throwing_entry', entry_id=entry['id']) }}" onsubmit="return confirm('Remove this throwing day?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" title="Remove">&times;</button>
               </form>
             </div>
@@ -46,7 +46,7 @@
   </div>
 
   <div class="section-title">Add a Throwing Day</div>
-  <form class="card-form" method="POST" action="{{ url_for('add_throwing_entry', group_number=group_number) }}">
+  <form class="card-form" method="POST" action="{{ url_for('add_throwing_entry', group_number=group_number) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="field">
       <label for="entry_date">Date</label>
       <input type="date" id="entry_date" name="entry_date" value="{{ today_iso }}" required>

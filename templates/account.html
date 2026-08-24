@@ -11,7 +11,7 @@
   </p>
 
   <div class="section-title">Change Password</div>
-  <form class="card-form" method="POST">
+  <form class="card-form" method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="field">
       <label for="current_password">Current password</label>
       <input type="password" id="current_password" name="current_password" autocomplete="current-password" required>
@@ -29,7 +29,7 @@
 
   {% if user['is_admin'] %}
     <div class="section-title">Organization Branding</div>
-    <form class="card-form" method="POST" action="{{ url_for('update_org_branding') }}" enctype="multipart/form-data">
+    <form class="card-form" method="POST" action="{{ url_for('update_org_branding') }}" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="field">
         <img src="{{ org_logo }}" alt="Current logo" style="height:56px; width:56px; object-fit:cover; border-radius:10px; margin-bottom:10px;">
         <label for="org-logo">Replace logo</label>

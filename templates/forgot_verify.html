@@ -35,7 +35,7 @@
         {% endif %}
       {% endwith %}
 
-      <form method="POST">
+      <form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="field">
           <label for="code">6-digit code</label>
           <input type="text" id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autofocus required>

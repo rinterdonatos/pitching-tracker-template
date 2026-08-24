@@ -18,7 +18,7 @@
     Pitcher names like <code>Smith, Jake</code> are matched to your roster automatically.
   </p>
 
-  <form class="card-form" method="POST" enctype="multipart/form-data">
+  <form class="card-form" method="POST" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="field">
       <label for="trackman_file">TrackMan CSV *</label>
       <input type="file" id="trackman_file" name="trackman_file" accept=".csv" required>

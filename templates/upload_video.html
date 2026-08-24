@@ -10,7 +10,7 @@
       <a class="btn" href="{{ url_for('add_player') }}">+ Add Player</a>
     </div>
   {% else %}
-  <form class="card-form" method="POST" enctype="multipart/form-data">
+  <form class="card-form" method="POST" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="field">
       <label for="player_id">Player *</label>
       <select id="player_id" name="player_id" required>

@@ -35,7 +35,7 @@
         {% endif %}
       {% endwith %}
 
-      <form method="POST">
+      <form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="field">
           <label for="identifier">Email or phone number</label>
           <input type="text" id="identifier" name="identifier" autocomplete="username" autofocus required>

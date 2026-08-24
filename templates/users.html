@@ -16,7 +16,7 @@
             <td>{{ u['phone'] or '-' }}</td>
             <td>
               {% if manageable and not u['is_admin'] %}
-                <form method="POST" action="{{ url_for('link_user_player', user_id=u['id']) }}">
+                <form method="POST" action="{{ url_for('link_user_player', user_id=u['id']) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <select name="player_id" onchange="this.form.submit()" style="font-size:0.78rem; padding:2px 4px;">
                     <option value="">None</option>
                     {% for p in all_players %}
@@ -35,17 +35,17 @@
               {% if manageable %}
                 {% if u['password_hash'] %}
                   <form method="POST" action="{{ url_for('reset_user_password', user_id=u['id']) }}" style="display:inline;"
-                        onsubmit="return confirm('Clear this password? They will create a new one at next sign-in.');">
+                        onsubmit="return confirm('Clear this password? They will create a new one at next sign-in.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn secondary" type="submit" style="font-size:0.75rem; padding:3px 8px;">Reset Password</button>
                   </form>
                 {% endif %}
-                <form method="POST" action="{{ url_for('change_user_role', user_id=u['id']) }}" style="display:inline;">
+                <form method="POST" action="{{ url_for('change_user_role', user_id=u['id']) }}" style="display:inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="btn secondary" type="submit" style="font-size:0.75rem; padding:3px 8px;">
                     {{ 'Remove Admin' if u['is_admin'] else 'Make Admin' }}
                   </button>
                 </form>
                 <form method="POST" action="{{ url_for('delete_user', user_id=u['id']) }}" style="display:inline;"
-                      onsubmit="return confirm('Remove {{ u['name'] or u['email'] or u['phone'] }}? They will no longer be able to sign in.');">
+                      onsubmit="return confirm('Remove {{ u['name'] or u['email'] or u['phone'] }}? They will no longer be able to sign in.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="btn secondary" type="submit" style="font-size:0.75rem; padding:3px 8px; color:var(--phx-red);">Remove</button>
                 </form>
               {% endif %}
@@ -71,7 +71,7 @@
 
   <details class="page-section" open>
     <summary class="section-title">Invite Someone</summary>
-    <form class="card-form" method="POST" action="{{ url_for('add_user') }}">
+    <form class="card-form" method="POST" action="{{ url_for('add_user') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="field">
         <label for="name">Name</label>
         <input type="text" id="name" name="name" placeholder="e.g. Jake's mom, Coach Rivera">
@@ -108,7 +108,7 @@
       Or send people a link instead. Anyone who opens it enters their own name, email/phone,
       and password, and joins as a member. Links work for 7 days; deactivate one anytime.
     </p>
-    <form method="POST" action="{{ url_for('create_invite') }}" style="margin-bottom:12px;">
+    <form method="POST" action="{{ url_for('create_invite') }}" style="margin-bottom:12px;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <button class="btn" type="submit">+ Create Invite Link</button>
     </form>
     {% if invites %}
@@ -127,7 +127,7 @@
                     <button class="btn secondary" type="button" style="font-size:0.75rem; padding:3px 8px;"
                             onclick="navigator.clipboard.writeText('{{ link }}').then(() => { this.textContent = 'Copied!'; setTimeout(() => this.textContent = 'Copy', 1500); })">Copy</button>
                   {% endif %}
-                  <form method="POST" action="{{ url_for('delete_invite', invite_id=inv['id']) }}" style="display:inline;">
+                  <form method="POST" action="{{ url_for('delete_invite', invite_id=inv['id']) }}" style="display:inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn secondary" type="submit" style="font-size:0.75rem; padding:3px 8px; color:var(--phx-red);">
                       {{ 'Delete' if expired else 'Deactivate' }}
                     </button>

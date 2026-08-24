@@ -83,7 +83,7 @@
     </div>
   </details>
 
-  <form class="card-form" method="POST" enctype="multipart/form-data">
+  <form class="card-form" method="POST" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="field">
       <label for="csv_file">CSV File *</label>
       <input type="file" id="csv_file" name="csv_file" accept=".csv" required>
@@ -310,6 +310,7 @@
       if (!csv) { status.textContent = 'Pick a player in at least one row first.'; return; }
       const type = document.getElementById('builder-type').value;
       const fd = new FormData();
+      fd.append('csrf_token', document.querySelector('meta[name="csrf-token"]').content);
       fd.append('csv_file', new File([csv], builderFilename(), { type: 'text/csv' }));
       fd.append('category', type);
       fd.append('category_other', document.getElementById('builder-other').value.trim());

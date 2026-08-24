@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy - {{ platform_name }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
+  <link rel="icon" href="{{ static_url('img/default-badge.svg') }}">
+</head>
+<body>
+  <header class="legal-header">
+    <a href="{{ url_for('home') }}" style="display:contents;">
+      <img src="{{ static_url('img/default-badge.svg') }}" alt="{{ platform_name }} logo">
+      <span>{{ platform_name }}</span>
+    </a>
+  </header>
+
+  <div class="legal-wrap">
+    <h1>Privacy Policy</h1>
+    <p class="legal-updated">Last updated {{ current_year() }}</p>
+
+    <div class="legal-callout">
+      This is a plain-language starting template, not a substitute for review by an actual attorney.
+      Because {{ platform_name }} stores information about student-athletes, some of whom are minors,
+      we'd strongly recommend having this reviewed by a lawyer familiar with youth-sports and privacy
+      law (including COPPA, if it applies to your situation) before relying on it.
+    </div>
+
+    <h2>1. What we collect</h2>
+    <p>When an Organization uses {{ platform_name }}, the following may be stored:</p>
+    <ul>
+      <li><strong>Player info:</strong> name, jersey number, position, grad year, measurables (height,
+        weight, bats/throws, 60-yard time), academic info (GPA, test scores, intended major), and
+        contact details for the player and their listed contacts (phone, email).</li>
+      <li><strong>Performance data:</strong> pitching/hitting stats, TrackMan session data, and any
+        other numbers a coach logs.</li>
+      <li><strong>Photos and videos</strong> uploaded by coaches or players, plus comments left on them.</li>
+      <li><strong>Account info:</strong> name, email and/or phone number, and a securely hashed
+        password for anyone with a login (coaches, admins, parents, players, or recruiting coaches).</li>
+      <li><strong>Basic technical data</strong> like IP address and timestamps, collected automatically
+        by our hosting provider's server logs for security and troubleshooting.</li>
+    </ul>
+    <p>
+      We don't run advertising trackers, third-party analytics, or marketing pixels on the site. The
+      only cookie we set is a functional session cookie that keeps you signed in.
+    </p>
+
+    <h2>2. Who adds this data, and why</h2>
+    <p>
+      This information is entered by an Organization's own coaches/admins (or by players and parents
+      directly, when invited to do so) as part of tracking that Organization's own athletes. We don't
+      collect this data ourselves or buy it from anyone else. See our
+      <a href="{{ url_for('terms') }}">Terms of Service</a> for who's responsible for getting
+      appropriate consent before adding a minor's information.
+    </p>
+
+    <h2>3. How it's used</h2>
+    <ul>
+      <li>To run the product: showing a player's own stats/video to their own Organization, sending
+        password-reset codes and account invites, and generating recruiting reports.</li>
+      <li>To show an opted-in player's profile to approved college coaches on the recruiting portal,
+        but only after that player (or their parent/guardian) explicitly turns visibility on.</li>
+      <li>To keep the service running securely and to fix problems when something breaks.</li>
+    </ul>
+    <p>We do not sell personal information, and we do not use it for advertising.</p>
+
+    <h2>4. Where it's stored</h2>
+    <p>
+      Data is stored on Render's hosting infrastructure and backed up nightly to Cloudflare's object
+      storage (R2). Uploaded photos and videos are also stored on Cloudflare R2, at a web address
+      that isn't linked from anywhere public and isn't indexed by search engines, but that also isn't
+      protected by a login. Treat a direct link to a photo or video the same way you'd treat any
+      shared link: don't post it somewhere public if you don't want it seen.
+    </p>
+    <p>
+      Password-reset codes and account invitations are sent by email (via Gmail's SMTP service) and,
+      if a program has it configured, by text message (via Twilio). Neither provider stores athlete
+      data beyond what's needed to deliver that one message.
+    </p>
+
+    <h2>5. Who can see what</h2>
+    <ul>
+      <li>An Organization's coaches/admins can see everyone in their own Organization.</li>
+      <li>Players and parents can see their own player's profile (and any teammates visible on shared
+        pages like leaderboards, depending on how the Organization has set things up).</li>
+      <li>College coaches on the recruiting portal can only see players who've explicitly opted in,
+        and only after the coach's own account has been individually approved.</li>
+      <li>One Organization can never see another Organization's players, videos, or stats.</li>
+      <li>The person operating {{ platform_name }} has the technical ability to access data across
+        Organizations in order to run backups, provide support, and keep the platform working, but
+        does not use that access to view player data except when necessary for those purposes.</li>
+    </ul>
+
+    <h2>6. Your choices</h2>
+    <ul>
+      <li>A player (or their parent/guardian) can turn recruiting visibility on or off at any time from
+        their profile.</li>
+      <li>You can ask your Organization's admin to correct or remove your information, or contact us
+        directly at <a href="mailto:{{ support_email }}">{{ support_email }}</a> and we'll help.</li>
+      <li>An Organization's owner can delete their Organization's data entirely; when that happens, all
+        associated players, stats, photos, and videos are permanently removed.</li>
+    </ul>
+
+    <h2>7. Children's privacy</h2>
+    <p>
+      {{ platform_name }} is a tool provided to sports organizations, not a service marketed directly
+      to children. Any information about a minor athlete is added by that athlete's own coach, program,
+      or parent/guardian, not collected by us directly from the child. If you're a parent and want to
+      review, correct, or remove your child's information, contact your Organization's admin or reach
+      us directly at <a href="mailto:{{ support_email }}">{{ support_email }}</a>.
+    </p>
+
+    <h2>8. Changes to this policy</h2>
+    <p>
+      If we make a material change to how we handle personal information, we'll update the date at the
+      top of this page.
+    </p>
+
+    <h2>9. Contact</h2>
+    <p>
+      Questions about this policy, or a request about your data? Reach us at
+      <a href="mailto:{{ support_email }}">{{ support_email }}</a>.
+    </p>
+
+    <p style="margin-top:40px;"><a href="{{ url_for('terms') }}">&larr; Back to Terms of Service</a></p>
+  </div>
+</body>
+</html>

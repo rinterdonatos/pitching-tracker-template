@@ -107,6 +107,7 @@
 
   <script>
     (function () {
+      var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
       var toggle = document.getElementById('feed-filter-toggle');
       var panel = document.getElementById('feed-filter-panel');
       if (toggle && panel) {
@@ -170,7 +171,7 @@
 
           fetch('/coach/videos/' + videoId + '/favorite', {
             method: 'POST',
-            headers: { 'X-Requested-With': 'fetch' },
+            headers: { 'X-Requested-With': 'fetch', 'X-CSRFToken': csrfToken },
           })
             .then(function (r) { return r.json(); })
             .then(function (data) {
@@ -195,7 +196,7 @@
 
           fetch('/coach/players/' + playerId + '/follow', {
             method: 'POST',
-            headers: { 'X-Requested-With': 'fetch' },
+            headers: { 'X-Requested-With': 'fetch', 'X-CSRFToken': csrfToken },
           })
             .then(function (r) { return r.json(); })
             .then(function (data) {

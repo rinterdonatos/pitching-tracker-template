@@ -33,7 +33,7 @@
         {% endif %}
       {% endwith %}
 
-      <form method="POST">
+      <form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="next" value="{{ next }}">
         <div class="field">
           <label for="email">Email</label>

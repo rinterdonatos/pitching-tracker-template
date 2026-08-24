@@ -2,7 +2,7 @@
 {% block title %}Platform Admin Login{% endblock %}
 {% block content %}
   <div class="page-title"><h2>Platform Admin</h2></div>
-  <form class="card-form" method="POST" action="{{ url_for('platform_login', next=next) }}" style="max-width:380px;">
+  <form class="card-form" method="POST" action="{{ url_for('platform_login', next=next) }}" style="max-width:380px;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="field">
       <label for="email">Email</label>
       <input type="email" id="email" name="email" autocomplete="username" required autofocus>

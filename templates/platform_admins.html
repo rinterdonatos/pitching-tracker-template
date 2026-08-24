@@ -21,7 +21,7 @@
             <td>{{ a['created_at'] | friendly_time }}</td>
             <td>
               <form method="POST" action="{{ url_for('platform_admin_delete', admin_id=a['id']) }}"
-                    onsubmit="return confirm('Remove {{ a['name'] }} as a platform admin?');">
+                    onsubmit="return confirm('Remove {{ a['name'] }} as a platform admin?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn danger" type="submit" style="padding:6px 12px; font-size:0.85rem;">Remove</button>
               </form>
             </td>
@@ -32,7 +32,7 @@
   {% endif %}
 
   <div class="section-title">Add a Platform Admin</div>
-  <form class="card-form" method="POST" action="{{ url_for('platform_admin_add') }}">
+  <form class="card-form" method="POST" action="{{ url_for('platform_admin_add') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="field">
       <label for="name">Name</label>
       <input type="text" id="name" name="name" required>

@@ -42,14 +42,14 @@
             </td>
             <td style="display:flex; gap:6px;">
               {% if not r['verified'] %}
-                <form method="POST" action="{{ url_for('verify_import') }}">
+                <form method="POST" action="{{ url_for('verify_import') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <input type="hidden" name="source_file" value="{{ r['source_file'] }}">
                   <input type="hidden" name="imported_at" value="{{ r['imported_at'] }}">
                   <input type="hidden" name="category" value="{{ r['category'] }}">
                   <button class="btn secondary" type="submit">Verify</button>
                 </form>
               {% endif %}
-              <form method="POST" action="{{ url_for('delete_import') }}" onsubmit="return confirm('Remove all {{ r['row_count'] }} stat rows imported from {{ r['source_file'] }} ({{ r['category'] }}, {{ r['imported_at'] | friendly_time }})? This can\'t be undone.');">
+              <form method="POST" action="{{ url_for('delete_import') }}" onsubmit="return confirm('Remove all {{ r['row_count'] }} stat rows imported from {{ r['source_file'] }} ({{ r['category'] }}, {{ r['imported_at'] | friendly_time }})? This can\'t be undone.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="source_file" value="{{ r['source_file'] }}">
                 <input type="hidden" name="imported_at" value="{{ r['imported_at'] }}">
                 <input type="hidden" name="category" value="{{ r['category'] }}">
@@ -108,11 +108,11 @@
             </td>
             <td style="display:flex; gap:6px;">
               {% if not v['verified'] %}
-                <form method="POST" action="{{ url_for('verify_video', video_id=v['id']) }}">
+                <form method="POST" action="{{ url_for('verify_video', video_id=v['id']) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="btn secondary" type="submit">Verify</button>
                 </form>
               {% endif %}
-              <form method="POST" action="{{ url_for('delete_video', video_id=v['id']) }}" onsubmit="return confirm('Remove this video ({{ v['title'] }}) for {{ v['player_name'] }}? This can\'t be undone.');">
+              <form method="POST" action="{{ url_for('delete_video', video_id=v['id']) }}" onsubmit="return confirm('Remove this video ({{ v['title'] }}) for {{ v['player_name'] }}? This can\'t be undone.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="return_to" value="manage">
                 <button class="btn danger" type="submit">Delete</button>
               </form>

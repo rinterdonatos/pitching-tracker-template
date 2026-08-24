@@ -58,7 +58,7 @@
                  data-comment-url="{{ url_for('add_calendar_comment', entry_id=entry['id']) }}"
                  data-delete-url="{{ url_for('delete_calendar_entry', entry_id=entry['id']) }}">
               <span>{% if entry['event_time'] %}<strong>{{ entry['event_time'] }}</strong> &middot; {% endif %}{{ entry['message'] }}</span>
-              <form method="POST" action="{{ url_for('delete_calendar_entry', entry_id=entry['id']) }}" onsubmit="return confirm('Remove this lesson day?');">
+              <form method="POST" action="{{ url_for('delete_calendar_entry', entry_id=entry['id']) }}" onsubmit="return confirm('Remove this lesson day?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" title="Remove">&times;</button>
               </form>
             </div>
@@ -84,7 +84,7 @@
         <h3 style="margin:0;">Add Event <span id="modal-date-label" style="color:var(--phx-red);"></span></h3>
         <button type="button" onclick="closeDayModal()" class="text-muted" style="background:none; border:none; font-size:1.4rem; cursor:pointer;" title="Close">&times;</button>
       </div>
-      <form method="POST" action="{{ url_for('add_calendar_entry') }}">
+      <form method="POST" action="{{ url_for('add_calendar_entry') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="team_id" value="{{ current_team['id'] if current_team else '' }}">
         <input type="hidden" name="entry_date" id="modal-entry-date">
         <div class="field">
@@ -140,7 +140,7 @@
 
       <div class="section-title" style="margin:18px 0 10px; font-size:0.95rem;">Comments</div>
       <div id="view-comment-list" class="comment-list"></div>
-      <form id="view-comment-form" class="comment-form" method="POST" action="">
+      <form id="view-comment-form" class="comment-form" method="POST" action=""><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="year" id="view-comment-year">
         <input type="hidden" name="month" id="view-comment-month">
         <input type="hidden" name="team_id" id="view-comment-team">
@@ -152,7 +152,7 @@
       </form>
 
       <div style="margin-top:16px; display:flex; gap:8px;">
-        <form id="view-delete-form" method="POST" action="" onsubmit="return confirm('Remove this lesson day?');">
+        <form id="view-delete-form" method="POST" action="" onsubmit="return confirm('Remove this lesson day?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn danger" type="submit">Remove Event</button>
         </form>
         <button class="btn secondary" type="button" onclick="closeViewModal()">Close</button>
@@ -433,7 +433,7 @@
   </script>
 
   <div class="section-title">Add a Lesson Day{% if current_team %} ({{ current_team['name'] }}){% else %} (General){% endif %}</div>
-  <form class="card-form" method="POST" action="{{ url_for('add_calendar_entry') }}">
+  <form class="card-form" method="POST" action="{{ url_for('add_calendar_entry') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="team_id" value="{{ current_team['id'] if current_team else '' }}">
     <div class="field">
       <label for="entry_date">Date</label>

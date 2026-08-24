@@ -98,7 +98,7 @@
           {% endif %}
         {% endwith %}
 
-        <form method="POST" enctype="multipart/form-data" id="start-form">
+        <form method="POST" enctype="multipart/form-data" id="start-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="field-group-label">Organization Details</div>
           <div class="field">
             <label for="org_name">Organization / team name</label>

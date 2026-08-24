@@ -23,7 +23,7 @@
           </div>
           <div class="meta">{{ s['domain'] or 'No domain set, no logo yet' }}</div>
           <form method="POST" action="{{ url_for('delete_school', school_id=s['id']) }}" style="margin-top:10px;"
-                onsubmit="return confirm('Remove {{ s['name'] }} from the list?');">
+                onsubmit="return confirm('Remove {{ s['name'] }} from the list?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn secondary" type="submit" style="color:var(--phx-red);">Remove</button>
           </form>
         </div>
@@ -36,7 +36,7 @@
   {% endif %}
 
   <div class="section-title">Add a School</div>
-  <form class="card-form" method="POST" action="{{ url_for('add_school') }}">
+  <form class="card-form" method="POST" action="{{ url_for('add_school') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="field">
       <label for="name">School Name</label>
       <input type="text" id="name" name="name" placeholder="e.g. Duke University" required>

@@ -20,7 +20,7 @@
             {% if v['team_name'] %} · {{ v['team_name'] }}{% endif %}
           </div>
           {% if v['title'] %}<div class="meta">{{ v['title'] }}{% if v['category'] %} &middot; {{ v['category'] }}{% endif %}</div>{% endif %}
-          <form method="POST" action="{{ url_for('coach_favorite_toggle', video_id=v['id']) }}" style="margin-top:8px;">
+          <form method="POST" action="{{ url_for('coach_favorite_toggle', video_id=v['id']) }}" style="margin-top:8px;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn danger" type="submit" style="padding:6px 12px; font-size:0.85rem;">Remove Favorite</button>
           </form>
         </div>

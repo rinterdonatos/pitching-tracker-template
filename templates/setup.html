@@ -25,7 +25,7 @@
         {% endif %}
       {% endwith %}
 
-      <form method="POST">
+      <form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="field">
           <label for="org_name">Organization / team name</label>
           <input type="text" id="org_name" name="org_name" autofocus required>

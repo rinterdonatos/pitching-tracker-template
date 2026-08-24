@@ -21,10 +21,10 @@
               <td>{{ c['phone'] or '-' }}</td>
               <td>{{ c['created_at'] | friendly_time }}</td>
               <td style="white-space:nowrap;">
-                <form method="POST" action="{{ url_for('platform_approve_coach', coach_id=c['id']) }}" style="display:inline;">
+                <form method="POST" action="{{ url_for('platform_approve_coach', coach_id=c['id']) }}" style="display:inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="btn" type="submit" style="padding:6px 12px; font-size:0.85rem;">Approve</button>
                 </form>
-                <form method="POST" action="{{ url_for('platform_reject_coach', coach_id=c['id']) }}" style="display:inline;" onsubmit="return confirm('Remove this coach signup?');">
+                <form method="POST" action="{{ url_for('platform_reject_coach', coach_id=c['id']) }}" style="display:inline;" onsubmit="return confirm('Remove this coach signup?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="btn danger" type="submit" style="padding:6px 12px; font-size:0.85rem;">Reject</button>
                 </form>
               </td>
@@ -53,7 +53,7 @@
               <td>{{ c['phone'] or '-' }}</td>
               <td>{{ c['created_at'] | friendly_time }}</td>
               <td>
-                <form method="POST" action="{{ url_for('platform_revoke_coach', coach_id=c['id']) }}" style="display:inline;" onsubmit="return confirm('Revoke this coach\'s access?');">
+                <form method="POST" action="{{ url_for('platform_revoke_coach', coach_id=c['id']) }}" style="display:inline;" onsubmit="return confirm('Revoke this coach\'s access?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="btn danger" type="submit" style="padding:6px 12px; font-size:0.85rem;">Revoke</button>
                 </form>
               </td>

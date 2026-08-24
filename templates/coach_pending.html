@@ -24,7 +24,7 @@
       <img src="{{ url_for('static', filename='img/default-badge.svg') }}" alt="Recruiting Portal" class="login-logo">
       <h1>Almost there, {{ coach['name'] }}</h1>
       <p class="login-sub">Your account is still waiting on approval. We'll let you know as soon as you're in - check back soon.</p>
-      <form method="POST" action="{{ url_for('coach_logout') }}">
+      <form method="POST" action="{{ url_for('coach_logout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn secondary" type="submit" style="width:100%;">Log Out</button>
       </form>
     </div>
