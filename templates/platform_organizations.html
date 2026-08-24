@@ -8,7 +8,11 @@
   </p>
 
   {% if orgs %}
-    <table class="data-table">
+    <div class="field" style="max-width:360px;">
+      <input type="text" id="org-search" autocomplete="off" placeholder="Search by organization name or slug...">
+    </div>
+
+    <table class="data-table" id="orgs-table">
       <thead>
         <tr>
           <th>Organization</th>
@@ -22,7 +26,7 @@
       </thead>
       <tbody>
         {% for o in orgs %}
-          <tr>
+          <tr class="org-row" data-search="{{ (o['name'] ~ ' ' ~ o['slug']) | lower }}">
             <td>{{ o['name'] }}</td>
             <td>{{ o['created_at'] | friendly_time }}</td>
             <td>{{ o['player_count'] }}</td>
@@ -34,7 +38,29 @@
         {% endfor %}
       </tbody>
     </table>
+    <p class="hint" id="orgs-no-match" hidden>No organizations match that search.</p>
   {% else %}
     <div class="empty-state"><p>No organizations yet.</p></div>
   {% endif %}
+
+  <script>
+    // Search-as-you-type, matched against org name + slug (not the visible
+    // counts columns) so it stays predictable as the platform grows.
+    const orgSearch = document.getElementById('org-search');
+    if (orgSearch) {
+      const rows = Array.from(document.querySelectorAll('#orgs-table .org-row'));
+      const noMatch = document.getElementById('orgs-no-match');
+      orgSearch.addEventListener('input', () => {
+        const q = orgSearch.value.trim().toLowerCase();
+        let visible = 0;
+        rows.forEach(row => {
+          const hit = !q || row.dataset.search.includes(q);
+          row.style.display = hit ? '' : 'none';
+          if (hit) visible++;
+        });
+        noMatch.hidden = visible > 0;
+      });
+      orgSearch.focus();
+    }
+  </script>
 {% endblock %}
