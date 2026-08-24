@@ -128,10 +128,12 @@
       <input type="date" id="date_to" name="date_to" value="{{ date_to }}" onchange="this.form.submit()">
     </div>
     {% if date_from or date_to %}
-      <a class="btn secondary" href="{{ self_url }}">Show All Data</a>
+      <a class="btn secondary" href="{{ self_url }}?range=all">Show All Data</a>
     {% endif %}
     <span class="hint" style="align-self:center;">
-      {% if date_from or date_to %}
+      {% if is_default_range %}
+        Showing the last 12 months by default &mdash; pick an earlier "From" date or click "Show All Data" to go further back.
+      {% elif date_from or date_to %}
         Showing {{ date_from or 'the beginning' }} through {{ date_to or 'today' }} &mdash; charts, tables, and videos.
       {% else %}
         Showing all data. Pick dates to narrow the charts, tables, and videos.
@@ -199,7 +201,7 @@
     <div class="empty-state">
       {% if date_from or date_to %}
         <p>No stats in this date range.</p>
-        <a class="btn secondary" href="{{ self_url }}">Show All Data</a>
+        <a class="btn secondary" href="{{ self_url }}?range=all">Show All Data</a>
       {% else %}
         <p>No stats yet{% if not is_coach_view %} for {{ player['name'] }}{% endif %}.</p>
         {% if not is_coach_view %}
@@ -424,7 +426,7 @@
     <div class="empty-state">
       {% if date_from or date_to %}
         <p>No videos in this date range.</p>
-        <a class="btn secondary" href="{{ self_url }}">Show All Data</a>
+        <a class="btn secondary" href="{{ self_url }}?range=all">Show All Data</a>
       {% else %}
         <p>No videos yet for {{ player['name'] }}.</p>
         {% if not is_coach_view %}

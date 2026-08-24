@@ -2502,8 +2502,7 @@ def coach_player_detail(player_id):
         conn.close()
         abort(404)
 
-    date_from = request.args.get("date_from", "").strip()
-    date_to = request.args.get("date_to", "").strip()
+    date_from, date_to, is_default_range = _player_date_range_from_request()
     ctx = _build_player_profile_context(conn, player_id, date_from, date_to)
 
     is_followed = conn.execute(
@@ -2518,7 +2517,8 @@ def coach_player_detail(player_id):
     # template, not just cosmetically: those routes require an org_slug a
     # coach session doesn't have, so they'd 500 if ever rendered here).
     return render_template(
-        "player.html", player=player, is_coach_view=True, is_followed=is_followed, **ctx
+        "player.html", player=player, is_coach_view=True, is_followed=is_followed,
+        is_default_range=is_default_range, **ctx
     )
 
 
@@ -3735,6 +3735,22 @@ def _build_player_profile_context(conn, player_id, date_from, date_to):
     }
 
 
+def _player_date_range_from_request():
+    """A brand-new visit to a player's profile (no date filter chosen yet)
+    defaults to the last 12 months instead of a player's entire history,
+    which gets unwieldy for anyone who's been logging stats for years.
+    Picking dates explicitly, or clicking "Show All Data" (?range=all),
+    both bypass this and show exactly what was asked for. Returns
+    (date_from, date_to, is_default_range)."""
+    if request.args.get("range") == "all" or "date_from" in request.args or "date_to" in request.args:
+        return (
+            request.args.get("date_from", "").strip(),
+            request.args.get("date_to", "").strip(),
+            False,
+        )
+    return (date.today() - timedelta(days=365)).strftime("%Y-%m-%d"), "", True
+
+
 @app.route("/<org_slug>/players/<int:player_id>")
 def player_detail(player_id):
     conn = get_db()
@@ -3747,12 +3763,13 @@ def player_detail(player_id):
         abort(404)
 
     # Optional ?date_from= / ?date_to= narrow every dated thing on the page
-    # (charts, stat tables, videos) to that range. Missing ends are open.
-    date_from = request.args.get("date_from", "").strip()
-    date_to = request.args.get("date_to", "").strip()
+    # (charts, stat tables, videos) to that range. Missing ends are open,
+    # unless neither is present at all, in which case _player_date_range_
+    # from_request() applies the last-12-months default.
+    date_from, date_to, is_default_range = _player_date_range_from_request()
     ctx = _build_player_profile_context(conn, player_id, date_from, date_to)
     conn.close()
-    return render_template("player.html", player=player, is_coach_view=False, **ctx)
+    return render_template("player.html", player=player, is_coach_view=False, is_default_range=is_default_range, **ctx)
 
 
 @app.route("/<org_slug>/players/<int:player_id>/report")
