@@ -1138,6 +1138,26 @@ table.data-table a {
 }
 table.data-table a:hover { color: var(--phx-blue-dark); }
 
+/* Small status pill used on the Manage Uploads page to flag whether an
+   admin has verified a stat import / video upload yet. */
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: #f1eee4;
+  color: var(--phx-gray);
+  border: 1px solid var(--phx-border);
+}
+
+.badge.success {
+  background: #e6f4ea;
+  color: #1e6b34;
+  border-color: #b7dfc4;
+}
+
 /* ---------- Mobile ---------- */
 
 @media (max-width: 860px) {

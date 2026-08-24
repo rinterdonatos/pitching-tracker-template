@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Organizations - Platform Admin{% endblock %}
+{% block content %}
+  <div class="page-title"><h2>Organizations</h2></div>
+  <p class="hint" style="margin-top:-14px; margin-bottom:20px;">
+    Every organization on the platform. This page is only reachable at this URL - it isn't linked from any
+    organization's own site.
+  </p>
+
+  {% if orgs %}
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Organization</th>
+          <th>Created</th>
+          <th>Players</th>
+          <th>Teams</th>
+          <th>Videos</th>
+          <th>Users</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in orgs %}
+          <tr>
+            <td>{{ o['name'] }}</td>
+            <td>{{ o['created_at'] | friendly_time }}</td>
+            <td>{{ o['player_count'] }}</td>
+            <td>{{ o['team_count'] }}</td>
+            <td>{{ o['video_count'] }}</td>
+            <td>{{ o['user_count'] }}</td>
+            <td><a class="btn secondary" href="{{ url_for('platform_org_detail', org_id=o['id']) }}">Manage</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty-state"><p>No organizations yet.</p></div>
+  {% endif %}
+{% endblock %}

@@ -117,7 +117,10 @@ VIDEO_DIR = os.path.join(BASE_DIR, "static", "uploads", "videos")
 PHOTO_DIR = os.path.join(BASE_DIR, "static", "uploads", "photos")
 LOGO_DIR = os.path.join(BASE_DIR, "static", "uploads", "logos")
 
-ALLOWED_VIDEO_EXT = {"mp4", "mov", "m4v", "webm", "avi"}
+ALLOWED_VIDEO_EXT = {
+    "mp4", "mov", "m4v", "webm", "avi", "mkv", "wmv", "flv",
+    "3gp", "3g2", "mpg", "mpeg", "m2ts", "mts", "ogv",
+}
 ALLOWED_PHOTO_EXT = {"png", "jpg", "jpeg", "gif"}
 ALLOWED_CSV_EXT = {"csv"}
 
@@ -402,6 +405,12 @@ ORG_EXEMPT_ENDPOINTS = {
     "coach_leaderboards", "coach_feed", "coach_favorite_toggle", "coach_favorites",
     "coach_player_detail", "coach_player_follow_toggle", "coach_following",
     "platform_coaches", "platform_approve_coach", "platform_reject_coach", "platform_revoke_coach",
+    # Cross-org owner dashboard - same reasoning as the coach-approval routes
+    # above: gated by platform_admin_required (a session flag, not tied to
+    # any one org), and deliberately not part of the /<org_slug>/ scheme so
+    # one org's data is never confused with another's.
+    "platform_organizations", "platform_org_detail", "platform_save_team", "platform_delete_team",
+    "platform_delete_player", "platform_verify_video", "platform_delete_video",
 }
 
 
@@ -1022,6 +1031,27 @@ def init_db():
         conn.execute("ALTER TABLE organizations ADD COLUMN logo_filename TEXT")
         conn.execute("ALTER TABLE organizations ADD COLUMN theme_primary TEXT")
         conn.execute("ALTER TABLE organizations ADD COLUMN theme_accent TEXT")
+        conn.commit()
+
+    # Teams can optionally have their own logo (uniform patch, school crest,
+    # etc.) shown on the Teams page - separate from the organization's own
+    # logo, which is the whole program's brand rather than one team's.
+    team_cols = {row["name"] for row in conn.execute("PRAGMA table_info(teams)")}
+    if "logo_filename" not in team_cols:
+        conn.execute("ALTER TABLE teams ADD COLUMN logo_filename TEXT")
+        conn.commit()
+
+    # Anyone in an org can upload their own stats/video (no admin_required
+    # gate on those routes), so admins need a way to review new uploads and
+    # mark them as checked. Defaults to 0 (unverified) so existing rows show
+    # up as pending until an admin clears them.
+    stat_cols = {row["name"] for row in conn.execute("PRAGMA table_info(stat_entries)")}
+    if "verified" not in stat_cols:
+        conn.execute("ALTER TABLE stat_entries ADD COLUMN verified INTEGER DEFAULT 0")
+        conn.commit()
+    video_cols = {row["name"] for row in conn.execute("PRAGMA table_info(videos)")}
+    if "verified" not in video_cols:
+        conn.execute("ALTER TABLE videos ADD COLUMN verified INTEGER DEFAULT 0")
         conn.commit()
 
     conn.execute(
@@ -2404,6 +2434,173 @@ def platform_reject_coach(coach_id):
     return redirect(url_for("platform_coaches"))
 
 
+# ---------- Routes: platform admin (cross-org owner access) ----------
+#
+# Everything below is reachable only at /platform/... - deliberately never
+# linked from base.html's nav (which is shared by every organization's own
+# site), so it stays a private side of the site rather than something that
+# shows up for a customer's own admins. It's gated purely by
+# platform_admin_required (session["is_platform_admin"]), independent of
+# which org, if any, the platform admin's own session happens to be scoped
+# to - see ORG_EXEMPT_ENDPOINTS below.
+
+@app.route("/platform/organizations")
+@platform_admin_required
+def platform_organizations():
+    conn = get_db()
+    orgs = conn.execute(
+        """SELECT o.*,
+                  (SELECT COUNT(*) FROM players WHERE organization_id = o.id) AS player_count,
+                  (SELECT COUNT(*) FROM teams WHERE organization_id = o.id) AS team_count,
+                  (SELECT COUNT(*) FROM videos WHERE organization_id = o.id) AS video_count,
+                  (SELECT COUNT(*) FROM users WHERE organization_id = o.id) AS user_count
+           FROM organizations o
+           ORDER BY o.name COLLATE NOCASE ASC"""
+    ).fetchall()
+    conn.close()
+    return render_template("platform_organizations.html", orgs=orgs)
+
+
+def _platform_get_org(conn, org_id):
+    org = conn.execute("SELECT * FROM organizations WHERE id = ?", (org_id,)).fetchone()
+    if not org:
+        conn.close()
+        abort(404)
+    return org
+
+
+@app.route("/platform/organizations/<int:org_id>")
+@platform_admin_required
+def platform_org_detail(org_id):
+    conn = get_db()
+    org = _platform_get_org(conn, org_id)
+    teams = conn.execute(
+        """SELECT t.*, COUNT(p.id) AS player_count
+           FROM teams t LEFT JOIN players p ON p.team_id = t.id
+           WHERE t.organization_id = ?
+           GROUP BY t.id ORDER BY t.name COLLATE NOCASE ASC""",
+        (org_id,),
+    ).fetchall()
+    players = conn.execute(
+        """SELECT p.*, t.name AS team_name FROM players p
+           LEFT JOIN teams t ON t.id = p.team_id
+           WHERE p.organization_id = ?
+           ORDER BY p.name COLLATE NOCASE ASC""",
+        (org_id,),
+    ).fetchall()
+    videos = conn.execute(
+        """SELECT v.*, p.name AS player_name FROM videos v
+           JOIN players p ON p.id = v.player_id
+           WHERE v.organization_id = ?
+           ORDER BY v.entry_date DESC, v.id DESC""",
+        (org_id,),
+    ).fetchall()
+    conn.close()
+    return render_template("platform_org_detail.html", org=org, teams=teams, players=players, videos=videos)
+
+
+@app.route("/platform/organizations/<int:org_id>/teams/<int:team_id>/save", methods=["POST"])
+@platform_admin_required
+def platform_save_team(org_id, team_id):
+    name = request.form.get("name", "").strip()
+    if not name:
+        flash("Team name is required.", "error")
+        return redirect(url_for("platform_org_detail", org_id=org_id))
+
+    conn = get_db()
+    team = conn.execute(
+        "SELECT logo_filename FROM teams WHERE id = ? AND organization_id = ?", (team_id, org_id)
+    ).fetchone()
+    if not team:
+        conn.close()
+        abort(404)
+
+    logo_filename = team["logo_filename"]
+    logo = request.files.get("logo")
+    if logo and logo.filename and allowed_file(logo.filename, ALLOWED_PHOTO_EXT) and MEDIA_ENABLED:
+        old_logo_filename = logo_filename
+        safe_name = secure_filename(logo.filename)
+        logo_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_name}"
+        upload_media(logo.stream, f"uploads/team-logos/{logo_filename}", logo.content_type)
+        if old_logo_filename:
+            delete_media(f"uploads/team-logos/{old_logo_filename}")
+
+    try:
+        conn.execute(
+            "UPDATE teams SET name = ?, logo_filename = ? WHERE id = ? AND organization_id = ?",
+            (name, logo_filename, team_id, org_id),
+        )
+        conn.commit()
+        flash("Team updated.", "success")
+    except sqlite3.IntegrityError:
+        flash(f"A team named {name} already exists in that org.", "error")
+    conn.close()
+    return redirect(url_for("platform_org_detail", org_id=org_id))
+
+
+@app.route("/platform/organizations/<int:org_id>/teams/<int:team_id>/delete", methods=["POST"])
+@platform_admin_required
+def platform_delete_team(org_id, team_id):
+    conn = get_db()
+    team = conn.execute(
+        "SELECT logo_filename FROM teams WHERE id = ? AND organization_id = ?", (team_id, org_id)
+    ).fetchone()
+    conn.execute("UPDATE players SET team_id = NULL WHERE team_id = ? AND organization_id = ?", (team_id, org_id))
+    conn.execute(
+        "UPDATE throwing_entries SET team_id = NULL WHERE team_id = ? AND organization_id = ?", (team_id, org_id)
+    )
+    conn.execute("DELETE FROM teams WHERE id = ? AND organization_id = ?", (team_id, org_id))
+    conn.commit()
+    conn.close()
+    if team and team["logo_filename"]:
+        delete_media(f"uploads/team-logos/{team['logo_filename']}")
+    flash("Team deleted.", "success")
+    return redirect(url_for("platform_org_detail", org_id=org_id))
+
+
+@app.route("/platform/organizations/<int:org_id>/players/<int:player_id>/delete", methods=["POST"])
+@platform_admin_required
+def platform_delete_player(org_id, player_id):
+    conn = get_db()
+    player = conn.execute(
+        "SELECT photo_filename FROM players WHERE id = ? AND organization_id = ?", (player_id, org_id)
+    ).fetchone()
+    conn.execute("DELETE FROM players WHERE id = ? AND organization_id = ?", (player_id, org_id))
+    conn.commit()
+    conn.close()
+    if player and player["photo_filename"]:
+        delete_media(f"uploads/photos/{player['photo_filename']}")
+    flash("Player removed.", "success")
+    return redirect(url_for("platform_org_detail", org_id=org_id))
+
+
+@app.route("/platform/organizations/<int:org_id>/videos/<int:video_id>/verify", methods=["POST"])
+@platform_admin_required
+def platform_verify_video(org_id, video_id):
+    conn = get_db()
+    conn.execute("UPDATE videos SET verified = 1 WHERE id = ? AND organization_id = ?", (video_id, org_id))
+    conn.commit()
+    conn.close()
+    flash("Video verified.", "success")
+    return redirect(url_for("platform_org_detail", org_id=org_id))
+
+
+@app.route("/platform/organizations/<int:org_id>/videos/<int:video_id>/delete", methods=["POST"])
+@platform_admin_required
+def platform_delete_video(org_id, video_id):
+    conn = get_db()
+    video = conn.execute(
+        "SELECT * FROM videos WHERE id = ? AND organization_id = ?", (video_id, org_id)
+    ).fetchone()
+    if video:
+        delete_media(f"uploads/videos/{video['filename']}")
+        conn.execute("DELETE FROM videos WHERE id = ?", (video_id,))
+        conn.commit()
+    conn.close()
+    flash("Video removed.", "success")
+    return redirect(url_for("platform_org_detail", org_id=org_id))
+
+
 # ---------- Routes: user management (admin only) ----------
 
 def can_manage_user(target):
@@ -2816,30 +3013,64 @@ def add_team():
     if not name:
         flash("Team name is required.", "error")
         return redirect(url_for("teams_page"))
+
+    logo_filename = None
+    logo = request.files.get("logo")
+    if logo and logo.filename and allowed_file(logo.filename, ALLOWED_PHOTO_EXT) and MEDIA_ENABLED:
+        safe_name = secure_filename(logo.filename)
+        logo_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_name}"
+        upload_media(logo.stream, f"uploads/team-logos/{logo_filename}", logo.content_type)
+
     conn = get_db()
     try:
-        conn.execute("INSERT INTO teams (organization_id, name) VALUES (?, ?)", (g.org["id"], name))
+        conn.execute(
+            "INSERT INTO teams (organization_id, name, logo_filename) VALUES (?, ?, ?)",
+            (g.org["id"], name, logo_filename),
+        )
         conn.commit()
         flash(f"Added team {name}.", "success")
     except sqlite3.IntegrityError:
         flash(f"A team named {name} already exists.", "error")
+        if logo_filename:
+            delete_media(f"uploads/team-logos/{logo_filename}")
     conn.close()
     return redirect(url_for("teams_page"))
 
 
 @app.route("/<org_slug>/teams/<int:team_id>/rename", methods=["POST"])
 def rename_team(team_id):
+    # Despite the name, this route also handles updating a team's logo -
+    # both live in the same "Rename / Delete" form on the Teams page, so one
+    # POST covers both instead of splitting into a separate endpoint.
     name = request.form.get("name", "").strip()
     if not name:
         flash("Team name is required.", "error")
         return redirect(url_for("teams_page"))
     conn = get_db()
+    team = conn.execute(
+        "SELECT logo_filename FROM teams WHERE id = ? AND organization_id = ?", (team_id, g.org["id"])
+    ).fetchone()
+    if not team:
+        conn.close()
+        abort(404)
+
+    logo_filename = team["logo_filename"]
+    logo = request.files.get("logo")
+    if logo and logo.filename and allowed_file(logo.filename, ALLOWED_PHOTO_EXT) and MEDIA_ENABLED:
+        old_logo_filename = logo_filename
+        safe_name = secure_filename(logo.filename)
+        logo_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_name}"
+        upload_media(logo.stream, f"uploads/team-logos/{logo_filename}", logo.content_type)
+        if old_logo_filename:
+            delete_media(f"uploads/team-logos/{old_logo_filename}")
+
     try:
         conn.execute(
-            "UPDATE teams SET name = ? WHERE id = ? AND organization_id = ?", (name, team_id, g.org["id"])
+            "UPDATE teams SET name = ?, logo_filename = ? WHERE id = ? AND organization_id = ?",
+            (name, logo_filename, team_id, g.org["id"]),
         )
         conn.commit()
-        flash("Team renamed.", "success")
+        flash("Team updated.", "success")
     except sqlite3.IntegrityError:
         flash(f"A team named {name} already exists.", "error")
     conn.close()
@@ -2849,6 +3080,9 @@ def rename_team(team_id):
 @app.route("/<org_slug>/teams/<int:team_id>/delete", methods=["POST"])
 def delete_team(team_id):
     conn = get_db()
+    team = conn.execute(
+        "SELECT logo_filename FROM teams WHERE id = ? AND organization_id = ?", (team_id, g.org["id"])
+    ).fetchone()
     conn.execute(
         "UPDATE players SET team_id = NULL WHERE team_id = ? AND organization_id = ?", (team_id, g.org["id"])
     )
@@ -2859,6 +3093,8 @@ def delete_team(team_id):
     conn.execute("DELETE FROM teams WHERE id = ? AND organization_id = ?", (team_id, g.org["id"]))
     conn.commit()
     conn.close()
+    if team and team["logo_filename"]:
+        delete_media(f"uploads/team-logos/{team['logo_filename']}")
     flash("Team deleted. Its players are now unassigned and its calendar entries moved to the General calendar.", "success")
     return redirect(url_for("teams_page"))
 
@@ -4122,7 +4358,7 @@ def upload_video():
             flash(msg, "success")
         else:
             flash(
-                f"Couldn't upload any of those files - unsupported type (need mp4, mov, m4v, webm, or avi): {', '.join(skipped_names)}.",
+                f"Couldn't upload any of those files - unsupported video type: {', '.join(skipped_names)}.",
                 "error",
             )
         return redirect(url_for("player_detail", player_id=player_id))
@@ -4190,7 +4426,8 @@ def manage_uploads():
                   COUNT(*) AS row_count,
                   COUNT(DISTINCT player_id) AS player_count,
                   MIN(entry_date) AS earliest_date,
-                  MAX(entry_date) AS latest_date
+                  MAX(entry_date) AS latest_date,
+                  MIN(COALESCE(verified, 0)) AS verified
            FROM stat_entries
            WHERE organization_id = ? AND source_file IS NOT NULL AND source_file != ''
            GROUP BY source_file, imported_at, category
@@ -4244,6 +4481,39 @@ def delete_import():
     conn.close()
 
     flash(f"Removed {removed} stat row(s) from {source_file}.", "success")
+    return redirect(url_for("manage_uploads"))
+
+
+@app.route("/<org_slug>/imports/verify", methods=["POST"])
+@admin_required
+def verify_import():
+    source_file = request.form.get("source_file", "")
+    imported_at = request.form.get("imported_at", "")
+    category = request.form.get("category", "")
+
+    conn = get_db()
+    cur = conn.execute(
+        "UPDATE stat_entries SET verified = 1 WHERE source_file = ? AND imported_at = ? AND category = ? AND organization_id = ?",
+        (source_file, imported_at, category, g.org["id"]),
+    )
+    conn.commit()
+    verified_count = cur.rowcount
+    conn.close()
+
+    flash(f"Verified {verified_count} stat row(s) from {source_file}.", "success")
+    return redirect(url_for("manage_uploads"))
+
+
+@app.route("/<org_slug>/videos/<int:video_id>/verify", methods=["POST"])
+@admin_required
+def verify_video(video_id):
+    conn = get_db()
+    conn.execute(
+        "UPDATE videos SET verified = 1 WHERE id = ? AND organization_id = ?", (video_id, g.org["id"])
+    )
+    conn.commit()
+    conn.close()
+    flash("Video verified.", "success")
     return redirect(url_for("manage_uploads"))
 
 

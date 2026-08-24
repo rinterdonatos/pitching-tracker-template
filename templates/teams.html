@@ -9,6 +9,11 @@
     <div class="roster-grid">
       {% for t in teams %}
         <div class="player-card" style="cursor:default;">
+          {% if t['logo_filename'] %}
+            <img class="avatar" src="{{ media_url('uploads/team-logos/' ~ t['logo_filename']) }}" alt="{{ t['name'] }}">
+          {% else %}
+            <div class="avatar">{{ t['name'] | initials }}</div>
+          {% endif %}
           <h3>{{ t['name'] }}</h3>
           <div class="meta">{{ t['player_count'] }} player{{ 's' if t['player_count'] != 1 else '' }}</div>
           <div class="counts" style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
@@ -16,10 +21,14 @@
             <a class="btn secondary" href="{{ url_for('lesson_calendar', team=t['id']) }}">Calendar</a>
           </div>
           <details style="margin-top:10px;">
-            <summary class="text-muted" style="cursor:pointer; font-size:0.85em;">Rename / Delete</summary>
-            <form method="POST" action="{{ url_for('rename_team', team_id=t['id']) }}" style="margin-top:8px; display:flex; gap:6px;">
-              <input type="text" name="name" value="{{ t['name'] }}" required style="flex:1; min-width:0;">
-              <button class="btn secondary" type="submit">Rename</button>
+            <summary class="text-muted" style="cursor:pointer; font-size:0.85em;">Rename / Change Logo / Delete</summary>
+            <form method="POST" action="{{ url_for('rename_team', team_id=t['id']) }}" enctype="multipart/form-data" style="margin-top:8px; display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; gap:6px;">
+                <input type="text" name="name" value="{{ t['name'] }}" required style="flex:1; min-width:0;">
+                <button class="btn secondary" type="submit">Save</button>
+              </div>
+              <label class="hint" for="logo-{{ t['id'] }}" style="margin:0;">Team logo (optional)</label>
+              <input type="file" id="logo-{{ t['id'] }}" name="logo" accept="image/png,image/jpeg,image/gif">
             </form>
             <form method="POST" action="{{ url_for('delete_team', team_id=t['id']) }}" style="margin-top:8px;"
                   onsubmit="return confirm('Delete {{ t['name'] }}? Players stay but become unassigned, and its calendar entries move to the General calendar.');">
@@ -42,11 +51,16 @@
   {% endif %}
 
   <div class="section-title">Add a Team</div>
-  <form class="card-form" method="POST" action="{{ url_for('add_team') }}">
+  <form class="card-form" method="POST" action="{{ url_for('add_team') }}" enctype="multipart/form-data">
     <div class="field">
       <label for="name">Team Name</label>
       <input type="text" id="name" name="name" placeholder="e.g. 2027 - Red" required>
       <div class="hint">Use whatever naming you like &mdash; grad year + color works well (2027 - Red, 2028 - Black, etc).</div>
+    </div>
+    <div class="field">
+      <label for="logo">Team Logo (optional)</label>
+      <input type="file" id="logo" name="logo" accept="image/png,image/jpeg,image/gif">
+      <div class="hint">Shown on the Teams page. You can add or change this later.</div>
     </div>
     <button class="btn" type="submit">Add Team</button>
   </form>

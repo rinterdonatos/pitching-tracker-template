@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}{{ org['name'] }} - Platform Admin{% endblock %}
+{% block content %}
+  <div class="page-title">
+    <h2>{{ org['name'] }}</h2>
+    <a class="btn secondary" href="{{ url_for('platform_organizations') }}">&larr; All Organizations</a>
+  </div>
+  <p class="hint" style="margin-top:-14px; margin-bottom:20px;">Slug: {{ org['slug'] }} &middot; Created {{ org['created_at'] | friendly_time }}</p>
+
+  <div class="section-title">Teams ({{ teams|length }})</div>
+  {% if teams %}
+    <table class="data-table">
+      <thead>
+        <tr><th>Name</th><th>Players</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for t in teams %}
+          <tr>
+            <td>{{ t['name'] }}</td>
+            <td>{{ t['player_count'] }}</td>
+            <td style="white-space:nowrap;">
+              <details style="display:inline-block;">
+                <summary class="text-muted" style="cursor:pointer; font-size:0.85em; display:inline;">Rename / Logo</summary>
+                <form method="POST" action="{{ url_for('platform_save_team', org_id=org['id'], team_id=t['id']) }}" enctype="multipart/form-data" style="margin-top:8px; display:flex; flex-direction:column; gap:6px; max-width:280px;">
+                  <input type="text" name="name" value="{{ t['name'] }}" required>
+                  <input type="file" name="logo" accept="image/png,image/jpeg,image/gif">
+                  <button class="btn secondary" type="submit" style="padding:6px 12px; font-size:0.85rem;">Save</button>
+                </form>
+              </details>
+              <form method="POST" action="{{ url_for('platform_delete_team', org_id=org['id'], team_id=t['id']) }}" style="display:inline;"
+                    onsubmit="return confirm('Delete {{ t['name'] }}? Players stay but become unassigned.');">
+                <button class="btn danger" type="submit" style="padding:6px 12px; font-size:0.85rem;">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="hint">No teams yet.</p>
+  {% endif %}
+
+  <div class="section-title">Players ({{ players|length }})</div>
+  {% if players %}
+    <table class="data-table">
+      <thead>
+        <tr><th>Name</th><th>Team</th><th>Position</th><th>Grad Year</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for p in players %}
+          <tr>
+            <td>{{ p['name'] }}</td>
+            <td>{{ p['team_name'] or '—' }}</td>
+            <td>{{ p['position'] or '—' }}</td>
+            <td>{{ p['grad_year'] or '—' }}</td>
+            <td>
+              <form method="POST" action="{{ url_for('platform_delete_player', org_id=org['id'], player_id=p['id']) }}"
+                    onsubmit="return confirm('Delete {{ p['name'] }}? This also removes their stats and videos. This can\'t be undone.');">
+                <button class="btn danger" type="submit" style="padding:6px 12px; font-size:0.85rem;">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="hint">No players yet.</p>
+  {% endif %}
+
+  <div class="section-title">Videos ({{ videos|length }})</div>
+  {% if videos %}
+    <table class="data-table">
+      <thead>
+        <tr><th>Player</th><th>Date</th><th>Title</th><th>Status</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for v in videos %}
+          <tr>
+            <td>{{ v['player_name'] }}</td>
+            <td>{{ v['entry_date'] }}</td>
+            <td>{{ v['title'] }}</td>
+            <td>
+              {% if v['verified'] %}
+                <span class="badge success">Verified</span>
+              {% else %}
+                <span class="badge">Pending</span>
+              {% endif %}
+            </td>
+            <td style="white-space:nowrap;">
+              {% if not v['verified'] %}
+                <form method="POST" action="{{ url_for('platform_verify_video', org_id=org['id'], video_id=v['id']) }}" style="display:inline;">
+                  <button class="btn secondary" type="submit" style="padding:6px 12px; font-size:0.85rem;">Verify</button>
+                </form>
+              {% endif %}
+              <form method="POST" action="{{ url_for('platform_delete_video', org_id=org['id'], video_id=v['id']) }}" style="display:inline;"
+                    onsubmit="return confirm('Remove this video for {{ v['player_name'] }}? This can\'t be undone.');">
+                <button class="btn danger" type="submit" style="padding:6px 12px; font-size:0.85rem;">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="hint">No videos yet.</p>
+  {% endif %}
+{% endblock %}
