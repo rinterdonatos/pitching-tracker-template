@@ -2,7 +2,7 @@
    - p: an existing player row (edit) or an empty dict (add) #}
 <div class="field" style="border-top:1px solid #eee; padding-top:14px;">
   <label style="font-weight:700;">Measurables</label>
-  <div class="hint">For the player/parent to fill in &mdash; shows on the profile and the Recruiting Report.</div>
+  <div class="hint">For the player/parent to fill in - shows on the profile and the Recruiting Report.</div>
 </div>
 <div class="measurables-grid">
   <div class="field" style="margin-bottom:0;">
@@ -16,7 +16,7 @@
   <div class="field" style="margin-bottom:0;">
     <label for="bats">Bats</label>
     <select id="bats" name="bats">
-      <option value="" {% if not p['bats'] %}selected{% endif %}>&mdash;</option>
+      <option value="" {% if not p['bats'] %}selected{% endif %}>-</option>
       <option value="R" {% if p['bats'] == 'R' %}selected{% endif %}>Right</option>
       <option value="L" {% if p['bats'] == 'L' %}selected{% endif %}>Left</option>
       <option value="S" {% if p['bats'] == 'S' %}selected{% endif %}>Switch</option>
@@ -25,7 +25,7 @@
   <div class="field" style="margin-bottom:0;">
     <label for="throws">Throws</label>
     <select id="throws" name="throws">
-      <option value="" {% if not p['throws'] %}selected{% endif %}>&mdash;</option>
+      <option value="" {% if not p['throws'] %}selected{% endif %}>-</option>
       <option value="R" {% if p['throws'] == 'R' %}selected{% endif %}>Right</option>
       <option value="L" {% if p['throws'] == 'L' %}selected{% endif %}>Left</option>
     </select>

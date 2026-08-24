@@ -58,9 +58,9 @@
         {% for p in players %}
           <tr>
             <td>{{ p['name'] }}</td>
-            <td>{{ p['team_name'] or '—' }}</td>
-            <td>{{ p['position'] or '—' }}</td>
-            <td>{{ p['grad_year'] or '—' }}</td>
+            <td>{{ p['team_name'] or '-' }}</td>
+            <td>{{ p['position'] or '-' }}</td>
+            <td>{{ p['grad_year'] or '-' }}</td>
             <td>
               <form method="POST" action="{{ url_for('platform_delete_player', org_id=org['id'], player_id=p['id']) }}"
                     onsubmit="return confirm('Delete {{ p['name'] }}? This also removes their stats and videos. This can\'t be undone.');">

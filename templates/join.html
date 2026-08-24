@@ -30,7 +30,7 @@
         <p style="margin-top:14px; font-size:0.85rem;"><a href="{{ back_url }}">Back to sign in</a></p>
       {% else %}
         <h1>Join {{ org_name }}</h1>
-        <p class="login-sub">You've been invited. Fill this out once and you're in &mdash; you'll sign in with your email or phone and this password from now on.</p>
+        <p class="login-sub">You've been invited. Fill this out once and you're in - you'll sign in with your email or phone and this password from now on.</p>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
           {% if messages %}
@@ -52,7 +52,7 @@
           <div class="field">
             <label for="phone">Phone number</label>
             <input type="tel" id="phone" name="phone" autocomplete="tel">
-            <div class="hint">Fill in at least one &mdash; either can be used to sign in.</div>
+            <div class="hint">Fill in at least one - either can be used to sign in.</div>
           </div>
           <div class="field">
             <label for="password">Password *</label>

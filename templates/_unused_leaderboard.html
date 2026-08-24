@@ -61,7 +61,7 @@
             <tr>
               <td class="rank">{{ loop.index }}</td>
               <td><a href="{{ url_for('player_detail', player_id=r['player_id']) }}">{{ r['name'] }}{% if r['jersey_number'] %} #{{ r['jersey_number'] }}{% endif %}</a></td>
-              <td>{{ r['group_number'] or '—' }}</td>
+              <td>{{ r['group_number'] or '-' }}</td>
               <td class="stat-value-cell">{{ r['stat_value'] }}</td>
               <td>{{ r['entry_date'] }}</td>
             </tr>

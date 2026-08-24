@@ -132,9 +132,9 @@
     {% endif %}
     <span class="hint" style="align-self:center;">
       {% if is_default_range %}
-        Showing the last 12 months by default &mdash; pick an earlier "From" date or click "Show All Data" to go further back.
+        Showing the last 12 months by default - pick an earlier "From" date or click "Show All Data" to go further back.
       {% elif date_from or date_to %}
-        Showing {{ date_from or 'the beginning' }} through {{ date_to or 'today' }} &mdash; charts, tables, and videos.
+        Showing {{ date_from or 'the beginning' }} through {{ date_to or 'today' }} - charts, tables, and videos.
       {% else %}
         Showing all data. Pick dates to narrow the charts, tables, and videos.
       {% endif %}
@@ -216,7 +216,7 @@
     {% for s in tm_sessions %}
       <details style="background:#fff; border:1px solid var(--phx-border); border-radius:10px; padding:12px 16px; margin-bottom:10px;" {% if loop.first %}open{% endif %}>
         <summary style="cursor:pointer; font-weight:700;">
-          {{ s.date }} &mdash; {{ s.category }} &middot; {{ s.pitch_count }} pitches, {{ s.strikes }} strikes
+          {{ s.date }} - {{ s.category }} &middot; {{ s.pitch_count }} pitches, {{ s.strikes }} strikes
           ({{ ((s.strikes / s.pitch_count) * 100) | round(1) }}%)
         </summary>
 
@@ -358,7 +358,7 @@
           {% if group.videos | length > 1 %}
             <div class="video-group-nav">
               <button type="button" class="video-nav-btn" data-nav="prev" aria-label="Previous video">&larr;</button>
-              <span class="video-nav-count"><span class="video-nav-current">1</span> / {{ group.videos | length }} clips &mdash; {{ group.date }}</span>
+              <span class="video-nav-count"><span class="video-nav-current">1</span> / {{ group.videos | length }} clips - {{ group.date }}</span>
               <button type="button" class="video-nav-btn" data-nav="next" aria-label="Next video">&rarr;</button>
             </div>
           {% endif %}

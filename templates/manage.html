@@ -60,7 +60,7 @@
         {% endfor %}
         {% for r in manual_rows %}
           <tr class="manage-row">
-            <td>&mdash;</td>
+            <td>-</td>
             <td>{{ r['category'] }}</td>
             <td colspan="2" class="text-muted">Entries with no source file on record</td>
             <td>{{ r['player_count'] }}</td>
@@ -98,7 +98,7 @@
             <td><a href="{{ url_for('player_detail', player_id=v['player_id']) }}#video-{{ v['id'] }}">{{ v['player_name'] }}</a></td>
             <td>{{ v['entry_date'] }}</td>
             <td>{{ v['title'] }}</td>
-            <td>{{ v['category'] or '—' }}</td>
+            <td>{{ v['category'] or '-' }}</td>
             <td>
               {% if v['verified'] %}
                 <span class="badge success">Verified</span>

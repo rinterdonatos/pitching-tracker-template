@@ -16,9 +16,9 @@
           {% for c in pending %}
             <tr>
               <td>{{ c['name'] }}</td>
-              <td>{{ c['school'] or '—' }}</td>
+              <td>{{ c['school'] or '-' }}</td>
               <td>{{ c['email'] }}</td>
-              <td>{{ c['phone'] or '—' }}</td>
+              <td>{{ c['phone'] or '-' }}</td>
               <td>{{ c['created_at'] | friendly_time }}</td>
               <td style="white-space:nowrap;">
                 <form method="POST" action="{{ url_for('platform_approve_coach', coach_id=c['id']) }}" style="display:inline;">
@@ -48,9 +48,9 @@
           {% for c in approved %}
             <tr>
               <td>{{ c['name'] }}</td>
-              <td>{{ c['school'] or '—' }}</td>
+              <td>{{ c['school'] or '-' }}</td>
               <td>{{ c['email'] }}</td>
-              <td>{{ c['phone'] or '—' }}</td>
+              <td>{{ c['phone'] or '-' }}</td>
               <td>{{ c['created_at'] | friendly_time }}</td>
               <td>
                 <form method="POST" action="{{ url_for('platform_revoke_coach', coach_id=c['id']) }}" style="display:inline;" onsubmit="return confirm('Revoke this coach\'s access?');">

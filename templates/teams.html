@@ -40,7 +40,7 @@
     </div>
     {% if unassigned_count %}
       <p class="hint" style="margin-top:12px;">
-        {{ unassigned_count }} player{{ 's' if unassigned_count != 1 else '' }} not assigned to any team &mdash;
+        {{ unassigned_count }} player{{ 's' if unassigned_count != 1 else '' }} not assigned to any team -
         <a href="{{ url_for('index', team='none') }}">view them</a>.
       </p>
     {% endif %}
@@ -55,7 +55,7 @@
     <div class="field">
       <label for="name">Team Name</label>
       <input type="text" id="name" name="name" placeholder="e.g. 2027 - Red" required>
-      <div class="hint">Use whatever naming you like &mdash; grad year + color works well (2027 - Red, 2028 - Black, etc).</div>
+      <div class="hint">Use whatever naming you like - grad year + color works well (2027 - Red, 2028 - Black, etc).</div>
     </div>
     <div class="field">
       <label for="logo">Team Logo (optional)</label>
