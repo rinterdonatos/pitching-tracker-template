@@ -96,6 +96,45 @@ def send_reset_sms(to_phone, code, org_name=None):
     except Exception:
         return False
 
+
+def send_invite_email(to_addr, org_name, login_url):
+    msg = EmailMessage()
+    msg["Subject"] = f"You've been added to {org_name}"
+    msg["From"] = SMTP_FROM
+    msg["To"] = to_addr
+    msg.set_content(
+        f"You've been added to {org_name} on {PLATFORM_NAME}.\n\n"
+        f"Sign in here: {login_url}\n"
+        "Enter this email (or your phone number) and leave the password field blank - "
+        "you'll be prompted to create one."
+    )
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
+            s.starttls()
+            s.login(SMTP_USER, SMTP_PASSWORD)
+            s.send_message(msg)
+        return True
+    except Exception:
+        return False
+
+
+def send_invite_sms(to_phone, org_name, login_url):
+    to_number = f"+1{to_phone}" if len(to_phone) == 10 else f"+{to_phone}"
+    url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_SID}/Messages.json"
+    data = urllib.parse.urlencode({
+        "To": to_number,
+        "From": TWILIO_FROM,
+        "Body": f"You've been added to {org_name} on {PLATFORM_NAME}. Sign in and set your password: {login_url}",
+    }).encode()
+    req = urllib.request.Request(url, data=data)
+    auth = base64.b64encode(f"{TWILIO_SID}:{TWILIO_TOKEN}".encode()).decode()
+    req.add_header("Authorization", f"Basic {auth}")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return 200 <= resp.status < 300
+    except Exception:
+        return False
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # The database lives wherever PHX_DATA_DIR points - in production that's a
@@ -3101,7 +3140,18 @@ def add_user():
             (g.org["id"], name, email, phone, is_admin, player_id),
         )
         conn.commit()
-        flash(f"Added {name or email or phone}. They can now sign in and create their password.", "success")
+
+        login_url = url_for("login", org_slug=g.org["slug"], _external=True)
+        sent_via = []
+        if email and email_configured() and send_invite_email(email, g.org["name"], login_url):
+            sent_via.append("email")
+        if phone and sms_configured() and send_invite_sms(phone, g.org["name"], login_url):
+            sent_via.append("text")
+
+        if sent_via:
+            flash(f"Added {name or email or phone} and sent them an invite by {' and '.join(sent_via)}.", "success")
+        else:
+            flash(f"Added {name or email or phone}. They can now sign in and create their password.", "success")
     except sqlite3.IntegrityError:
         flash("A user with that email or phone already exists.", "error")
     conn.close()
