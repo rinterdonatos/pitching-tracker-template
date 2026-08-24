@@ -533,7 +533,7 @@ app.jinja_env.globals["media_url"] = media_url
 # pattern behind it.
 ORG_EXEMPT_ENDPOINTS = {
     "static", "landing", "home", "org_picker", "setup", "start", "join", "calendar_feed",
-    "terms", "privacy",
+    "terms", "privacy", "robots_txt", "sitemap_xml",
     # Machine-to-machine only, authenticated with its own shared-secret
     # token (see backup_db) rather than a user session - there's no human
     # login involved, so it must never be routed through the login redirect.
@@ -1732,6 +1732,40 @@ def terms():
 def privacy():
     """One Privacy Policy for the whole platform - see terms() above."""
     return render_template("privacy.html")
+
+
+@app.route("/robots.txt")
+def robots_txt():
+    """Deny-by-default: only the public marketing/legal pages are worth a
+    search engine indexing. Everything else either needs a login (so a
+    crawler would just hit a login form anyway) or is data about real kids
+    that has no business showing up in search results."""
+    lines = [
+        "User-agent: *",
+        "Disallow: /",
+        "Allow: /$",
+        "Allow: /start$",
+        "Allow: /home$",
+        "Allow: /terms$",
+        "Allow: /privacy$",
+        "",
+        f"Sitemap: {request.url_root.rstrip('/')}/sitemap.xml",
+    ]
+    return Response("\n".join(lines), mimetype="text/plain")
+
+
+@app.route("/sitemap.xml")
+def sitemap_xml():
+    pages = [
+        url_for("landing", _external=True),
+        url_for("start", _external=True),
+        url_for("terms", _external=True),
+        url_for("privacy", _external=True),
+    ]
+    xml = ['<?xml version="1.0" encoding="UTF-8"?>', '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
+    xml += [f"  <url><loc>{p}</loc></url>" for p in pages]
+    xml.append("</urlset>")
+    return Response("\n".join(xml), mimetype="application/xml")
 
 
 @app.route("/login")
