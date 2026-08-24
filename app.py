@@ -191,7 +191,7 @@ PLAYER_MEASURABLE_LABELS = {
 app = Flask(__name__)
 app.secret_key = os.environ.get("PHX_SECRET_KEY", "phoenix-pitching-lab-tracker")
 app.config["MAX_CONTENT_LENGTH"] = 1024 * 1024 * 1024  # 1 GB max upload (videos)
-app.permanent_session_lifetime = timedelta(days=30)
+app.permanent_session_lifetime = timedelta(days=365)
 
 os.makedirs(VIDEO_DIR, exist_ok=True)
 os.makedirs(PHOTO_DIR, exist_ok=True)
