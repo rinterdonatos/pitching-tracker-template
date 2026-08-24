@@ -481,6 +481,7 @@ ORG_EXEMPT_ENDPOINTS = {
     # one org's data is never confused with another's.
     "platform_organizations", "platform_org_detail", "platform_save_team", "platform_delete_team",
     "platform_delete_player", "platform_verify_video", "platform_delete_video", "platform_enter_org",
+    "platform_delete_org",
     "platform_admins_page", "platform_admin_add", "platform_admin_delete",
 }
 
@@ -2781,6 +2782,68 @@ def platform_enter_org(org_id):
     session["player_id"] = owner["player_id"]
     session["organization_id"] = org_id
     return redirect(url_for("index", org_slug=org["slug"]))
+
+
+@app.route("/platform/organizations/<int:org_id>/delete", methods=["POST"])
+@platform_admin_required
+def platform_delete_org(org_id):
+    """Permanently wipes an entire organization - every team, player, stat,
+    video, comment, invite, and login. Deliberately hard to trigger by
+    accident: reaching this requires already being on that one org's detail
+    page, expanding the collapsed Danger Zone, and typing the organization's
+    exact name into a field the submit button stays disabled without (see
+    platform_org_detail.html) - re-checked here server-side too, since a
+    client-side check alone is just a suggestion."""
+    conn = get_db()
+    org = conn.execute("SELECT * FROM organizations WHERE id = ?", (org_id,)).fetchone()
+    if not org:
+        conn.close()
+        abort(404)
+
+    confirm_name = (request.form.get("confirm_name") or "").strip()
+    if confirm_name != org["name"]:
+        conn.close()
+        flash(f'That didn\'t match "{org["name"]}" exactly, so nothing was deleted.', "error")
+        return redirect(url_for("platform_org_detail", org_id=org_id))
+
+    # Every R2 object this org owns has to be gathered before any row is
+    # deleted - there's no way to look these filenames up again afterward.
+    photo_files = [r["photo_filename"] for r in conn.execute(
+        "SELECT photo_filename FROM players WHERE organization_id = ? AND photo_filename IS NOT NULL", (org_id,)
+    ).fetchall()]
+    video_files = [r["filename"] for r in conn.execute(
+        "SELECT filename FROM videos WHERE organization_id = ?", (org_id,)
+    ).fetchall()]
+    team_logo_files = [r["logo_filename"] for r in conn.execute(
+        "SELECT logo_filename FROM teams WHERE organization_id = ? AND logo_filename IS NOT NULL", (org_id,)
+    ).fetchall()]
+
+    # Deletion order matters under PRAGMA foreign_keys = ON (see get_db()).
+    # Deleting players first cascades to their stat entries, videos,
+    # trackman rows, comments, and contacts automatically (all declared
+    # ON DELETE CASCADE off players.id); deleting throwing_entries cascades
+    # to calendar comments the same way. teams/invite_links/users have no
+    # cascade tied to organizations, so they're deleted explicitly.
+    conn.execute("DELETE FROM players WHERE organization_id = ?", (org_id,))
+    conn.execute("DELETE FROM throwing_entries WHERE organization_id = ?", (org_id,))
+    conn.execute("DELETE FROM teams WHERE organization_id = ?", (org_id,))
+    conn.execute("DELETE FROM invite_links WHERE organization_id = ?", (org_id,))
+    conn.execute("DELETE FROM users WHERE organization_id = ?", (org_id,))
+    conn.execute("DELETE FROM organizations WHERE id = ?", (org_id,))
+    conn.commit()
+    conn.close()
+
+    for fn in photo_files:
+        delete_media(f"uploads/photos/{fn}")
+    for fn in video_files:
+        delete_media(f"uploads/videos/{fn}")
+    for fn in team_logo_files:
+        delete_media(f"uploads/team-logos/{fn}")
+    if org["logo_filename"]:
+        delete_media(f"uploads/logos/{org['logo_filename']}")
+
+    flash(f'{org["name"]} and everything in it has been permanently deleted.', "success")
+    return redirect(url_for("platform_organizations"))
 
 
 # ---------- Routes: platform admins (invite/manage other platform admins) ----------

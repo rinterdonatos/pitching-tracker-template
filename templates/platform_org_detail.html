@@ -112,4 +112,36 @@
   {% else %}
     <p class="hint">No videos yet.</p>
   {% endif %}
+
+  <div class="section-title" style="color:var(--phx-red);">Danger Zone</div>
+  <details>
+    <summary class="text-muted" style="cursor:pointer;">Delete this organization</summary>
+    <div class="card-form" style="border:1.5px solid var(--phx-red); margin-top:10px; max-width:480px;">
+      <p style="margin-top:0;">
+        This permanently deletes <strong>{{ org['name'] }}</strong> - all {{ teams|length }} team(s),
+        {{ players|length }} player(s), {{ videos|length }} video(s), every stat entry, comment, and login.
+        There is no undo and no recovery.
+      </p>
+      <form method="POST" action="{{ url_for('platform_delete_org', org_id=org['id']) }}"
+            onsubmit="return confirm('Absolutely sure? This deletes {{ org['name'] }} and everything in it, permanently.');">
+        <div class="field">
+          <label for="confirm_name">Type the organization's exact name to confirm: <strong>{{ org['name'] }}</strong></label>
+          <input type="text" id="confirm_name" name="confirm_name" autocomplete="off" required>
+        </div>
+        <button class="btn danger" type="submit" id="confirm-delete-org-btn" disabled>Permanently Delete {{ org['name'] }}</button>
+      </form>
+    </div>
+  </details>
+  <script>
+    // Submit button stays disabled until the typed name matches exactly -
+    // makes the last confirm() dialog a second gate, not the only one.
+    const confirmInput = document.getElementById('confirm_name');
+    const confirmBtn = document.getElementById('confirm-delete-org-btn');
+    const orgName = {{ org['name'] | tojson }};
+    if (confirmInput && confirmBtn) {
+      confirmInput.addEventListener('input', () => {
+        confirmBtn.disabled = confirmInput.value !== orgName;
+      });
+    }
+  </script>
 {% endblock %}
