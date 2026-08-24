@@ -7,6 +7,7 @@ import random
 import secrets
 import smtplib
 import tempfile
+import traceback
 import urllib.parse
 import urllib.request
 from email.message import EmailMessage
@@ -18,6 +19,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, sen
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.exceptions import HTTPException
 from flask_wtf import CSRFProtect
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -4938,9 +4940,70 @@ def verify_video(video_id):
     return redirect(url_for("manage_uploads"))
 
 
+# ---------- Error pages + lightweight crash alerting ----------
+#
+# There's no third-party error-monitoring service (Sentry, etc.) wired up -
+# that would need its own account/DSN - so this is a low-tech stand-in:
+# log the traceback and, if email is configured, send it to SUPPORT_EMAIL.
+# Throttled per error type so a bug that fires on every request sends one
+# email instead of flooding the inbox.
+
+_last_crash_alert_at = {}
+_CRASH_ALERT_COOLDOWN_SECONDS = 600  # at most one email per error type / 10 min
+
+
+def _maybe_email_crash_alert(subject, body):
+    if not email_configured():
+        return
+    now = datetime.now()
+    last = _last_crash_alert_at.get(subject)
+    if last and (now - last).total_seconds() < _CRASH_ALERT_COOLDOWN_SECONDS:
+        return
+    _last_crash_alert_at[subject] = now
+    try:
+        msg = EmailMessage()
+        msg["Subject"] = subject
+        msg["From"] = SMTP_FROM
+        msg["To"] = SUPPORT_EMAIL
+        msg.set_content(body)
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
+            s.starttls()
+            s.login(SMTP_USER, SMTP_PASSWORD)
+            s.send_message(msg)
+    except Exception:
+        pass  # the alert itself failing shouldn't ever crash the request
+
+
+@app.errorhandler(404)
+def handle_not_found(e):
+    return render_template("404.html"), 404
+
+
+@app.errorhandler(500)
+def handle_server_error(e):
+    return render_template("500.html"), 500
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(e):
+    """Catches anything that isn't an HTTPException (a raw KeyError,
+    sqlite3.Error, etc.) - real bugs, not routine 404s/403s. Those still
+    fall through to Flask's normal handling (or the 404/500 handlers
+    above), so a Flask-Limiter 429 or an abort(403) isn't mistaken for a
+    crash."""
+    if isinstance(e, HTTPException):
+        return e
+    app.logger.exception("Unhandled exception")
+    _maybe_email_crash_alert(
+        f"{PLATFORM_NAME} error: {type(e).__name__}",
+        f"{request.method} {request.path}\n\n{traceback.format_exc()}",
+    )
+    return render_template("500.html"), 500
+
+
 if __name__ == "__main__":
     init_db()
-    print("\nSwarm Baseball Progress Tracker")
+    print(f"\n{PLATFORM_NAME}")
     print("Open http://127.0.0.1:5000 in your browser. Press Ctrl+C to stop.")
     print("First visit? You'll be asked to create your admin account.\n")
     app.run(debug=True, host="127.0.0.1", port=5000)
