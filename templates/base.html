@@ -41,9 +41,6 @@
         <a href="{{ url_for('manage_uploads') }}" class="{{ 'active' if request.endpoint == 'manage_uploads' }}">Manage Uploads</a>
         <a href="{{ url_for('users_page') }}" class="{{ 'active' if request.endpoint == 'users_page' }}">Users</a>
       {% endif %}
-      {% if session.get('is_platform_admin') %}
-        <a href="{{ url_for('platform_coaches') }}" class="{{ 'active' if request.endpoint in ['platform_coaches'] }}">Coach Approvals</a>
-      {% endif %}
       <a href="{{ url_for('account') }}" class="{{ 'active' if request.endpoint == 'account' }}">Account</a>
       <form method="POST" action="{{ url_for('logout') }}" style="display:inline;">
         <button type="submit" class="nav-logout">Log Out</button>

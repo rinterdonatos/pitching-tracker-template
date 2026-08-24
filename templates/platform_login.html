@@ -1,0 +1,17 @@
+{% extends "platform_base.html" %}
+{% block title %}Platform Admin Login{% endblock %}
+{% block content %}
+  <div class="page-title"><h2>Platform Admin</h2></div>
+  <form class="card-form" method="POST" action="{{ url_for('platform_login', next=next) }}" style="max-width:380px;">
+    <div class="field">
+      <label for="email">Email</label>
+      <input type="email" id="email" name="email" required autofocus>
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" required>
+    </div>
+    <input type="hidden" name="next" value="{{ next }}">
+    <button class="btn" type="submit">Log In</button>
+  </form>
+{% endblock %}

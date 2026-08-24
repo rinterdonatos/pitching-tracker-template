@@ -249,8 +249,8 @@ R2_SECRET_ACCESS_KEY = os.environ.get("R2_SECRET_ACCESS_KEY", "")
 R2_BUCKET_NAME = os.environ.get("R2_BUCKET_NAME", "")
 BACKUP_TOKEN = os.environ.get("PHX_BACKUP_TOKEN", "")
 
-# One-time bootstrap for granting the platform-owner role (see
-# claim_platform_admin below) - separate secret from the backup token so
+# One-time bootstrap for creating a platform-owner login (see
+# create_platform_admin below) - separate secret from the backup token so
 # the two aren't interchangeable.
 OWNER_TOKEN = os.environ.get("PHX_OWNER_TOKEN", "")
 BACKUP_RETENTION = 30  # keep the last 30 nightly snapshots, prune anything older
@@ -311,33 +311,66 @@ def backup_db():
             pass
 
 
-@app.route("/internal/claim-platform-admin", methods=["POST"])
-def claim_platform_admin():
+@app.route("/internal/create-platform-admin", methods=["POST"])
+def create_platform_admin():
     """One-time bootstrap for the actual platform owner (you, running the
-    whole product) to grant yourself is_platform_admin - the flag that
-    unlocks /platform/... (cross-org dashboard, coach approvals). Every
-    self-serve org (see /start) explicitly sets this to 0 for its own
-    owner, since a travel-ball coach who signs up for their own team site
-    should only ever have power over their own org, never anyone else's.
-    Token-protected the same way /internal/backup-db is - there's no
-    logged-in platform admin yet the first time this gets called, so a
-    session check can't be the gate."""
+    whole product) to create your own standalone login - completely
+    separate from organizations/users, since running MoundHQ isn't "being
+    an organization." Token-protected the same way /internal/backup-db is:
+    there's no logged-in platform admin yet the first time this gets
+    called, so a session check can't be the gate. Safe to call again later
+    to add a second platform admin (e.g. a co-founder)."""
     if not OWNER_TOKEN or request.headers.get("X-Owner-Token") != OWNER_TOKEN:
         abort(403)
+    name = (request.form.get("name") or "").strip()
     email = (request.form.get("email") or "").strip().lower()
-    if not email:
-        return {"ok": False, "error": "Missing 'email'."}, 400
+    password = request.form.get("password") or ""
+    if not name or not email or not password:
+        return {"ok": False, "error": "Missing 'name', 'email', or 'password'."}, 400
+    if len(password) < 8:
+        return {"ok": False, "error": "Password must be at least 8 characters."}, 400
 
     conn = get_db()
-    user = conn.execute("SELECT id, name, organization_id FROM users WHERE lower(email) = ?", (email,)).fetchone()
-    if not user:
+    try:
+        conn.execute(
+            "INSERT INTO platform_admins (name, email, password_hash) VALUES (?, ?, ?)",
+            (name, email, generate_password_hash(password)),
+        )
+        conn.commit()
+    except sqlite3.IntegrityError:
         conn.close()
-        return {"ok": False, "error": f"No user found with email {email}."}, 404
-
-    conn.execute("UPDATE users SET is_platform_admin = 1 WHERE id = ?", (user["id"],))
-    conn.commit()
+        return {"ok": False, "error": f"A platform admin with email {email} already exists."}, 409
     conn.close()
-    return {"ok": True, "granted_to": email, "user_id": user["id"]}
+    return {"ok": True, "email": email}
+
+
+@app.route("/platform/login", methods=["GET", "POST"])
+def platform_login():
+    if request.method == "POST":
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        conn = get_db()
+        admin = conn.execute("SELECT * FROM platform_admins WHERE lower(email) = ?", (email,)).fetchone()
+        conn.close()
+        if not admin or not check_password_hash(admin["password_hash"], password):
+            flash("Incorrect email or password.", "error")
+            return redirect(url_for("platform_login", next=request.args.get("next", "")))
+        session.clear()
+        session.permanent = True
+        session["platform_admin_id"] = admin["id"]
+        session["platform_admin_name"] = admin["name"]
+        flash(f"Welcome back, {admin['name']}.", "success")
+        next_url = request.form.get("next") or url_for("platform_organizations")
+        return redirect(next_url)
+    return render_template("platform_login.html", next=request.args.get("next", ""))
+
+
+@app.route("/platform/logout", methods=["POST"])
+def platform_logout():
+    session.pop("platform_admin_id", None)
+    session.pop("platform_admin_name", None)
+    flash("Signed out.", "success")
+    return redirect(url_for("platform_login"))
 
 
 # ---------- Uploaded media (Cloudflare R2) ----------
@@ -429,7 +462,10 @@ ORG_EXEMPT_ENDPOINTS = {
     # Machine-to-machine only, authenticated with its own shared-secret
     # token (see backup_db) rather than a user session - there's no human
     # login involved, so it must never be routed through the login redirect.
-    "backup_db", "claim_platform_admin",
+    "backup_db", "create_platform_admin",
+    # Platform admin's own login - has to be reachable while logged out,
+    # same as the org login/coach login routes below.
+    "platform_login", "platform_logout",
     # College-recruiting coach portal: coaches aren't members of any one
     # organization - they browse opted-in players across all of them - so
     # these routes live outside the /<org_slug>/ scheme entirely and use
@@ -623,6 +659,18 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             organization_id INTEGER REFERENCES organizations(id),
             name TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+
+        -- Whoever runs MoundHQ itself, not a customer. Deliberately its own
+        -- table rather than a flag on organizations.users - running the
+        -- product isn't "being an organization," so this identity has to
+        -- exist outside that whole tree, the same way coaches does.
+        CREATE TABLE IF NOT EXISTS platform_admins (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
             created_at TEXT DEFAULT (datetime('now'))
         );
 
@@ -1132,20 +1180,13 @@ def init_db():
     )
     conn.commit()
 
-    # Platform admin: gates the coach-approval page. This is a platform-owner
-    # role, separate from any one organization's admin/owner - it's whoever
-    # actually runs this site as a product. Backfilled to the very first
-    # user account ever created (id 1), since that's whoever ran first-time
-    # setup before any organization existed.
+    # No longer used for gating anything (see platform_admins table instead)
+    # - kept only so older code paths that still read/write this column on
+    # a user row (login, /setup, /start, join) don't break on a fresh DB.
     user_cols_now = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
     if "is_platform_admin" not in user_cols_now:
         conn.execute("ALTER TABLE users ADD COLUMN is_platform_admin INTEGER DEFAULT 0")
         conn.commit()
-    if conn.execute("SELECT COUNT(*) FROM users WHERE is_platform_admin = 1").fetchone()[0] == 0:
-        first_user = conn.execute("SELECT id FROM users ORDER BY id ASC LIMIT 1").fetchone()
-        if first_user:
-            conn.execute("UPDATE users SET is_platform_admin = 1 WHERE id = ?", (first_user["id"],))
-            conn.commit()
 
     conn.close()
 
@@ -1491,13 +1532,26 @@ def admin_required(f):
 
 
 def platform_admin_required(f):
-    """Gates the coach-approval page. This is a platform-owner permission,
-    not a per-organization one - it's whoever actually runs this site as a
-    product, not any one customer's team admin."""
+    """Gates the entire platform-owner side of the site (cross-org
+    organizations dashboard, coach approvals) behind its own standalone
+    login - platform_admins is a completely separate table from
+    organizations/users, on purpose. Running MoundHQ as a product isn't
+    "being an organization," so the owner shouldn't need a fake team site
+    of their own just to get an account. Same reasoning as coach_required
+    below using its own coaches table instead of users."""
     @wraps(f)
     def wrapper(*args, **kwargs):
-        if not session.get("is_platform_admin"):
-            abort(403)
+        admin_id = session.get("platform_admin_id")
+        if not admin_id:
+            return redirect(url_for("platform_login", next=request.path))
+        conn = get_db()
+        admin = conn.execute("SELECT * FROM platform_admins WHERE id = ?", (admin_id,)).fetchone()
+        conn.close()
+        if not admin:
+            session.pop("platform_admin_id", None)
+            session.pop("platform_admin_name", None)
+            return redirect(url_for("platform_login", next=request.path))
+        g.platform_admin = admin
         return f(*args, **kwargs)
     return wrapper
 
