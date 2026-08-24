@@ -18,7 +18,7 @@
               {% if manageable and not u['is_admin'] %}
                 <form method="POST" action="{{ url_for('link_user_player', user_id=u['id']) }}">
                   <select name="player_id" onchange="this.form.submit()" style="font-size:0.78rem; padding:2px 4px;">
-                    <option value="">- none -</option>
+                    <option value="">None</option>
                     {% for p in all_players %}
                       <option value="{{ p['id'] }}" {% if u['player_id'] == p['id'] %}selected{% endif %}>{{ p['name'] }}</option>
                     {% endfor %}
@@ -83,7 +83,7 @@
       <div class="field">
         <label for="phone">Phone number</label>
         <input type="tel" id="phone" name="phone">
-        <div class="hint">Fill in at least one of email / phone - they'll sign in with whichever you add (or either, if both).</div>
+        <div class="hint">Fill in at least one of email / phone. They'll sign in with whichever you add (or either, if both).</div>
       </div>
       <div class="field" id="player-link-field">
         <label for="player_id">Link to a player (optional)</label>
@@ -93,7 +93,7 @@
             <option value="{{ p['id'] }}">{{ p['name'] }}</option>
           {% endfor %}
         </select>
-        <div class="hint">For a parent or player account - they'll land straight on that player's page when they sign in. Admins don't get a linked player.</div>
+        <div class="hint">For a parent or player account. They'll land straight on that player's page when they sign in. Admins don't get a linked player.</div>
       </div>
       <div class="field">
         <label style="font-weight:400;"><input type="checkbox" id="is-admin-check" name="is_admin" value="1" onchange="document.getElementById('player-link-field').style.display = this.checked ? 'none' : ''"> Make this person an admin (near-full access, same as site owner)</label>
@@ -105,7 +105,7 @@
   <details class="page-section" open>
     <summary class="section-title">Invite Links</summary>
     <p class="hint" style="max-width:640px;">
-      Or send people a link instead - anyone who opens it enters their own name, email/phone,
+      Or send people a link instead. Anyone who opens it enters their own name, email/phone,
       and password, and joins as a member. Links work for 7 days; deactivate one anytime.
     </p>
     <form method="POST" action="{{ url_for('create_invite') }}" style="margin-bottom:12px;">
@@ -153,7 +153,7 @@
       {{ user_table(admins) }}
       <p class="hint user-empty-hint" hidden>No match in this section.</p>
     {% else %}
-      <p class="hint">No admins yet - promote a member with "Make Admin" or check the admin box when inviting.</p>
+      <p class="hint">No admins yet. Promote a member with "Make Admin" or check the admin box when inviting.</p>
     {% endif %}
   </details>
 
@@ -163,7 +163,7 @@
       {{ user_table(members) }}
       <p class="hint user-empty-hint" hidden>No match in this section.</p>
     {% else %}
-      <p class="hint">No members yet - invite someone above or send them an invite link.</p>
+      <p class="hint">No members yet. Invite someone above or send them an invite link.</p>
     {% endif %}
   </details>
 

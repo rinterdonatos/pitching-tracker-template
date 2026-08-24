@@ -7,7 +7,7 @@
 
   <p class="hint" style="max-width:640px;">
     Schools on this list show a logo automatically next to a player's committed status (pulled from the school's
-    website domain). Add any school you need - it doesn't have to be on here to type it into "Committed To",
+    website domain). Add any school you need. It doesn't have to be on here to type it into "Committed To",
     but it won't have a logo until it is.
   </p>
 
@@ -21,7 +21,7 @@
             {% endif %}
             <h3 style="margin:0;">{{ s['name'] }}</h3>
           </div>
-          <div class="meta">{{ s['domain'] or 'No domain set - no logo yet' }}</div>
+          <div class="meta">{{ s['domain'] or 'No domain set, no logo yet' }}</div>
           <form method="POST" action="{{ url_for('delete_school', school_id=s['id']) }}" style="margin-top:10px;"
                 onsubmit="return confirm('Remove {{ s['name'] }} from the list?');">
             <button class="btn secondary" type="submit" style="color:var(--phx-red);">Remove</button>
@@ -44,7 +44,7 @@
     <div class="field">
       <label for="domain">Website Domain</label>
       <input type="text" id="domain" name="domain" placeholder="e.g. duke.edu">
-      <div class="hint">Used to pull the logo automatically. Leave blank if you're not sure - you can add it later.</div>
+      <div class="hint">Used to pull the logo automatically. Leave blank if you're not sure. You can add it later.</div>
     </div>
     <button class="btn" type="submit">Add School</button>
   </form>

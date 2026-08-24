@@ -2,7 +2,7 @@
 {% block title %}Calendar - {{ org_name }}{% endblock %}
 {% block content %}
   <div class="page-title">
-    <h2>Lesson Calendar{% if current_team %} - {{ current_team['name'] }}{% endif %}</h2>
+    <h2>Lesson Calendar{% if current_team %}: {{ current_team['name'] }}{% endif %}</h2>
   </div>
 
   <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:16px;">
@@ -18,8 +18,8 @@
   <details class="page-section" style="margin-bottom:18px;">
     <summary class="section-title" style="margin:0 0 10px;">Subscribe to This Calendar</summary>
     <p class="hint" style="margin:0 0 10px;">
-      Add this to Google or Apple Calendar and it'll stay up to date on its own -
-      no need to check the site. This link shows {% if current_team %}the {{ current_team['name'] }} calendar (plus General){% else %}the General calendar{% endif %}.
+      Add this to Google or Apple Calendar and it'll stay up to date on its own,
+      so there's no need to check the site. This link shows {% if current_team %}the {{ current_team['name'] }} calendar (plus General){% else %}the General calendar{% endif %}.
     </p>
     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
       <a class="btn secondary" href="{{ feed_url | replace('https://', 'webcal://') | replace('http://', 'webcal://') }}">Add to Apple Calendar</a>
@@ -90,7 +90,7 @@
         <div class="field">
           <label for="modal-message">Event{% if current_team %} ({{ current_team['name'] }}){% else %} (General){% endif %}</label>
           <input type="text" id="modal-message" name="message" placeholder="e.g. Jake Thompson - Bullpen" required>
-          <div class="hint">Player name, session type - whatever's useful.</div>
+          <div class="hint">Player name, session type, whatever's useful.</div>
         </div>
         <div class="field">
           <label for="modal-time">Time (optional)</label>
@@ -165,7 +165,7 @@
     const modal = document.getElementById('day-modal');
     function openDayModal(iso) {
       document.getElementById('modal-entry-date').value = iso;
-      document.getElementById('modal-date-label').textContent = '- ' + iso;
+      document.getElementById('modal-date-label').textContent = '(' + iso + ')';
       modal.style.display = 'flex';
       setTimeout(() => document.getElementById('modal-message').focus(), 50);
     }
@@ -442,7 +442,7 @@
     <div class="field">
       <label for="message">Message</label>
       <input type="text" id="message" name="message" placeholder="e.g. Jake Thompson - Bullpen" required>
-      <div class="hint">Write whatever's useful - player name, session type, anything.</div>
+      <div class="hint">Write whatever's useful: player name, session type, anything.</div>
     </div>
     <div class="field">
       <label for="event_time">Time (optional)</label>
