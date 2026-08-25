@@ -328,6 +328,12 @@
                   <button class="btn secondary" type="submit" style="margin-top:6px;">Unpin</button>
                 </form>
               {% endif %}
+              {% if can_edit and player['recruiting_opt_in'] %}
+                <form method="POST" action="{{ url_for('toggle_video_recruiting_visible', video_id=v['id']) }}" style="display:inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="btn secondary" type="submit" style="margin-top:6px;">{{ 'Hide from Recruiters' if v['recruiting_visible'] else 'Show to Recruiters' }}</button>
+                </form>
+                {% if not v['recruiting_visible'] %}<span style="display:inline-block; font-size:0.72rem; color:var(--text-muted, #888); margin-left:4px;">Hidden from recruiters</span>{% endif %}
+              {% endif %}
               {% if not is_coach_view and session.get('is_admin') %}
                 <form method="POST" action="{{ url_for('delete_video', video_id=v['id']) }}" style="display:inline;" onsubmit="return confirm('Remove this video?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="btn danger" type="submit" style="margin-top:6px;">Remove</button>
@@ -404,6 +410,12 @@
                   <form method="POST" action="{{ url_for('toggle_video_pin', video_id=v['id']) }}" style="display:inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button class="btn secondary" type="submit" style="margin-top:6px;">{{ 'Unpin' if v['pinned'] else 'Pin to Top' }}</button>
                   </form>
+                {% endif %}
+                {% if can_edit and player['recruiting_opt_in'] %}
+                  <form method="POST" action="{{ url_for('toggle_video_recruiting_visible', video_id=v['id']) }}" style="display:inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn secondary" type="submit" style="margin-top:6px;">{{ 'Hide from Recruiters' if v['recruiting_visible'] else 'Show to Recruiters' }}</button>
+                  </form>
+                  {% if not v['recruiting_visible'] %}<span style="display:inline-block; font-size:0.72rem; color:var(--text-muted, #888); margin-left:4px;">Hidden from recruiters</span>{% endif %}
                 {% endif %}
                 {% if not is_coach_view and session.get('is_admin') %}
                   <form method="POST" action="{{ url_for('delete_video', video_id=v['id']) }}" style="display:inline;" onsubmit="return confirm('Remove this video?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

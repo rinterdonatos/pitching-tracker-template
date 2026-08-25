@@ -1120,6 +1120,14 @@ def init_db():
         conn.execute("ALTER TABLE videos ADD COLUMN thumbnail_filename TEXT")
         conn.commit()
 
+    # Migration: a player can opt in to recruiting visibility overall and
+    # still not want every single clip shown to college coaches (a rough
+    # bullpen, something still being worked on, etc.) - defaults to 1 so
+    # every existing video stays visible exactly as it already was.
+    if "recruiting_visible" not in video_cols:
+        conn.execute("ALTER TABLE videos ADD COLUMN recruiting_visible INTEGER DEFAULT 1")
+        conn.commit()
+
     # Migration: add group_number to a players table that existed before this column did.
     existing_cols = {row["name"] for row in conn.execute("PRAGMA table_info(players)")}
     if "group_number" not in existing_cols:
@@ -2747,7 +2755,7 @@ def coach_feed():
                 WHERE lower(stat_name) LIKE '%velo%'
                 GROUP BY player_id
             ) bv ON bv.player_id = v.player_id
-            WHERE {where_sql}
+            WHERE {where_sql} AND v.recruiting_visible = 1
             ORDER BY v.entry_date DESC, v.id DESC""",
         [g.coach["id"], g.coach["id"]] + params,
     ).fetchall()
@@ -2769,7 +2777,7 @@ def coach_favorite_toggle(video_id):
     # stale favorite shouldn't be a backdoor to a video that's no longer opted in.
     video = conn.execute(
         """SELECT v.id FROM videos v JOIN players p ON p.id = v.player_id
-           WHERE v.id = ? AND p.recruiting_opt_in = 1""",
+           WHERE v.id = ? AND p.recruiting_opt_in = 1 AND v.recruiting_visible = 1""",
         (video_id,),
     ).fetchone()
     if not video:
@@ -2809,7 +2817,7 @@ def coach_favorites():
            JOIN players p ON p.id = v.player_id
            LEFT JOIN teams t ON t.id = p.team_id
            JOIN organizations o ON o.id = p.organization_id
-           WHERE vf.coach_id = ? AND p.recruiting_opt_in = 1 AND {not_graduated}
+           WHERE vf.coach_id = ? AND p.recruiting_opt_in = 1 AND v.recruiting_visible = 1 AND {not_graduated}
            ORDER BY vf.created_at DESC""".format(not_graduated=COACH_NOT_GRADUATED_SQL),
         (g.coach["id"], g.coach["id"], _coach_grad_year_cutoff()),
     ).fetchall()
@@ -2841,7 +2849,7 @@ def coach_player_detail(player_id):
         abort(404)
 
     date_from, date_to, is_default_range = _player_date_range_from_request()
-    ctx = _build_player_profile_context(conn, player_id, date_from, date_to)
+    ctx = _build_player_profile_context(conn, player_id, date_from, date_to, is_coach_view=True)
 
     is_followed = conn.execute(
         "SELECT 1 FROM player_follows WHERE coach_id = ? AND player_id = ?",
@@ -3928,7 +3936,7 @@ def add_player():
     return render_template("add_player.html", teams=all_teams, contacts=[])
 
 
-def _build_player_profile_context(conn, player_id, date_from, date_to):
+def _build_player_profile_context(conn, player_id, date_from, date_to, is_coach_view=False):
     """Everything a player's profile page needs, besides the `player` row
     itself: stat tables, velocity charts, video timeline, comments, TrackMan
     sessions. Shared between the org-member player page and the coach
@@ -3959,9 +3967,14 @@ def _build_player_profile_context(conn, player_id, date_from, date_to):
         )
 
     # Pinned clips float to the top of the timeline ahead of everything else,
-    # then it's newest-first as usual.
+    # then it's newest-first as usual. A player/team can mark individual
+    # clips as not visible to recruiters even while opted in overall (e.g. a
+    # rough bullpen they don't want a college coach's first impression to
+    # be) - that only applies to the coach-portal view; the org's own site
+    # always shows every video regardless of recruiting_visible.
+    visibility_cond = " AND recruiting_visible = 1" if is_coach_view else ""
     videos = conn.execute(
-        f"SELECT * FROM videos WHERE player_id = ?{date_conds} ORDER BY pinned DESC, entry_date DESC, id DESC",
+        f"SELECT * FROM videos WHERE player_id = ?{date_conds}{visibility_cond} ORDER BY pinned DESC, entry_date DESC, id DESC",
         (player_id, *date_params),
     ).fetchall()
 
@@ -5312,6 +5325,31 @@ def toggle_video_pin(video_id):
     player_id = video["player_id"]
     conn.close()
     flash("Pinned to the top of the timeline." if new_pinned else "Unpinned.", "success")
+    return redirect(url_for("player_detail", player_id=player_id) + f"#video-{video_id}")
+
+
+@app.route("/<org_slug>/videos/<int:video_id>/toggle-recruiting-visible", methods=["POST"])
+def toggle_video_recruiting_visible(video_id):
+    conn = get_db()
+    video = conn.execute(
+        "SELECT * FROM videos WHERE id = ? AND organization_id = ?", (video_id, g.org["id"])
+    ).fetchone()
+    if not video:
+        conn.close()
+        abort(404)
+    # Same permission model as pinning: admins/owners or the account linked
+    # to this exact player. A player who's opted in to recruiting overall can
+    # still keep individual clips (a rough bullpen, a work-in-progress rep)
+    # out of what college coaches see without opting out entirely.
+    if not session.get("is_admin") and session.get("player_id") != video["player_id"]:
+        conn.close()
+        abort(403)
+    new_visible = 0 if video["recruiting_visible"] else 1
+    conn.execute("UPDATE videos SET recruiting_visible = ? WHERE id = ?", (new_visible, video_id))
+    conn.commit()
+    player_id = video["player_id"]
+    conn.close()
+    flash("Visible to recruiters again." if new_visible else "Hidden from recruiters.", "success")
     return redirect(url_for("player_detail", player_id=player_id) + f"#video-{video_id}")
 
 
