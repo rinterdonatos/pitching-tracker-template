@@ -1894,7 +1894,7 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 
 .feed-mute-btn {
   position: absolute;
-  top: 16px;
+  top: 64px;
   right: 16px;
   background: rgba(0, 0, 0, 0.4);
   border: none;
