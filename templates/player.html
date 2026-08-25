@@ -311,6 +311,15 @@
             <video controls preload="metadata" src="{{ media_url('uploads/videos/' ~ v['filename']) }}"></video>
             <div class="info">
               <span class="date-tag">{{ v['entry_date'] }}</span>
+              {% if can_edit %}
+                <details style="display:inline-block; margin-left:6px;">
+                  <summary style="cursor:pointer; font-size:0.78rem; color:var(--phx-blue); display:inline;">Edit date</summary>
+                  <form method="POST" action="{{ url_for('edit_video_date', video_id=v['id']) }}" style="display:inline-flex; gap:6px; align-items:center; margin-top:4px;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input type="date" name="entry_date" value="{{ v['entry_date'] }}" required style="padding:4px 6px; font-size:16px;">
+                    <button class="btn secondary" type="submit" style="padding:4px 10px; font-size:0.8rem;">Save</button>
+                  </form>
+                </details>
+              {% endif %}
               <h4>{{ v['title'] }}{% if v['category'] %} <span class="text-muted" style="font-weight:400;">&middot; {{ v['category'] }}</span>{% endif %}</h4>
               {% if v['notes'] %}<p>{{ v['notes'] }}</p>{% endif %}
               {% with day_stats = stats_by_date.get(v['entry_date']) %}{% include "_day_stats.html" %}{% endwith %}
@@ -380,6 +389,15 @@
               <div class="info">
                 <span class="date-tag">{{ v['entry_date'] }}</span>
                 {% if v['pinned'] %}<span style="display:inline-block; background:var(--phx-orange); color:var(--phx-blue-dark); font-weight:700; font-size:0.72rem; padding:2px 8px; border-radius:10px; margin-left:6px;">Pinned</span>{% endif %}
+                {% if can_edit %}
+                  <details style="display:inline-block; margin-left:6px;">
+                    <summary style="cursor:pointer; font-size:0.78rem; color:var(--phx-blue); display:inline;">Edit date</summary>
+                    <form method="POST" action="{{ url_for('edit_video_date', video_id=v['id']) }}" style="display:inline-flex; gap:6px; align-items:center; margin-top:4px;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      <input type="date" name="entry_date" value="{{ v['entry_date'] }}" required style="padding:4px 6px; font-size:16px;">
+                      <button class="btn secondary" type="submit" style="padding:4px 10px; font-size:0.8rem;">Save</button>
+                    </form>
+                  </details>
+                {% endif %}
                 <h4>{{ v['title'] }}{% if v['category'] %} <span class="text-muted" style="font-weight:400;">&middot; {{ v['category'] }}</span>{% endif %}</h4>
                 {% if v['notes'] %}<p>{{ v['notes'] }}</p>{% endif %}
                 {% if can_edit %}

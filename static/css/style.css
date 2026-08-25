@@ -450,7 +450,11 @@ dialog.invite-modal form.card-form {
 }
 .date-range-filter .field { margin: 0; }
 .date-range-filter .field label { font-size: 0.8rem; }
-.date-range-filter .field input[type="date"] { width: auto; min-width: 150px; }
+.date-range-filter .field input[type="date"] {
+  width: auto;
+  min-width: 0;
+  padding: 6px 8px;
+}
 .date-range-filter .date-range-hint { align-self: center; }
 
 /* Time field: a plain text input with a type-to-filter, scrollable list of

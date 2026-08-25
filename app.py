@@ -5219,6 +5219,30 @@ def delete_video(video_id):
     return redirect(url_for("index"))
 
 
+@app.route("/<org_slug>/videos/<int:video_id>/edit-date", methods=["POST"])
+def edit_video_date(video_id):
+    conn = get_db()
+    video = conn.execute(
+        "SELECT * FROM videos WHERE id = ? AND organization_id = ?", (video_id, g.org["id"])
+    ).fetchone()
+    if not video:
+        conn.close()
+        abort(404)
+    # Same permission model as pinning: admins/owners, or the account linked
+    # to this exact player, can fix a date that got entered wrong - not any
+    # random logged-in user on someone else's video.
+    if not session.get("is_admin") and session.get("player_id") != video["player_id"]:
+        conn.close()
+        abort(403)
+    new_date = parse_date(request.form.get("entry_date"))
+    conn.execute("UPDATE videos SET entry_date = ? WHERE id = ?", (new_date, video_id))
+    conn.commit()
+    player_id = video["player_id"]
+    conn.close()
+    flash("Video date updated.", "success")
+    return redirect(url_for("player_detail", player_id=player_id) + f"#video-{video_id}")
+
+
 @app.route("/<org_slug>/videos/<int:video_id>/pin", methods=["POST"])
 def toggle_video_pin(video_id):
     conn = get_db()
