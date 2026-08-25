@@ -1108,6 +1108,18 @@ def init_db():
         conn.execute("ALTER TABLE videos ADD COLUMN pinned INTEGER DEFAULT 0")
         conn.commit()
 
+    # Migration: a captured poster frame, generated client-side at upload
+    # time and stored as its own image next to the video, so the player
+    # page can show an actual thumbnail instead of the plain black box a
+    # <video> element renders before anything's played - especially bad on
+    # mobile Safari, which doesn't auto-render a first frame the way some
+    # desktop browsers do. NULL for videos uploaded before this existed, or
+    # if the browser couldn't capture one; those fall back to a generic
+    # placeholder image instead of a per-video thumbnail.
+    if "thumbnail_filename" not in video_cols:
+        conn.execute("ALTER TABLE videos ADD COLUMN thumbnail_filename TEXT")
+        conn.commit()
+
     # Migration: add group_number to a players table that existed before this column did.
     existing_cols = {row["name"] for row in conn.execute("PRAGMA table_info(players)")}
     if "group_number" not in existing_cols:
@@ -3114,6 +3126,8 @@ def platform_delete_video(org_id, video_id):
     ).fetchone()
     if video:
         delete_media(f"uploads/videos/{video['filename']}")
+        if video["thumbnail_filename"]:
+            delete_media(f"uploads/videos/thumbs/{video['thumbnail_filename']}")
         conn.execute("DELETE FROM videos WHERE id = ?", (video_id,))
         conn.commit()
     conn.close()
@@ -3185,6 +3199,9 @@ def platform_delete_org(org_id):
     video_files = [r["filename"] for r in conn.execute(
         "SELECT filename FROM videos WHERE organization_id = ?", (org_id,)
     ).fetchall()]
+    video_thumb_files = [r["thumbnail_filename"] for r in conn.execute(
+        "SELECT thumbnail_filename FROM videos WHERE organization_id = ? AND thumbnail_filename IS NOT NULL", (org_id,)
+    ).fetchall()]
     team_logo_files = [r["logo_filename"] for r in conn.execute(
         "SELECT logo_filename FROM teams WHERE organization_id = ? AND logo_filename IS NOT NULL", (org_id,)
     ).fetchall()]
@@ -3208,6 +3225,8 @@ def platform_delete_org(org_id):
         delete_media(f"uploads/photos/{fn}")
     for fn in video_files:
         delete_media(f"uploads/videos/{fn}")
+    for fn in video_thumb_files:
+        delete_media(f"uploads/videos/thumbs/{fn}")
     for fn in team_logo_files:
         delete_media(f"uploads/team-logos/{fn}")
     if org["logo_filename"]:
@@ -5066,7 +5085,7 @@ def upload_video():
 
         uploaded_count = 0
         skipped_names = []
-        for file in files:
+        for idx, file in enumerate(files):
             if not allowed_file(file.filename, ALLOWED_VIDEO_EXT) or not MEDIA_ENABLED:
                 skipped_names.append(file.filename)
                 continue
@@ -5075,9 +5094,20 @@ def upload_video():
             stored_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{safe_name}"
             upload_media(file.stream, f"uploads/videos/{stored_filename}", file.content_type)
 
+            # The upload form's JS captures a poster frame client-side and
+            # attaches it under this indexed field name, matching each
+            # video file's position in the list - optional, since capture
+            # can fail for some formats/browsers, in which case the player
+            # page just falls back to a generic placeholder thumbnail.
+            thumbnail_filename = None
+            thumb_file = request.files.get(f"video_thumb_{idx}")
+            if thumb_file and thumb_file.filename:
+                thumbnail_filename = stored_filename.rsplit(".", 1)[0] + ".jpg"
+                upload_media(thumb_file.stream, f"uploads/videos/thumbs/{thumbnail_filename}", "image/jpeg")
+
             conn.execute(
-                "INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (g.org["id"], player_id, entry_date, title or safe_name, category, notes, stored_filename),
+                "INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename, thumbnail_filename) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (g.org["id"], player_id, entry_date, title or safe_name, category, notes, stored_filename, thumbnail_filename),
             )
             uploaded_count += 1
 
@@ -5130,6 +5160,8 @@ def presign_video_upload():
         safe_name = secure_filename(original_name)
         stored_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{safe_name}"
         key = f"uploads/videos/{stored_filename}"
+        thumb_stored_filename = stored_filename.rsplit(".", 1)[0] + ".jpg"
+        thumb_key = f"uploads/videos/thumbs/{thumb_stored_filename}"
         try:
             # ContentType is deliberately left out of the signed params here -
             # if it were included, the browser's PUT would have to send back
@@ -5142,6 +5174,18 @@ def presign_video_upload():
                 Params={"Bucket": R2_MEDIA_BUCKET_NAME, "Key": key},
                 ExpiresIn=3600,
             )
+            # Thumbnail is optional (the browser might not be able to
+            # capture one from every video format) so a failure here
+            # shouldn't sink the whole file - just means no thumbnail_url.
+            thumbnail_url = None
+            try:
+                thumbnail_url = client.generate_presigned_url(
+                    "put_object",
+                    Params={"Bucket": R2_MEDIA_BUCKET_NAME, "Key": thumb_key},
+                    ExpiresIn=3600,
+                )
+            except Exception:
+                pass
         except Exception:
             results.append({"filename": original_name, "error": "Couldn't get an upload URL."})
             continue
@@ -5151,6 +5195,8 @@ def presign_video_upload():
             "key": key,
             "url": url,
             "content_type": content_type,
+            "thumbnail_stored_filename": thumb_stored_filename,
+            "thumbnail_url": thumbnail_url,
         })
 
     return {"ok": True, "files": results}
@@ -5186,8 +5232,8 @@ def finalize_video_upload():
     for f in files:
         safe_name = secure_filename(f.get("filename") or f["stored_filename"])
         conn.execute(
-            "INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (g.org["id"], player_id, entry_date, title or safe_name, category, notes, f["stored_filename"]),
+            "INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename, thumbnail_filename) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (g.org["id"], player_id, entry_date, title or safe_name, category, notes, f["stored_filename"], f.get("thumbnail_filename") or None),
         )
     conn.commit()
     conn.close()
@@ -5205,6 +5251,8 @@ def delete_video(video_id):
     ).fetchone()
     if video:
         delete_media(f"uploads/videos/{video['filename']}")
+        if video["thumbnail_filename"]:
+            delete_media(f"uploads/videos/thumbs/{video['thumbnail_filename']}")
         player_id = video["player_id"]
         conn.execute("DELETE FROM videos WHERE id = ?", (video_id,))
         conn.commit()

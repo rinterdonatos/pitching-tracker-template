@@ -11,7 +11,7 @@
     <div class="coach-player-grid">
       {% for v in videos %}
         <div class="coach-card">
-          <video src="{{ media_url('uploads/videos/' ~ v['filename']) }}" controls preload="metadata" style="width:100%; border-radius:8px; background:#000; display:block; margin-bottom:8px;"></video>
+          <video src="{{ media_url('uploads/videos/' ~ v['filename']) }}" poster="{{ media_url('uploads/videos/thumbs/' ~ v['thumbnail_filename']) if v['thumbnail_filename'] else static_url('img/video-placeholder.svg') }}" controls preload="metadata" style="width:100%; border-radius:8px; background:#000; display:block; margin-bottom:8px;"></video>
           <span class="org-tag">{{ v['org_name'] }}</span>
           <a class="name" style="display:block; margin-top:6px;" href="{{ url_for('coach_player_detail', player_id=v['player_id']) }}">{{ v['player_name'] }}</a>
           <div class="meta">

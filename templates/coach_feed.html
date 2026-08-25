@@ -80,6 +80,7 @@
         <div class="feed-item" data-video-id="{{ v['id'] }}">
           <video
             src="{{ media_url('uploads/videos/' ~ v['filename']) }}"
+            poster="{{ media_url('uploads/videos/thumbs/' ~ v['thumbnail_filename']) if v['thumbnail_filename'] else static_url('img/video-placeholder.svg') }}"
             playsinline
             loop
             preload="metadata"

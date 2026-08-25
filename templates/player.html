@@ -308,7 +308,7 @@
       {% for v in pinned_videos %}
         <div class="video-item">
           <div class="video-slide" id="video-{{ v['id'] }}">
-            <video controls preload="metadata" src="{{ media_url('uploads/videos/' ~ v['filename']) }}"></video>
+            <video controls preload="metadata" src="{{ media_url('uploads/videos/' ~ v['filename']) }}" poster="{{ media_url('uploads/videos/thumbs/' ~ v['thumbnail_filename']) if v['thumbnail_filename'] else static_url('img/video-placeholder.svg') }}"></video>
             <div class="info">
               <span class="date-tag">{{ v['entry_date'] }}</span>
               {% if can_edit %}
@@ -385,7 +385,7 @@
           {% with day_stats = stats_by_date.get(group.date) %}{% include "_day_stats.html" %}{% endwith %}
           {% for v in group.videos %}
             <div class="video-slide" id="video-{{ v['id'] }}" {% if not loop.first %}style="display:none;"{% endif %}>
-              <video controls preload="metadata" src="{{ media_url('uploads/videos/' ~ v['filename']) }}"></video>
+              <video controls preload="metadata" src="{{ media_url('uploads/videos/' ~ v['filename']) }}" poster="{{ media_url('uploads/videos/thumbs/' ~ v['thumbnail_filename']) if v['thumbnail_filename'] else static_url('img/video-placeholder.svg') }}"></video>
               <div class="info">
                 <span class="date-tag">{{ v['entry_date'] }}</span>
                 {% if v['pinned'] %}<span style="display:inline-block; background:var(--phx-orange); color:var(--phx-blue-dark); font-weight:700; font-size:0.72rem; padding:2px 8px; border-radius:10px; margin-left:6px;">Pinned</span>{% endif %}
