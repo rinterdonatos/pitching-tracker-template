@@ -1894,9 +1894,8 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 
 .sound-hint {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  top: 16px;
+  right: 16px;
   background: rgba(0, 0, 0, 0.55);
   color: #fff;
   padding: 8px 16px;
