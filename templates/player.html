@@ -186,12 +186,12 @@
             {% for row in table.rows %}
               <tr {% if table.rows | length > 3 and loop.index <= table.rows | length - 3 %}class="older-row" hidden{% endif %}>
                 <td class="spreadsheet-date-col">{{ row['date'] }}</td>
-                {% for v in row['values'] %}<td>{{ v if v is not none else '' }}</td>{% endfor %}
+                {% for v in row['values'] %}<td>{{ v | fmt_stat }}</td>{% endfor %}
               </tr>
             {% endfor %}
             <tr class="avg-row">
               <td class="spreadsheet-date-col">TOT / BEST / AVG</td>
-              {% for a in table.averages %}<td>{{ a if a is not none else '' }}</td>{% endfor %}
+              {% for a in table.averages %}<td>{{ a | fmt_stat }}</td>{% endfor %}
             </tr>
           </tbody>
         </table>

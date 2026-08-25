@@ -12,7 +12,7 @@
         <span class="day-stats-cat-label">{{ cat }}</span>
         <div class="compact-facts">
           {% for s in stat_list %}
-            <span class="compact-fact"><b>{{ s.stat_value if s.stat_value is not none else '' }}</b> <span class="compact-fact-label">{{ s.stat_name }}</span></span>
+            <span class="compact-fact"><b>{{ s.stat_value | fmt_stat }}</b> <span class="compact-fact-label">{{ s.stat_name }}</span></span>
           {% endfor %}
         </div>
       </div>

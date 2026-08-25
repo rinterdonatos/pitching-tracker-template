@@ -1767,6 +1767,28 @@ def player_initials(name):
 app.jinja_env.filters["initials"] = player_initials
 
 
+def format_stat(value):
+    """stat_entries.stat_value is a SQLite REAL column, so even a plain
+    count like 32 pitches round-trips through the database as the Python
+    float 32.0 - which would print as "32.0" if handed straight to a
+    template. This trims a trailing ".0" for whole numbers (32.0 -> "32")
+    and otherwise shows up to 2 decimal places with no trailing zeros
+    (88.40 -> "88.4"). Genuine baseball IP notation like 4.2 (4 innings,
+    2 outs) is a real value, not a rounding artifact, so it's left exactly
+    as entered - it just isn't a whole number, so it passes through
+    the decimal branch unchanged."""
+    if value is None or value == "":
+        return ""
+    try:
+        num = float(value)
+    except (TypeError, ValueError):
+        return value
+    if num == int(num):
+        return str(int(num))
+    return f"{num:.2f}".rstrip("0").rstrip(".")
+
+
+app.jinja_env.filters["fmt_stat"] = format_stat
 
 
 # ---------- Accounts & login ----------

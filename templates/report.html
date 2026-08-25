@@ -216,7 +216,7 @@
         {% set max_val = bests[0][1] %}
         {% for name, val in bests %}
           <div class="resume-bar-row">
-            <div class="resume-bar-labels"><span>{{ name }}</span><span>{{ val }} mph</span></div>
+            <div class="resume-bar-labels"><span>{{ name }}</span><span>{{ val | fmt_stat }} mph</span></div>
             <div class="resume-bar-track"><div class="resume-bar-fill" style="width:{{ (val / max_val * 100) | round(1) if max_val else 0 }}%;"></div></div>
           </div>
         {% endfor %}
@@ -229,7 +229,7 @@
       <div class="resume-section">
         <h3>Game Totals</h3>
         <p class="resume-totals-line">
-          {% for k, v in game_totals.items() %}{{ v }} {{ k }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
+          {% for k, v in game_totals.items() %}{{ v | fmt_stat }} {{ k }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
         </p>
       </div>
     {% endif %}
