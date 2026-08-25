@@ -129,19 +129,19 @@
 
   <div class="section-title">Progress Over Time</div>
 
-  <form method="GET" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap; margin-bottom:14px;">
-    <div class="field" style="margin:0;">
-      <label for="date_from" style="font-size:0.8rem;">From</label>
+  <form method="GET" class="date-range-filter">
+    <div class="field">
+      <label for="date_from">From</label>
       <input type="date" id="date_from" name="date_from" value="{{ date_from }}" onchange="this.form.submit()">
     </div>
-    <div class="field" style="margin:0;">
-      <label for="date_to" style="font-size:0.8rem;">To</label>
+    <div class="field">
+      <label for="date_to">To</label>
       <input type="date" id="date_to" name="date_to" value="{{ date_to }}" onchange="this.form.submit()">
     </div>
     {% if date_from or date_to %}
       <a class="btn secondary" href="{{ self_url }}?range=all">Show All Data</a>
     {% endif %}
-    <span class="hint" style="align-self:center;">
+    <span class="hint date-range-hint">
       {% if is_default_range %}
         Showing the last 12 months by default. Pick an earlier "From" date or click "Show All Data" to go further back.
       {% elif date_from or date_to %}

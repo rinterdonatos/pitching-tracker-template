@@ -421,6 +421,23 @@ dialog.invite-modal form.card-form {
 .field textarea { resize: vertical; min-height: 70px; }
 .field .hint { color: var(--phx-gray); font-size: 0.82rem; margin-top: 6px; line-height: 1.45; }
 
+/* Player page "Progress Over Time" date-range filter (From/To + Show All
+   Data). Native date inputs have a fixed intrinsic width the browser picks
+   for the locale's date format, so without an explicit width here they sat
+   in a flex row and got squeezed down to a sliver on narrow screens - the
+   calendar icon and text overlapped and taps mostly missed the input. */
+.date-range-filter {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.date-range-filter .field { margin: 0; }
+.date-range-filter .field label { font-size: 0.8rem; }
+.date-range-filter .field input[type="date"] { width: auto; min-width: 150px; }
+.date-range-filter .date-range-hint { align-self: center; }
+
 /* Time field: a plain text input with a type-to-filter, scrollable list of
    suggestions underneath it (see calendar.html), similar to Google
    Calendar's time picker. */
@@ -1275,6 +1292,14 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 
   .player-header { gap: 14px; }
   .player-header .avatar-lg { width: 60px; height: 60px; font-size: 1.3rem; flex-shrink: 0; }
+
+  /* Date-range filter above the charts: stack From/To full-width instead of
+     a cramped side-by-side row where the native date picker was too narrow
+     to tap reliably. */
+  .date-range-filter { align-items: stretch; }
+  .date-range-filter .field { width: 100%; }
+  .date-range-filter .field input[type="date"] { width: 100%; min-width: 0; }
+  .date-range-filter .btn.secondary { text-align: center; }
 
   /* Bigger tap targets on controls that were sized for a mouse cursor. */
   .video-nav-btn { width: 40px; height: 40px; font-size: 1.15rem; }

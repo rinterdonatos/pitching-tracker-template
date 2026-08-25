@@ -141,6 +141,30 @@ def send_invite_sms(to_phone, org_name, login_url):
     except Exception:
         return False
 
+
+def send_platform_admin_invite_email(to_addr, name, login_url):
+    msg = EmailMessage()
+    msg["Subject"] = f"You've been invited as a {PLATFORM_NAME} platform admin"
+    msg["From"] = SMTP_FROM
+    msg["To"] = to_addr
+    msg.set_content(
+        f"Hi{f' {name}' if name else ''},\n\n"
+        f"You've been added as a platform admin on {PLATFORM_NAME}, with the same "
+        "cross-org access as everyone else on that team.\n\n"
+        f"Sign in here: {login_url}\n"
+        "Enter this email and leave the password field blank - you'll be prompted "
+        "to create your own password."
+    )
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15) as s:
+            s.starttls()
+            s.login(SMTP_USER, SMTP_PASSWORD)
+            s.send_message(msg)
+        return True
+    except Exception:
+        return False
+
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # The database lives wherever PHX_DATA_DIR points - in production that's a
@@ -431,7 +455,17 @@ def platform_login():
         conn = get_db()
         admin = conn.execute("SELECT * FROM platform_admins WHERE lower(email) = ?", (email,)).fetchone()
         conn.close()
-        if not admin or not check_password_hash(admin["password_hash"], password):
+        if not admin:
+            flash("Incorrect email or password.", "error")
+            return redirect(url_for("platform_login", next=request.args.get("next", "")))
+
+        # Invited but hasn't created a password yet -> send them to do that,
+        # same pattern organization users already use.
+        if not admin["password_hash"]:
+            session["pending_platform_admin_id"] = admin["id"]
+            return redirect(url_for("platform_set_password", next=request.form.get("next", "")))
+
+        if not check_password_hash(admin["password_hash"], password):
             flash("Incorrect email or password.", "error")
             return redirect(url_for("platform_login", next=request.args.get("next", "")))
         session.clear()
@@ -442,6 +476,52 @@ def platform_login():
         next_url = request.form.get("next") or url_for("platform_organizations")
         return redirect(next_url)
     return render_template("platform_login.html", next=request.args.get("next", ""))
+
+
+@app.route("/platform/set-password", methods=["GET", "POST"])
+@limiter.limit("10 per hour", methods=["POST"])
+def platform_set_password():
+    pending_id = session.get("pending_platform_admin_id")
+    if not pending_id:
+        return redirect(url_for("platform_login"))
+
+    conn = get_db()
+    admin = conn.execute("SELECT * FROM platform_admins WHERE id = ?", (pending_id,)).fetchone()
+    if not admin or admin["password_hash"]:
+        conn.close()
+        session.pop("pending_platform_admin_id", None)
+        return redirect(url_for("platform_login"))
+
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm", "")
+        if len(password) < 8:
+            flash("Password needs at least 8 characters.", "error")
+            conn.close()
+            return redirect(url_for("platform_set_password", next=request.form.get("next", "")))
+        if password != confirm:
+            flash("Those passwords don't match.", "error")
+            conn.close()
+            return redirect(url_for("platform_set_password", next=request.form.get("next", "")))
+
+        conn.execute(
+            "UPDATE platform_admins SET password_hash = ? WHERE id = ?",
+            (generate_password_hash(password), pending_id),
+        )
+        conn.commit()
+        conn.close()
+
+        session.pop("pending_platform_admin_id", None)
+        session.clear()
+        session.permanent = True
+        session["platform_admin_id"] = admin["id"]
+        session["platform_admin_name"] = admin["name"]
+        flash(f"Welcome, {admin['name']}.", "success")
+        next_url = request.form.get("next") or url_for("platform_organizations")
+        return redirect(next_url)
+
+    conn.close()
+    return render_template("platform_set_password.html", admin=admin, next=request.args.get("next", ""))
 
 
 @app.route("/platform/logout", methods=["POST"])
@@ -545,7 +625,7 @@ ORG_EXEMPT_ENDPOINTS = {
     "backup_db", "create_platform_admin",
     # Platform admin's own login - has to be reachable while logged out,
     # same as the org login/coach login routes below.
-    "platform_login", "platform_logout",
+    "platform_login", "platform_logout", "platform_set_password",
     # College-recruiting coach portal: coaches aren't members of any one
     # organization - they browse opted-in players across all of them - so
     # these routes live outside the /<org_slug>/ scheme entirely and use
@@ -562,7 +642,7 @@ ORG_EXEMPT_ENDPOINTS = {
     "platform_organizations", "platform_org_detail", "platform_save_team", "platform_delete_team",
     "platform_delete_player", "platform_verify_video", "platform_delete_video", "platform_enter_org",
     "platform_delete_org",
-    "platform_admins_page", "platform_admin_add", "platform_admin_delete",
+    "platform_admins_page", "platform_admin_add", "platform_admin_resend_invite", "platform_admin_delete",
 }
 
 
@@ -752,7 +832,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             email TEXT NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL,
+            password_hash TEXT,
             created_at TEXT DEFAULT (datetime('now'))
         );
 
@@ -1174,6 +1254,37 @@ def init_db():
 
     if needs_teams_rebuild or needs_users_rebuild:
         conn.execute("PRAGMA foreign_keys = ON")
+
+    # Migration: platform admins used to be required to have a password set
+    # at creation time (the site owner typed one for anyone they added).
+    # They're now invited by email instead and set their own password on
+    # first login, the same pattern organization users already use, so
+    # password_hash has to allow NULL between "invited" and "accepted."
+    # SQLite can't drop a column-level NOT NULL with ALTER TABLE, so an
+    # existing database still carrying the old constraint has to be rebuilt
+    # the same way as the teams/users rebuild above. Only fires once.
+    pa_cols = conn.execute("PRAGMA table_info(platform_admins)").fetchall()
+    needs_platform_admins_rebuild = any(
+        c["name"] == "password_hash" and c["notnull"] for c in pa_cols
+    )
+    if needs_platform_admins_rebuild:
+        conn.executescript(
+            """
+            DROP TABLE IF EXISTS platform_admins_new;
+            CREATE TABLE platform_admins_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL UNIQUE,
+                password_hash TEXT,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+            INSERT INTO platform_admins_new (id, name, email, password_hash, created_at)
+                SELECT id, name, email, password_hash, created_at FROM platform_admins;
+            DROP TABLE platform_admins;
+            ALTER TABLE platform_admins_new RENAME TO platform_admins;
+            """
+        )
+        conn.commit()
 
     # Migration: college-recruiting coach portal. Players opt in to being
     # visible to coaches (off by default - a real person's info/video isn't
@@ -3029,7 +3140,9 @@ def platform_delete_org(org_id):
 @platform_admin_required
 def platform_admins_page():
     conn = get_db()
-    admins = conn.execute("SELECT id, name, email, created_at FROM platform_admins ORDER BY created_at ASC").fetchall()
+    admins = conn.execute(
+        "SELECT id, name, email, created_at, password_hash FROM platform_admins ORDER BY created_at ASC"
+    ).fetchall()
     conn.close()
     return render_template("platform_admins.html", admins=admins)
 
@@ -3039,25 +3152,47 @@ def platform_admins_page():
 def platform_admin_add():
     name = (request.form.get("name") or "").strip()
     email = (request.form.get("email") or "").strip().lower()
-    password = request.form.get("password") or ""
-    if not name or not email or not password:
-        flash("Name, email, and password are all required.", "error")
-        return redirect(url_for("platform_admins_page"))
-    if len(password) < 8:
-        flash("Password must be at least 8 characters.", "error")
+    if not name or not email:
+        flash("Name and email are both required.", "error")
         return redirect(url_for("platform_admins_page"))
 
     conn = get_db()
     try:
         conn.execute(
-            "INSERT INTO platform_admins (name, email, password_hash) VALUES (?, ?, ?)",
-            (name, email, generate_password_hash(password)),
+            "INSERT INTO platform_admins (name, email, password_hash) VALUES (?, ?, NULL)",
+            (name, email),
         )
         conn.commit()
-        flash(f"Added {name} as a platform admin. Give them their email and the password you just set directly - it isn't stored anywhere you can look back up.", "success")
+
+        login_url = url_for("platform_login", _external=True)
+        if email_configured() and send_platform_admin_invite_email(email, name, login_url):
+            flash(f"Invited {name} as a platform admin - they'll get an email with a sign-in link and set their own password.", "success")
+        else:
+            flash(f"Added {name} as a platform admin, but the invite email couldn't be sent. Have them sign in at {login_url} with their email and a blank password to set one up.", "error")
     except sqlite3.IntegrityError:
         flash(f"A platform admin with email {email} already exists.", "error")
     conn.close()
+    return redirect(url_for("platform_admins_page"))
+
+
+@app.route("/platform/admins/<int:admin_id>/resend-invite", methods=["POST"])
+@platform_admin_required
+def platform_admin_resend_invite(admin_id):
+    conn = get_db()
+    admin = conn.execute("SELECT * FROM platform_admins WHERE id = ?", (admin_id,)).fetchone()
+    conn.close()
+    if not admin:
+        flash("That platform admin no longer exists.", "error")
+        return redirect(url_for("platform_admins_page"))
+    if admin["password_hash"]:
+        flash(f"{admin['name']} already signed in and set a password - there's no invite to resend.", "error")
+        return redirect(url_for("platform_admins_page"))
+
+    login_url = url_for("platform_login", _external=True)
+    if email_configured() and send_platform_admin_invite_email(admin["email"], admin["name"], login_url):
+        flash(f"Resent the invite to {admin['name']}.", "success")
+    else:
+        flash(f"Couldn't send the invite email. Have them sign in at {login_url} with their email and a blank password.", "error")
     return redirect(url_for("platform_admins_page"))
 
 
