@@ -2306,12 +2306,32 @@ def coach_logout():
     return redirect(url_for("coach_login"))
 
 
+def _coach_grad_year_cutoff():
+    """The last grad_year still considered 'current' on the recruiting
+    portal. High school graduations land in the late spring, so a class
+    flips from 'still playing' to 'graduated' around July 1 of its grad
+    year rather than on January 1 - a Class of 2026 player is a current
+    recruit all the way through their senior spring, then ages off once
+    summer starts. Stored as a string since grad_year is TEXT; comparing
+    same-length 4-digit year strings sorts identically to comparing ints."""
+    today = date.today()
+    cutoff_year = today.year if today.month >= 7 else today.year - 1
+    return str(cutoff_year)
+
+
+# Players without a recorded grad_year are kept visible (unknown grad year
+# isn't the same as graduated - hiding them would just be a data-entry
+# penalty), everyone else is dropped once their grad_year falls at or
+# before the cutoff above.
+COACH_NOT_GRADUATED_SQL = "(p.grad_year IS NULL OR p.grad_year = '' OR p.grad_year > ?)"
+
+
 def _coach_player_filters():
     """Shared WHERE-clause building for the coach player search, leaderboards,
-    and video feed: opted-in players only, everywhere, plus whatever the
-    coach chose to filter by."""
-    conds = ["p.recruiting_opt_in = 1"]
-    params = []
+    and video feed: opted-in, not-yet-graduated players only, everywhere,
+    plus whatever the coach chose to filter by."""
+    conds = ["p.recruiting_opt_in = 1", COACH_NOT_GRADUATED_SQL]
+    params = [_coach_grad_year_cutoff()]
     team_id = request.args.get("team", "").strip()
     grad_year = request.args.get("grad_year", "").strip()
     position = request.args.get("position", "").strip()
@@ -2340,16 +2360,28 @@ def _coach_player_filters():
 def _coach_filter_options(conn):
     """Distinct team/grad-year/position values across every organization,
     for populating the filter dropdowns - each team is labeled with its
-    organization so same-named teams in different orgs aren't ambiguous."""
+    organization so same-named teams in different orgs aren't ambiguous.
+    Scoped to the same not-yet-graduated players the listings themselves
+    show, so a coach never sees a filter option (like Class of 2024) that
+    would just return an empty page."""
+    cutoff = _coach_grad_year_cutoff()
     teams = conn.execute(
-        """SELECT t.id, t.name, o.name AS org_name
+        f"""SELECT t.id, t.name, o.name AS org_name
            FROM teams t JOIN organizations o ON o.id = t.organization_id
-           WHERE t.id IN (SELECT DISTINCT team_id FROM players WHERE recruiting_opt_in = 1 AND team_id IS NOT NULL)
-           ORDER BY o.name COLLATE NOCASE ASC, t.name COLLATE NOCASE ASC"""
+           WHERE t.id IN (
+               SELECT DISTINCT team_id FROM players p
+               WHERE recruiting_opt_in = 1 AND team_id IS NOT NULL AND {COACH_NOT_GRADUATED_SQL}
+           )
+           ORDER BY o.name COLLATE NOCASE ASC, t.name COLLATE NOCASE ASC""",
+        (cutoff,),
     ).fetchall()
     grad_years = [
         r[0] for r in conn.execute(
-            "SELECT DISTINCT grad_year FROM players WHERE recruiting_opt_in = 1 AND grad_year IS NOT NULL AND grad_year != '' ORDER BY grad_year ASC"
+            f"""SELECT DISTINCT grad_year FROM players p
+                WHERE recruiting_opt_in = 1 AND grad_year IS NOT NULL AND grad_year != ''
+                  AND {COACH_NOT_GRADUATED_SQL}
+                ORDER BY grad_year ASC""",
+            (cutoff,),
         ).fetchall()
     ]
     positions = [
@@ -2571,9 +2603,9 @@ def coach_favorites():
            JOIN players p ON p.id = v.player_id
            LEFT JOIN teams t ON t.id = p.team_id
            JOIN organizations o ON o.id = p.organization_id
-           WHERE vf.coach_id = ? AND p.recruiting_opt_in = 1
-           ORDER BY vf.created_at DESC""",
-        (g.coach["id"], g.coach["id"]),
+           WHERE vf.coach_id = ? AND p.recruiting_opt_in = 1 AND {not_graduated}
+           ORDER BY vf.created_at DESC""".format(not_graduated=COACH_NOT_GRADUATED_SQL),
+        (g.coach["id"], g.coach["id"], _coach_grad_year_cutoff()),
     ).fetchall()
     conn.close()
     return render_template("coach_favorites.html", videos=videos)
@@ -2584,16 +2616,19 @@ def coach_favorites():
 def coach_player_detail(player_id):
     conn = get_db()
     # Cross-org lookup (a coach isn't scoped to one organization), gated on
-    # recruiting_opt_in same as everywhere else in the coach portal - a
-    # player who isn't opted in doesn't exist as far as this route is
-    # concerned, full stop.
+    # recruiting_opt_in and not-yet-graduated same as everywhere else in the
+    # coach portal - a player who isn't opted in (or has graduated) doesn't
+    # exist as far as this route is concerned, full stop, even via a direct
+    # link or an old bookmark.
     player = conn.execute(
         """SELECT p.*, t.name AS team_name, o.name AS org_name
            FROM players p
            LEFT JOIN teams t ON t.id = p.team_id
            JOIN organizations o ON o.id = p.organization_id
-           WHERE p.id = ? AND p.recruiting_opt_in = 1""",
-        (player_id,),
+           WHERE p.id = ? AND p.recruiting_opt_in = 1 AND {not_graduated}""".format(
+            not_graduated=COACH_NOT_GRADUATED_SQL
+        ),
+        (player_id, _coach_grad_year_cutoff()),
     ).fetchone()
     if not player:
         conn.close()
@@ -2663,9 +2698,9 @@ def coach_following():
            JOIN players p ON p.id = pf.player_id
            LEFT JOIN teams t ON t.id = p.team_id
            JOIN organizations o ON o.id = p.organization_id
-           WHERE pf.coach_id = ? AND p.recruiting_opt_in = 1
-           ORDER BY pf.created_at DESC""",
-        (g.coach["id"],),
+           WHERE pf.coach_id = ? AND p.recruiting_opt_in = 1 AND {not_graduated}
+           ORDER BY pf.created_at DESC""".format(not_graduated=COACH_NOT_GRADUATED_SQL),
+        (g.coach["id"], _coach_grad_year_cutoff()),
     ).fetchall()
     conn.close()
     return render_template("coach_following.html", players=players)
