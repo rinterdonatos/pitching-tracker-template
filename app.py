@@ -167,6 +167,11 @@ ALLOWED_VIDEO_EXT = {
     "3gp", "3g2", "mpg", "mpeg", "m2ts", "mts", "ogv",
 }
 ALLOWED_PHOTO_EXT = {"png", "jpg", "jpeg", "gif"}
+# Team logos are uploaded straight to R2 with no Pillow processing (unlike
+# an org's own primary logo, which needs Pillow to extract theme colors and
+# so has to stick to formats Pillow can actually open) - so there's no
+# reason to reject the HEIC/WEBP files a phone camera produces by default.
+ALLOWED_TEAM_LOGO_EXT = ALLOWED_PHOTO_EXT | {"webp", "heic", "heif"}
 ALLOWED_CSV_EXT = {"csv"}
 
 # Preset session types offered in the Category dropdown on both the CSV and
@@ -2795,13 +2800,18 @@ def platform_save_team(org_id, team_id):
 
     logo_filename = team["logo_filename"]
     logo = request.files.get("logo")
-    if logo and logo.filename and allowed_file(logo.filename, ALLOWED_PHOTO_EXT) and MEDIA_ENABLED:
-        old_logo_filename = logo_filename
-        safe_name = secure_filename(logo.filename)
-        logo_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_name}"
-        upload_media(logo.stream, f"uploads/team-logos/{logo_filename}", logo.content_type)
-        if old_logo_filename:
-            delete_media(f"uploads/team-logos/{old_logo_filename}")
+    if logo and logo.filename:
+        if not MEDIA_ENABLED:
+            flash("Name saved, but the logo wasn't saved - media storage isn't configured on this deployment.", "error")
+        elif not allowed_file(logo.filename, ALLOWED_TEAM_LOGO_EXT):
+            flash(f'Name saved, but "{logo.filename}" isn\'t a supported image type (use PNG, JPG, GIF, WEBP, or HEIC).', "error")
+        else:
+            old_logo_filename = logo_filename
+            safe_name = secure_filename(logo.filename)
+            logo_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_name}"
+            upload_media(logo.stream, f"uploads/team-logos/{logo_filename}", logo.content_type)
+            if old_logo_filename:
+                delete_media(f"uploads/team-logos/{old_logo_filename}")
 
     try:
         conn.execute(
@@ -3456,10 +3466,15 @@ def add_team():
 
     logo_filename = None
     logo = request.files.get("logo")
-    if logo and logo.filename and allowed_file(logo.filename, ALLOWED_PHOTO_EXT) and MEDIA_ENABLED:
-        safe_name = secure_filename(logo.filename)
-        logo_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_name}"
-        upload_media(logo.stream, f"uploads/team-logos/{logo_filename}", logo.content_type)
+    if logo and logo.filename:
+        if not MEDIA_ENABLED:
+            flash("Team added, but the logo wasn't saved - media storage isn't configured on this deployment.", "error")
+        elif not allowed_file(logo.filename, ALLOWED_TEAM_LOGO_EXT):
+            flash(f'Team added, but "{logo.filename}" isn\'t a supported image type (use PNG, JPG, GIF, WEBP, or HEIC).', "error")
+        else:
+            safe_name = secure_filename(logo.filename)
+            logo_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_name}"
+            upload_media(logo.stream, f"uploads/team-logos/{logo_filename}", logo.content_type)
 
     conn = get_db()
     try:
@@ -3496,13 +3511,18 @@ def rename_team(team_id):
 
     logo_filename = team["logo_filename"]
     logo = request.files.get("logo")
-    if logo and logo.filename and allowed_file(logo.filename, ALLOWED_PHOTO_EXT) and MEDIA_ENABLED:
-        old_logo_filename = logo_filename
-        safe_name = secure_filename(logo.filename)
-        logo_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_name}"
-        upload_media(logo.stream, f"uploads/team-logos/{logo_filename}", logo.content_type)
-        if old_logo_filename:
-            delete_media(f"uploads/team-logos/{old_logo_filename}")
+    if logo and logo.filename:
+        if not MEDIA_ENABLED:
+            flash("Name saved, but the logo wasn't saved - media storage isn't configured on this deployment.", "error")
+        elif not allowed_file(logo.filename, ALLOWED_TEAM_LOGO_EXT):
+            flash(f'Name saved, but "{logo.filename}" isn\'t a supported image type (use PNG, JPG, GIF, WEBP, or HEIC).', "error")
+        else:
+            old_logo_filename = logo_filename
+            safe_name = secure_filename(logo.filename)
+            logo_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_name}"
+            upload_media(logo.stream, f"uploads/team-logos/{logo_filename}", logo.content_type)
+            if old_logo_filename:
+                delete_media(f"uploads/team-logos/{old_logo_filename}")
 
     try:
         conn.execute(
