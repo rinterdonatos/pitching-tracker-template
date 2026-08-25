@@ -60,7 +60,12 @@
 {% block content %}
   <div class="page-title">
     <h2>Users</h2>
-    <button class="btn" type="button" onclick="document.getElementById('invite-modal').showModal()">+ Invite Someone</button>
+    <div style="display:flex; flex-direction:column; gap:8px; align-items:stretch;">
+      <button class="btn" type="button" onclick="document.getElementById('invite-modal').showModal()">+ Invite Someone</button>
+      <form method="POST" action="{{ url_for('create_invite') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn secondary" type="submit" style="width:100%;">+ Create Invite Link</button>
+      </form>
+    </div>
   </div>
 
   <p class="hint" style="max-width:640px;">
@@ -104,9 +109,6 @@
       Or send people a link instead. Anyone who opens it enters their own name, email/phone,
       and password, and joins as a member. Links work for 7 days; deactivate one anytime.
     </p>
-    <form method="POST" action="{{ url_for('create_invite') }}" style="margin-bottom:12px;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <button class="btn" type="submit">+ Create Invite Link</button>
-    </form>
     {% if invites %}
       <div class="spreadsheet-wrap">
         <table class="spreadsheet-table">
