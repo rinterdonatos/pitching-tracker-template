@@ -49,7 +49,7 @@
     <div class="coach-player-grid">
       {% for p in players %}
         <div class="coach-card coach-player-card">
-          <img class="card-team-logo" src="{{ static_url('img/swarm-badge.png') if p['org_slug'] == 'swarm-baseball' else static_url('img/default-badge.svg') }}" alt="{{ p['org_name'] }} logo">
+          <img class="card-team-logo" src="{{ media_url('uploads/team-logos/' ~ p['team_logo_filename']) if p['team_logo_filename'] else static_url('img/default-badge.svg') }}" alt="{{ p['org_name'] }} logo">
           <span class="org-tag">{{ p['org_name'] }}</span>
           <a class="name" style="display:block;" href="{{ url_for('coach_player_detail', player_id=p['id']) }}">{{ p['name'] }}</a>
           <div class="meta">

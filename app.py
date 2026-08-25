@@ -2366,7 +2366,8 @@ def coach_players():
     conn = get_db()
     where_sql, params, filters = _coach_player_filters()
     players = conn.execute(
-        f"""SELECT p.*, t.name AS team_name, o.name AS org_name, o.slug AS org_slug,
+        f"""SELECT p.*, t.name AS team_name, t.logo_filename AS team_logo_filename,
+                   o.name AS org_name, o.slug AS org_slug,
                    EXISTS(SELECT 1 FROM player_follows pf WHERE pf.player_id = p.id AND pf.coach_id = ?) AS is_followed
             FROM players p
             LEFT JOIN teams t ON t.id = p.team_id
@@ -2656,7 +2657,8 @@ def coach_player_follow_toggle(player_id):
 def coach_following():
     conn = get_db()
     players = conn.execute(
-        """SELECT p.*, t.name AS team_name, o.name AS org_name, o.slug AS org_slug
+        """SELECT p.*, t.name AS team_name, t.logo_filename AS team_logo_filename,
+                  o.name AS org_name, o.slug AS org_slug
            FROM player_follows pf
            JOIN players p ON p.id = pf.player_id
            LEFT JOIN teams t ON t.id = p.team_id
