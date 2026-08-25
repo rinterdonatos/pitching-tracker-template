@@ -6,6 +6,7 @@ import base64
 import random
 import secrets
 import smtplib
+import colorsys
 import tempfile
 import traceback
 import urllib.parse
@@ -714,9 +715,19 @@ def extract_theme_colors(image_path):
         img = Image.alpha_composite(flattened, img).convert("RGB")
         img.thumbnail((150, 150))
 
-        quantized = img.quantize(colors=8)
+        # A small palette quantized with PIL's default median-cut algorithm
+        # bisects the image's color histogram by luminance/channel range,
+        # not by hue - so two genuinely distinct brand colors that happen
+        # to share similar darkness (e.g. black and a deep red) can get
+        # bucketed together into one averaged "brown" swatch instead of
+        # staying separate. FASTOCTREE with a much bigger target palette
+        # keeps visually distinct colors apart far more reliably; the
+        # clustering pass below then re-merges near-duplicate shades
+        # (anti-aliased edge pixels of the same color) so their counts
+        # combine without a distinct second color ever getting blended in.
+        quantized = img.quantize(colors=32, method=Image.FASTOCTREE)
         palette = quantized.getpalette()
-        counts = sorted(quantized.getcolors() or [], reverse=True)
+        counts = quantized.getcolors() or []
         if not counts:
             return None
 
@@ -729,24 +740,82 @@ def extract_theme_colors(image_path):
 
         def is_near_neutral(rgb):
             # Too close to white/black/gray to read as a real brand color -
-            # almost always the logo's background, not its actual colors.
-            if max(rgb) - min(rgb) < 18:
-                lum = luminance(rgb)
-                return lum > 0.88 or lum < 0.08
-            return False
+            # almost always the logo's background/outline, not an
+            # intentional accent color. Very dark colors get an extra,
+            # more forgiving check here: a "rich black" ink (the kind a
+            # CMYK-to-RGB conversion or JPEG compression commonly produces,
+            # e.g. #231F20) can carry a slight warm or cool cast that looks
+            # meaningfully "saturated" in raw RGB terms even though it
+            # still reads as plain black to the eye - and since black ink
+            # (outlines, wordmark, background) usually covers far more of
+            # a logo than its actual accent color, letting that cast slip
+            # through as "vivid" lets it dominate the extracted theme by
+            # sheer pixel count instead of the color that was meant to.
+            lum = luminance(rgb)
+            if lum > 0.88 or lum < 0.08:
+                return True
+            if lum < 0.22:
+                r, g, b = (c / 255 for c in rgb)
+                return colorsys.rgb_to_hsv(r, g, b)[1] < 0.55
+            return max(rgb) - min(rgb) < 18
 
-        candidates = [rgb_at(idx) for _, idx in counts]
-        vivid = [c for c in candidates if not is_near_neutral(c)]
-        pool = vivid if vivid else candidates
+        swatches = sorted(
+            ((rgb_at(idx), n) for n, idx in counts), key=lambda item: item[1], reverse=True
+        )
+        clusters = []  # [[rgb, total_count], ...]
+        for rgb, n in swatches:
+            match = next(
+                (c for c in clusters if sum(abs(a - b) for a, b in zip(c[0], rgb)) < 40),
+                None,
+            )
+            if match:
+                match[1] += n
+            else:
+                clusters.append([rgb, n])
+        clusters.sort(key=lambda c: c[1], reverse=True)
 
-        primary = pool[0]
+        vivid = [c for c in clusters if not is_near_neutral(c[0])]
+        pool_pairs = vivid if vivid else clusters
+
+        def saturation(rgb):
+            r, g, b = (c / 255 for c in rgb)
+            return colorsys.rgb_to_hsv(r, g, b)[1]
+
+        # Rank by pixel count weighted toward saturation, not raw count
+        # alone - a black-and-red logo can easily have more total black
+        # pixels (outlines, wordmark) than red fill, but black already got
+        # filtered out above as near-neutral, so this is really guarding
+        # against a duller, muddier blend (a shadow/bevel/gradient between
+        # two bolder design colors, or JPEG compression noise along a hard
+        # edge) out-counting the actual flat, saturated brand color and
+        # getting picked as primary/accent instead of it.
+        ranked = sorted(pool_pairs, key=lambda item: item[1] * (0.35 + saturation(item[0])), reverse=True)
+        pool = [rgb for rgb, _ in ranked]
+
+        def looks_muddy(rgb):
+            # A final sanity check on top of is_near_neutral: reject colors
+            # that land in the dull brown/tan/olive zone (low-to-mid
+            # saturation or value, in the orange-ish hue range) even if they
+            # weren't dark enough to be caught as "near black" above. This
+            # is what a player card's avatar circle or the header banner
+            # would otherwise render as an unintentional muddy brown.
+            r, g, b = (c / 255 for c in rgb)
+            h, s, v = colorsys.rgb_to_hsv(r, g, b)
+            if s < 0.22:
+                return True
+            hue_deg = h * 360
+            return 12 <= hue_deg <= 50 and (s < 0.55 or v < 0.45)
+
+        clean_pool = [c for c in pool if not looks_muddy(c)] or pool
+        primary = clean_pool[0]
         # A very light primary makes the white button/nav text unreadable -
         # darken it rather than pick a background-ish color as the theme.
         if luminance(primary) > 0.7:
             primary = tuple(int(c * 0.55) for c in primary)
 
+        accent_search = [c for c in clean_pool if c != primary] or [c for c in pool if c != primary]
         accent = next(
-            (c for c in pool[1:] if sum(abs(a - b) for a, b in zip(c, primary)) > 90),
+            (c for c in accent_search if sum(abs(a - b) for a, b in zip(c, primary)) > 90),
             None,
         )
         if accent is None:
