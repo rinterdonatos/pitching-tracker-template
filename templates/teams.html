@@ -10,9 +10,9 @@
       {% for t in teams %}
         <div class="player-card" style="cursor:default;">
           {% if t['logo_filename'] %}
-            <img class="avatar" src="{{ media_url('uploads/team-logos/' ~ t['logo_filename']) }}" alt="{{ t['name'] }}">
+            <img class="avatar" id="avatar-{{ t['id'] }}" src="{{ media_url('uploads/team-logos/' ~ t['logo_filename']) }}" alt="{{ t['name'] }}">
           {% else %}
-            <div class="avatar">{{ t['name'] | initials }}</div>
+            <div class="avatar" id="avatar-{{ t['id'] }}">{{ t['name'] | initials }}</div>
           {% endif %}
           <h3>{{ t['name'] }}</h3>
           <div class="meta">{{ t['player_count'] }} player{{ 's' if t['player_count'] != 1 else '' }}</div>
@@ -28,7 +28,7 @@
                 <button class="btn secondary" type="submit">Save</button>
               </div>
               <label class="hint" for="logo-{{ t['id'] }}" style="margin:0;">Team logo (optional)</label>
-              <input type="file" id="logo-{{ t['id'] }}" name="logo" accept="image/png,image/jpeg,image/gif">
+              <input type="file" id="logo-{{ t['id'] }}" name="logo" class="logo-preview-input" data-preview-target="avatar-{{ t['id'] }}" accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif">
             </form>
             <form method="POST" action="{{ url_for('delete_team', team_id=t['id']) }}" style="margin-top:8px;"
                   onsubmit="return confirm('Delete {{ t['name'] }}? Players stay but become unassigned, and its calendar entries move to the General calendar.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -59,9 +59,39 @@
     </div>
     <div class="field">
       <label for="logo">Team Logo (optional)</label>
-      <input type="file" id="logo" name="logo" accept="image/png,image/jpeg,image/gif">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <input type="file" id="logo" name="logo" class="logo-preview-input" data-preview-target="new-team-avatar" accept="image/png,image/jpeg,image/gif,image/webp,image/heic,image/heif" style="flex:1;">
+        <img id="new-team-avatar" class="avatar" alt="Logo preview" style="display:none; height:44px; width:44px; object-fit:cover; border-radius:8px; flex-shrink:0;">
+      </div>
       <div class="hint">Shown on the Teams page. You can add or change this later.</div>
     </div>
     <button class="btn" type="submit">Add Team</button>
   </form>
+
+  <script>
+    // Instant logo preview - swaps the picked file into the team's avatar
+    // (or the initials placeholder, if it doesn't have a logo yet) before
+    // the form is even submitted. Note: HEIC files upload fine but some
+    // browsers can't preview them inline, so the thumbnail may not show
+    // for those specifically - the upload itself isn't affected.
+    document.querySelectorAll('.logo-preview-input').forEach(function (input) {
+      input.addEventListener('change', function () {
+        var target = document.getElementById(input.dataset.previewTarget);
+        var file = input.files && input.files[0];
+        if (!file || !target) return;
+        var url = URL.createObjectURL(file);
+        if (target.tagName === 'IMG') {
+          target.src = url;
+          target.style.display = '';
+        } else {
+          var img = document.createElement('img');
+          img.id = target.id;
+          img.className = target.className;
+          img.alt = 'Team logo preview';
+          img.src = url;
+          target.replaceWith(img);
+        }
+      });
+    });
+  </script>
 {% endblock %}
