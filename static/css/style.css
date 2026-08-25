@@ -895,6 +895,18 @@ table.csv-preview th, table.csv-preview td {
   text-align: left;
 }
 
+/* The Build a CSV tool's stat cells are number inputs in a tight grid -
+   the browser's default up/down spinner arrows eat too much of that
+   width, so they're hidden; the cells are still numeric-only. */
+#builder-table input[type="number"]::-webkit-outer-spin-button,
+#builder-table input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+#builder-table input[type="number"] {
+  -moz-appearance: textfield;
+}
+
 /* Login page */
 
 .nav-logout {

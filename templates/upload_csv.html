@@ -179,11 +179,54 @@
 
     function statColumnCount() { return headRow.children.length - 2; }
 
+    // Whole-number stats - counting things, not measurements - shouldn't
+    // accept a decimal point (a pitch count of "12.5" doesn't mean
+    // anything). Anything not in this list (velo readings, IP, GPA-style
+    // scores, spin rate, or any custom column) still gets numbers-only
+    // enforcement, it just allows a decimal.
+    const INTEGER_STATS = new Set([
+      'pitches', 'strikes', 'outs', 'k', 'so', 'strikeouts',
+      'bb', 'walks', 'h', 'hits', 'hbp', 'er', 'score',
+    ]);
+    function isIntegerStat(name) {
+      return INTEGER_STATS.has((name || '').trim().toLowerCase());
+    }
+
+    // Makes a stat cell reject non-numeric input outright, and for
+    // whole-number stats, also reject a decimal point/comma as it's typed
+    // (a step="1" number input still lets someone type "12.5" - it just
+    // fails silent validation - so this catches it at the keystroke).
+    function applyStatInputType(inp, columnName) {
+      const wholeNumber = isIntegerStat(columnName);
+      inp.type = 'number';
+      inp.step = wholeNumber ? '1' : 'any';
+      inp.inputMode = wholeNumber ? 'numeric' : 'decimal';
+      if (wholeNumber) {
+        inp.addEventListener('keydown', (e) => {
+          if (e.key === '.' || e.key === ',') e.preventDefault();
+        });
+        inp.addEventListener('blur', () => {
+          if (inp.value !== '') inp.value = Math.round(parseFloat(inp.value));
+        });
+      }
+    }
+
     function makeHeaderCell(name) {
       const th = document.createElement('th');
       const inp = document.createElement('input');
       inp.value = name;
       inp.style.cssText = 'width:90px; border:none; background:transparent; font-weight:700; font-size:inherit;';
+      // Renaming a column (e.g. typing over "Stat 1" with "Pitches") should
+      // re-apply the whole-number/decimal rule to every row already in that
+      // column, not just new ones added after the rename.
+      inp.addEventListener('blur', () => {
+        const idx = Array.from(headRow.children).indexOf(th);
+        if (idx < 0) return;
+        Array.from(body.children).forEach(tr => {
+          const cellInput = tr.children[idx] && tr.children[idx].querySelector('input');
+          if (cellInput) applyStatInputType(cellInput, inp.value);
+        });
+      });
       th.appendChild(inp);
       const del = document.createElement('button');
       del.type = 'button';
@@ -218,11 +261,13 @@
     function builderAddColumn() {
       const name = prompt('Column name (e.g. Spin Rate, HBP, SWP Velo):');
       if (!name) return;
-      headRow.appendChild(makeHeaderCell(name.trim()));
+      const colName = name.trim();
+      headRow.appendChild(makeHeaderCell(colName));
       Array.from(body.children).forEach(tr => {
         const td = document.createElement('td');
         const inp = document.createElement('input');
         inp.style.cssText = 'width:70px; border:none; background:transparent;';
+        applyStatInputType(inp, colName);
         td.appendChild(inp);
         tr.appendChild(td);
       });
@@ -258,6 +303,8 @@
         const td = document.createElement('td');
         const inp = document.createElement('input');
         inp.style.cssText = 'width:70px; border:none; background:transparent;';
+        const columnName = headRow.children[i + 2].querySelector('input').value;
+        applyStatInputType(inp, columnName);
         td.appendChild(inp);
         tr.appendChild(td);
       }
