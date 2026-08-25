@@ -808,10 +808,24 @@ def extract_theme_colors(image_path):
 
         clean_pool = [c for c in pool if not looks_muddy(c)] or pool
         primary = clean_pool[0]
+        primary_lum = luminance(primary)
         # A very light primary makes the white button/nav text unreadable -
         # darken it rather than pick a background-ish color as the theme.
-        if luminance(primary) > 0.7:
+        if primary_lum > 0.7:
             primary = tuple(int(c * 0.55) for c in primary)
+        # A very dark primary reads as flat black once it's rendered as a
+        # banner - even a deep, richly-saturated brand color (a dark
+        # maroon, forest green, navy, etc.) can end up looking like plain
+        # black at that low a luminance, especially once the header CSS
+        # darkens it further for the gradient/hover variant. Brighten it up
+        # into a legible mid-tone instead of ever letting the banner - or
+        # anything else that leans on this color, like the avatar circles
+        # on player cards - render as black. is_near_neutral() above
+        # already keeps genuinely near-black candidates out of the running
+        # in most cases, but this is the hard backstop: nothing this
+        # function returns should ever be dark enough to read as black.
+        elif primary_lum < 0.18:
+            primary = tuple(min(255, int(c * 1.8 + 35)) for c in primary)
 
         accent_search = [c for c in clean_pool if c != primary] or [c for c in pool if c != primary]
         accent = next(
