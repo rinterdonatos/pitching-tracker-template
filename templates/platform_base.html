@@ -15,7 +15,7 @@
     /* Sharper, squared-off look for the platform admin side only - this
        template is never shared with any organization's own site (that's
        base.html), so these overrides can't leak into a customer's pages. */
-    header.site-header img.logo,
+    .platform-header .landing-brand img,
     .btn,
     .field input[type="text"],
     .field input[type="email"],
@@ -28,31 +28,44 @@
     .badge {
       border-radius: 3px;
     }
+
+    /* The landing header hides its marketing nav links below 720px since
+       it only ever has a Log In / Get Started pair left to show - the
+       platform header still needs Organizations/Coach Approvals/Admins
+       reachable on a phone, so keep them visible and let them wrap. */
+    @media (max-width: 720px) {
+      .platform-header .landing-nav-links {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        row-gap: 10px;
+      }
+      .platform-header .landing-nav-links .nav-link,
+      .platform-header .landing-nav-links .nav-divider {
+        display: inline-flex;
+      }
+    }
   </style>
 </head>
 <body>
-  <header class="site-header">
-    <a href="{{ url_for('home') }}" style="display:contents;">
-      <img class="logo" src="{{ static_url('img/default-badge.svg') }}" alt="Mound HQ logo">
-      <div class="brand">
-        <h1>Mound HQ</h1>
-        <span>Platform Admin, not part of any organization's own site</span>
+  <header class="landing-header platform-header" id="platform-header">
+    <div class="landing-header-inner">
+      <a class="landing-brand" href="{{ url_for('home') }}">
+        <img src="{{ static_url('img/default-badge.svg') }}" alt="Mound HQ logo">
+        <span>Mound HQ Admin</span>
+      </a>
+      {% if session.get('platform_admin_id') %}
+      <div class="landing-nav-links">
+        <a class="nav-link {{ 'active' if request.endpoint in ['platform_organizations', 'platform_org_detail'] }}" href="{{ url_for('platform_organizations') }}">Organizations</a>
+        <a class="nav-link {{ 'active' if request.endpoint == 'platform_coaches' }}" href="{{ url_for('platform_coaches') }}">Coach Approvals</a>
+        <a class="nav-link {{ 'active' if request.endpoint == 'platform_admins_page' }}" href="{{ url_for('platform_admins_page') }}">Admins</a>
+        <div class="nav-divider"></div>
+        <a class="nav-log-in" href="{{ url_for('home') }}">Landing Page</a>
+        <form method="POST" action="{{ url_for('platform_logout') }}" style="display:inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="nav-log-in" style="background:none; border:none; cursor:pointer; font:inherit; padding:0;">Log Out</button>
+        </form>
       </div>
-    </a>
-    {% if session.get('platform_admin_id') %}
-    <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Menu" aria-expanded="false" aria-controls="site-nav">
-      <span></span><span></span><span></span>
-    </button>
-    <nav id="site-nav">
-      <a href="{{ url_for('platform_organizations') }}" class="{{ 'active' if request.endpoint in ['platform_organizations', 'platform_org_detail'] }}">Organizations</a>
-      <a href="{{ url_for('platform_coaches') }}" class="{{ 'active' if request.endpoint == 'platform_coaches' }}">Coach Approvals</a>
-      <a href="{{ url_for('platform_admins_page') }}" class="{{ 'active' if request.endpoint == 'platform_admins_page' }}">Admins</a>
-      <a href="{{ url_for('home') }}">Landing Page</a>
-      <form method="POST" action="{{ url_for('platform_logout') }}" style="display:inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button type="submit" class="nav-logout">Log Out</button>
-      </form>
-    </nav>
-    {% endif %}
+      {% endif %}
+    </div>
   </header>
   <main>
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -65,22 +78,18 @@
     {% block content %}{% endblock %}
   </main>
   <script>
-    var navToggle = document.getElementById('nav-toggle');
-    var siteNav = document.getElementById('site-nav');
-    if (navToggle && siteNav) {
-      navToggle.addEventListener('click', function () {
-        var open = siteNav.classList.toggle('nav-open');
-        navToggle.classList.toggle('is-open', open);
-        navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-      });
-      siteNav.addEventListener('click', function (e) {
-        if (e.target.closest('a, button')) {
-          siteNav.classList.remove('nav-open');
-          navToggle.classList.remove('is-open');
-          navToggle.setAttribute('aria-expanded', 'false');
-        }
-      });
-    }
+    // Same sticky-header scroll shadow as the landing page, so this header
+    // matches that style exactly rather than just approximating it.
+    (function () {
+      var header = document.getElementById('platform-header');
+      if (!header) return;
+      function onScroll() {
+        if (window.scrollY > 8) header.classList.add('scrolled');
+        else header.classList.remove('scrolled');
+      }
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+    })();
   </script>
 </body>
 </html>

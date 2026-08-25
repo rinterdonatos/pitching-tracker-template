@@ -1655,6 +1655,7 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 }
 .landing-nav-links a.nav-link:hover,
 .landing-nav-links a.nav-log-in:hover { color: #fff; }
+.landing-nav-links a.nav-link.active { color: #5eead4; }
 .landing-nav-links .nav-divider { width: 1px; height: 20px; background: rgba(255, 255, 255, 0.15); }
 
 @media (max-width: 720px) {
