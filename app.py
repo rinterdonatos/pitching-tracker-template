@@ -213,12 +213,12 @@ PITCH_TYPES = [
     ("SPL", "Splitter"),
 ]
 
-# Extra per-player text fields: player contact info and recruiting profile
-# links (Perfect Game / Prep Baseball Report). Shared by the DB migration and
-# the add/edit player forms. Other people connected to the player (coaches,
-# trainers, parents, ...) live in the player_contacts table instead, so a
-# player can have any number of them.
-PLAYER_CONTACT_FIELDS = ["phone", "email", "pg_url", "pbr_url"]
+# Extra per-player text fields: player contact info, recruiting profile
+# links (Perfect Game / Prep Baseball Report), and social links (Twitter/X,
+# Instagram). Shared by the DB migration and the add/edit player forms. Other
+# people connected to the player (coaches, trainers, parents, ...) live in
+# the player_contacts table instead, so a player can have any number of them.
+PLAYER_CONTACT_FIELDS = ["phone", "email", "pg_url", "pbr_url", "twitter_url", "instagram_url"]
 
 # Recruiting measurables a player/parent can fill in themselves - shown on
 # the profile and the printable Recruiting Report resume.

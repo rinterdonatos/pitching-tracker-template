@@ -165,7 +165,9 @@
         {% if player['email'] %}{{ player['email'] }}{% endif %}
         {% if player['pg_url'] %} &middot; <a href="{{ player['pg_url'] if player['pg_url'].startswith('http') else 'https://' ~ player['pg_url'] }}" target="_blank" rel="noopener">Perfect Game</a>{% endif %}
         {% if player['pbr_url'] %} &middot; <a href="{{ player['pbr_url'] if player['pbr_url'].startswith('http') else 'https://' ~ player['pbr_url'] }}" target="_blank" rel="noopener">PBR</a>{% endif %}
-        {% if not player['phone'] and not player['email'] and not player['pg_url'] and not player['pbr_url'] %}Contact info not on file{% endif %}
+        {% if player['twitter_url'] %} &middot; <a href="{{ player['twitter_url'] if player['twitter_url'].startswith('http') else 'https://' ~ player['twitter_url'] }}" target="_blank" rel="noopener">Twitter / X</a>{% endif %}
+        {% if player['instagram_url'] %} &middot; <a href="{{ player['instagram_url'] if player['instagram_url'].startswith('http') else 'https://' ~ player['instagram_url'] }}" target="_blank" rel="noopener">Instagram</a>{% endif %}
+        {% if not player['phone'] and not player['email'] and not player['pg_url'] and not player['pbr_url'] and not player['twitter_url'] and not player['instagram_url'] %}Contact info not on file{% endif %}
       </p>
     </div>
 

@@ -26,6 +26,18 @@
 </div>
 
 <div class="field" style="border-top:1px solid #eee; padding-top:14px;">
+  <label style="font-weight:700;">Social Media</label>
+</div>
+<div class="field">
+  <label for="twitter_url">Twitter / X Profile Link</label>
+  <input type="text" id="twitter_url" name="twitter_url" placeholder="e.g. https://twitter.com/username" value="{{ p['twitter_url'] or '' }}">
+</div>
+<div class="field">
+  <label for="instagram_url">Instagram Profile Link</label>
+  <input type="text" id="instagram_url" name="instagram_url" placeholder="e.g. https://instagram.com/username" value="{{ p['instagram_url'] or '' }}">
+</div>
+
+<div class="field" style="border-top:1px solid #eee; padding-top:14px;">
   <label style="font-weight:700;">Other Contacts (coach, trainer, parent, etc.)</label>
   <div class="hint">Add as many as you need. Empty rows are ignored.</div>
 </div>

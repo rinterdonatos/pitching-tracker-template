@@ -50,7 +50,7 @@
   {% set has_measurables = player['height'] or player['weight'] or player['bats'] or player['throws'] or player['sixty_time'] %}
   {% set academic_fields = [('gpa','GPA'), ('sat_score','SAT'), ('act_score','ACT'), ('intended_major','Major')] %}
   {% set has_academics = player['gpa'] or player['sat_score'] or player['act_score'] or player['intended_major'] %}
-  {% set has_contact = player['phone'] or player['email'] or player['pg_url'] or player['pbr_url'] or contacts %}
+  {% set has_contact = player['phone'] or player['email'] or player['pg_url'] or player['pbr_url'] or player['twitter_url'] or player['instagram_url'] or contacts %}
   {% if has_measurables or has_academics or has_contact %}
     <div class="profile-columns">
       <div class="profile-col">
@@ -100,6 +100,17 @@
                 {% endif %}
                 {% if player['pbr_url'] %}
                   <div class="meta"><a href="{{ player['pbr_url'] if player['pbr_url'].startswith('http') else 'https://' ~ player['pbr_url'] }}" target="_blank" rel="noopener">PBR &nearr;</a></div>
+                {% endif %}
+              </div>
+            {% endif %}
+            {% if player['twitter_url'] or player['instagram_url'] %}
+              <div class="compact-contact-block">
+                <div class="compact-contact-name">Social Media</div>
+                {% if player['twitter_url'] %}
+                  <div class="meta"><a href="{{ player['twitter_url'] if player['twitter_url'].startswith('http') else 'https://' ~ player['twitter_url'] }}" target="_blank" rel="noopener">Twitter / X &nearr;</a></div>
+                {% endif %}
+                {% if player['instagram_url'] %}
+                  <div class="meta"><a href="{{ player['instagram_url'] if player['instagram_url'].startswith('http') else 'https://' ~ player['instagram_url'] }}" target="_blank" rel="noopener">Instagram &nearr;</a></div>
                 {% endif %}
               </div>
             {% endif %}
