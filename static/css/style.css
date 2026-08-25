@@ -15,6 +15,10 @@
 
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-display: 'Sora', 'Inter', -apple-system, sans-serif;
+  /* Matches the slanted, heavyweight wordmark in the Mound HQ logo - used
+     only for the brand name itself (header, nav, login cards), not for
+     general headings, which stay on --font-display. */
+  --font-wordmark: 'Poppins', 'Sora', 'Inter', sans-serif;
 
   --shadow-sm: 0 1px 2px rgba(10, 30, 63, 0.06), 0 1px 3px rgba(10, 30, 63, 0.08);
   --shadow-md: 0 4px 12px rgba(10, 30, 63, 0.10), 0 2px 4px rgba(10, 30, 63, 0.06);
@@ -91,7 +95,7 @@ header.site-header {
 }
 
 header.site-header img.logo {
-  height: 44px;
+  height: 76px;
   width: auto;
   border-radius: 8px;
 }
@@ -104,6 +108,9 @@ header.site-header .brand h1 {
   margin: 0;
   font-size: 1.5rem;
   letter-spacing: -0.01em;
+  font-family: var(--font-wordmark);
+  font-weight: 800;
+  font-style: italic;
 }
 
 header.site-header .brand span {
@@ -897,6 +904,9 @@ table.csv-preview th, table.csv-preview td {
 .login-card h1 {
   font-size: 1.2rem;
   margin: 0 0 2px;
+  font-family: var(--font-wordmark);
+  font-weight: 800;
+  font-style: italic;
 }
 
 .login-sub {
@@ -1205,6 +1215,8 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
     padding: 12px 16px;
   }
 
+  header.site-header img.logo { height: 52px; }
+
   .nav-toggle { display: flex; }
 
   header.site-header nav {
@@ -1314,8 +1326,9 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   gap: 10px;
   text-decoration: none;
   color: #fff;
-  font-family: var(--font-display);
-  font-weight: 700;
+  font-family: var(--font-wordmark);
+  font-weight: 800;
+  font-style: italic;
   font-size: 1.15rem;
 }
 
@@ -1624,8 +1637,9 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   gap: 10px;
   text-decoration: none;
   color: #fff;
-  font-family: var(--font-display);
+  font-family: var(--font-wordmark);
   font-weight: 800;
+  font-style: italic;
   font-size: 1.15rem;
   letter-spacing: -0.01em;
 }
@@ -1714,6 +1728,7 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   align-items: center;
 }
 .landing-hero-copy { max-width: 560px; }
+.landing-hero-logo { display: block; width: 220px; height: auto; margin-bottom: 22px; }
 .landing-hero h1 {
   font-family: var(--font-impact);
   font-weight: 400;
@@ -1998,8 +2013,9 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   gap: 10px;
   text-decoration: none;
   color: var(--phx-blue-dark);
-  font-family: var(--font-display);
+  font-family: var(--font-wordmark);
   font-weight: 800;
+  font-style: italic;
   font-size: 1.1rem;
   letter-spacing: -0.01em;
 }
@@ -2164,7 +2180,7 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   background: var(--phx-white);
 }
 .legal-header img { height: 32px; width: 32px; }
-.legal-header span { font-family: var(--font-display); font-weight: 800; font-size: 1.1rem; color: var(--phx-blue); }
+.legal-header span { font-family: var(--font-wordmark); font-weight: 800; font-style: italic; font-size: 1.1rem; color: var(--phx-blue); }
 
 .legal-wrap {
   max-width: 760px;
