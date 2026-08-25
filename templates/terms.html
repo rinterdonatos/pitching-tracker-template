@@ -20,6 +20,7 @@
   </header>
 
   <div class="legal-wrap">
+    <p style="margin-bottom:20px;"><a href="{{ url_for('home') }}">&larr; Back to Home</a></p>
     <h1>Terms of Service</h1>
     <p class="legal-updated">Last updated {{ current_year() }}</p>
 
@@ -107,7 +108,10 @@
       Questions about these terms? Reach us at <a href="mailto:{{ support_email }}">{{ support_email }}</a>.
     </p>
 
-    <p style="margin-top:40px;"><a href="{{ url_for('privacy') }}">Read the Privacy Policy &rarr;</a></p>
+    <p style="margin-top:40px;">
+      <a href="{{ url_for('home') }}">&larr; Back to Home</a> &middot;
+      <a href="{{ url_for('privacy') }}">Read the Privacy Policy &rarr;</a>
+    </p>
   </div>
 </body>
 </html>
