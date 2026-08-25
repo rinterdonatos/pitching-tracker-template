@@ -1435,7 +1435,7 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 .feed-item-info {
   position: absolute;
   left: 0;
-  right: 76px;
+  right: 88px;
   bottom: 0;
   padding: 18px 18px 26px;
   background: linear-gradient(0deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0) 100%);
@@ -1461,10 +1461,10 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   background: rgba(0, 0, 0, 0.4);
   border: none;
   color: #fff;
-  width: 52px;
-  height: 52px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
-  font-size: 1.5rem;
+  font-size: 1.9rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1477,10 +1477,10 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   background: rgba(0, 0, 0, 0.4);
   border: none;
   color: #fff;
-  width: 52px;
-  height: 52px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
-  font-size: 1.4rem;
+  font-size: 1.8rem;
   display: flex;
   align-items: center;
   justify-content: center;

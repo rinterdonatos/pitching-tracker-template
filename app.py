@@ -2563,7 +2563,8 @@ def coach_favorites():
     conn = get_db()
     videos = conn.execute(
         """SELECT v.*, p.name AS player_name, p.position, p.grad_year,
-                  t.name AS team_name, o.name AS org_name, 1 AS is_favorited
+                  t.name AS team_name, o.name AS org_name, 1 AS is_favorited,
+                  EXISTS(SELECT 1 FROM player_follows pf WHERE pf.player_id = p.id AND pf.coach_id = ?) AS is_followed
            FROM video_favorites vf
            JOIN videos v ON v.id = vf.video_id
            JOIN players p ON p.id = v.player_id
@@ -2571,7 +2572,7 @@ def coach_favorites():
            JOIN organizations o ON o.id = p.organization_id
            WHERE vf.coach_id = ? AND p.recruiting_opt_in = 1
            ORDER BY vf.created_at DESC""",
-        (g.coach["id"],),
+        (g.coach["id"], g.coach["id"]),
     ).fetchall()
     conn.close()
     return render_template("coach_favorites.html", videos=videos)

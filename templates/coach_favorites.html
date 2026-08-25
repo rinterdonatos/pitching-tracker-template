@@ -13,16 +13,23 @@
         <div class="coach-card">
           <video src="{{ media_url('uploads/videos/' ~ v['filename']) }}" controls preload="metadata" style="width:100%; border-radius:8px; background:#000; display:block; margin-bottom:8px;"></video>
           <span class="org-tag">{{ v['org_name'] }}</span>
-          <div class="name" style="margin-top:6px;">{{ v['player_name'] }}</div>
+          <a class="name" style="display:block; margin-top:6px;" href="{{ url_for('coach_player_detail', player_id=v['player_id']) }}">{{ v['player_name'] }}</a>
           <div class="meta">
             {{ v['position'] or '' }}
             {% if v['grad_year'] %} · Class of {{ v['grad_year'] }}{% endif %}
             {% if v['team_name'] %} · {{ v['team_name'] }}{% endif %}
           </div>
           {% if v['title'] %}<div class="meta">{{ v['title'] }}{% if v['category'] %} &middot; {{ v['category'] }}{% endif %}</div>{% endif %}
-          <form method="POST" action="{{ url_for('coach_favorite_toggle', video_id=v['id']) }}" style="margin-top:8px;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <button class="btn danger" type="submit" style="padding:6px 12px; font-size:0.85rem;">Remove Favorite</button>
-          </form>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <form method="POST" action="{{ url_for('coach_player_follow_toggle', player_id=v['player_id']) }}" style="flex:1;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn follow-btn {{ 'following' if v['is_followed'] }}" style="width:100%;" type="submit">
+                {{ 'Following' if v['is_followed'] else '+ Follow' }}
+              </button>
+            </form>
+            <form method="POST" action="{{ url_for('coach_favorite_toggle', video_id=v['id']) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+              <button class="btn danger" type="submit" style="padding:6px 12px; font-size:0.85rem; height:100%;">Remove Favorite</button>
+            </form>
+          </div>
         </div>
       {% endfor %}
     </div>
