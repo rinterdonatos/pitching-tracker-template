@@ -10,7 +10,7 @@
       <a class="btn" href="{{ url_for('add_player') }}">+ Add Player</a>
     </div>
   {% else %}
-  <form class="card-form" method="POST" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <form class="card-form" method="POST" enctype="multipart/form-data" id="video-upload-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="field">
       <label for="player_id">Player *</label>
       <select id="player_id" name="player_id" required>
@@ -47,7 +47,141 @@
       <input type="file" id="video_file" name="video_file" accept="video/*" multiple required>
       <div class="hint">Any common video format works, including what your phone records by default (MOV, MP4, etc). Select more than one file to upload several clips from the same session at once. They'll share this date, title, session type, and notes.</div>
     </div>
-    <button class="btn" type="submit">Upload Video</button>
+    <div class="field" id="upload-progress-wrap" style="display:none;">
+      <label id="upload-progress-label">Uploading...</label>
+      <progress id="upload-progress-bar" value="0" max="100" style="width:100%;"></progress>
+    </div>
+    <button class="btn" type="submit" id="upload-submit-btn">Upload Video</button>
   </form>
   {% endif %}
+
+  <script>
+    (function () {
+      var form = document.getElementById('video-upload-form');
+      if (!form) return;
+      var csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+      var fileInput = document.getElementById('video_file');
+      var submitBtn = document.getElementById('upload-submit-btn');
+      var progressWrap = document.getElementById('upload-progress-wrap');
+      var progressBar = document.getElementById('upload-progress-bar');
+      var progressLabel = document.getElementById('upload-progress-label');
+      var directUploadFailed = false;
+
+      function setProgress(pct, label) {
+        progressWrap.style.display = 'block';
+        progressBar.value = pct;
+        progressLabel.textContent = label;
+      }
+
+      function resetUi() {
+        submitBtn.disabled = false;
+        progressWrap.style.display = 'none';
+      }
+
+      // Uploads each file straight to R2 via its presigned URL, tracking
+      // combined progress across every file at once.
+      function putAllFiles(usable) {
+        var loaded = usable.map(function () { return 0; });
+        var grandTotal = usable.reduce(function (sum, u) { return sum + u.file.size; }, 0) || 1;
+
+        function putOne(u, idx) {
+          return new Promise(function (resolve, reject) {
+            var xhr = new XMLHttpRequest();
+            xhr.open('PUT', u.entry.url);
+            xhr.setRequestHeader('Content-Type', u.file.type || 'application/octet-stream');
+            xhr.upload.addEventListener('progress', function (e) {
+              if (!e.lengthComputable) return;
+              loaded[idx] = e.loaded;
+              var total = loaded.reduce(function (a, b) { return a + b; }, 0);
+              setProgress(
+                Math.min(99, Math.round((total / grandTotal) * 100)),
+                'Uploading ' + (idx + 1) + ' of ' + usable.length + '...'
+              );
+            });
+            xhr.addEventListener('load', function () {
+              if (xhr.status >= 200 && xhr.status < 300) resolve();
+              else reject(new Error('Upload failed (' + xhr.status + ')'));
+            });
+            xhr.addEventListener('error', function () { reject(new Error('Upload failed - network error')); });
+            xhr.send(u.file);
+          });
+        }
+
+        return Promise.all(usable.map(putOne));
+      }
+
+      function finalizeUpload(usable) {
+        return fetch("{{ url_for('finalize_video_upload') }}", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+          body: JSON.stringify({
+            player_id: document.getElementById('player_id').value,
+            entry_date: document.getElementById('entry_date').value,
+            title: document.getElementById('title').value,
+            category: document.getElementById('category').value,
+            category_other: document.getElementById('category_other').value,
+            notes: document.getElementById('notes').value,
+            files: usable.map(function (u) {
+              return { stored_filename: u.entry.stored_filename, filename: u.file.name };
+            }),
+          }),
+        })
+          .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('save failed')); })
+          .then(function (data) {
+            if (!data.ok) throw new Error(data.error || 'save failed');
+            window.location = data.redirect;
+          });
+      }
+
+      function runDirectUpload(presigned) {
+        var files = Array.prototype.slice.call(fileInput.files);
+        var usable = [];
+        for (var i = 0; i < files.length; i++) {
+          var entry = presigned[i];
+          if (!entry || entry.error || !entry.url) continue;
+          usable.push({ file: files[i], entry: entry });
+        }
+        if (!usable.length) throw new Error('nothing usable');
+
+        return putAllFiles(usable)
+          .then(function () {
+            setProgress(100, 'Saving...');
+            return finalizeUpload(usable);
+          });
+      }
+
+      form.addEventListener('submit', function (e) {
+        if (!fileInput.files.length || directUploadFailed) return; // native "required" / already-failed-once fallback
+        e.preventDefault();
+        submitBtn.disabled = true;
+        setProgress(0, 'Preparing upload...');
+
+        fetch("{{ url_for('presign_video_upload') }}", {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+          body: JSON.stringify({
+            files: Array.prototype.map.call(fileInput.files, function (f) { return { filename: f.name }; }),
+          }),
+        })
+          .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('presign failed')); })
+          .then(function (data) {
+            if (!data.ok || !data.files || !data.files.length) throw new Error('presign failed');
+            return runDirectUpload(data.files);
+          })
+          .catch(function () {
+            // Whatever went wrong - presign failed, a PUT to R2 failed,
+            // saving the DB record failed - fall back to the classic
+            // multipart form post so the upload still goes through, just
+            // routed through this server instead of straight to R2. Worst
+            // case if a direct PUT actually succeeded before the failure
+            // is one harmless orphaned file sitting in R2 with no DB row
+            // pointing at it; the video itself still gets uploaded and
+            // saved correctly via this fallback.
+            resetUi();
+            directUploadFailed = true;
+            form.submit();
+          });
+      });
+    })();
+  </script>
 {% endblock %}

@@ -5100,6 +5100,102 @@ def upload_video():
     return render_template("upload_video.html", players=players, category_options=CATEGORY_OPTIONS)
 
 
+# Direct-to-R2 upload: instead of the browser sending the video through this
+# server and then this server relaying it on to R2 (two full transfers of
+# every byte, and a big video tying up a gunicorn worker for the whole
+# thing), the upload form's JS asks this endpoint for a short-lived
+# presigned R2 URL per file and PUTs the file straight to R2 itself - this
+# server never touches the video bytes at all. upload_video() above stays
+# exactly as it was and still works as a plain multipart form post; it's
+# the fallback if JS is unavailable or a presigned URL can't be obtained
+# (e.g. the R2 bucket's CORS policy isn't set up yet).
+@app.route("/<org_slug>/upload/video/presign", methods=["POST"])
+def presign_video_upload():
+    if not MEDIA_ENABLED:
+        return {"ok": False, "error": "Media storage isn't configured."}, 400
+
+    payload = request.get_json(silent=True) or {}
+    requested = payload.get("files") or []
+    if not isinstance(requested, list) or not requested:
+        return {"ok": False, "error": "No files given."}, 400
+
+    client = r2_media_client()
+    results = []
+    for item in requested[:20]:  # a generous cap - nobody's adding 20+ clips in one go
+        original_name = (item or {}).get("filename") or ""
+        content_type = (item or {}).get("content_type") or ""
+        if not allowed_file(original_name, ALLOWED_VIDEO_EXT):
+            results.append({"filename": original_name, "error": "Unsupported video type."})
+            continue
+        safe_name = secure_filename(original_name)
+        stored_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{safe_name}"
+        key = f"uploads/videos/{stored_filename}"
+        try:
+            # ContentType is deliberately left out of the signed params here -
+            # if it were included, the browser's PUT would have to send back
+            # that exact Content-Type header or R2 rejects the signature.
+            # Leaving it unsigned lets the browser send whatever Content-Type
+            # it detected (or none) without the upload failing over a
+            # mismatch neither side has much control over.
+            url = client.generate_presigned_url(
+                "put_object",
+                Params={"Bucket": R2_MEDIA_BUCKET_NAME, "Key": key},
+                ExpiresIn=3600,
+            )
+        except Exception:
+            results.append({"filename": original_name, "error": "Couldn't get an upload URL."})
+            continue
+        results.append({
+            "filename": original_name,
+            "stored_filename": stored_filename,
+            "key": key,
+            "url": url,
+            "content_type": content_type,
+        })
+
+    return {"ok": True, "files": results}
+
+
+@app.route("/<org_slug>/upload/video/finalize", methods=["POST"])
+def finalize_video_upload():
+    payload = request.get_json(silent=True) or {}
+    player_id = payload.get("player_id")
+    title = (payload.get("title") or "").strip()
+    category = (payload.get("category") or "").strip()
+    if category == "Other":
+        category = (payload.get("category_other") or "").strip()
+    notes = (payload.get("notes") or "").strip()
+    entry_date = parse_date(payload.get("entry_date"))
+    files = [f for f in (payload.get("files") or []) if f.get("stored_filename")]
+
+    if not player_id:
+        return {"ok": False, "error": "Choose a player."}, 400
+
+    conn = get_db()
+    owned = conn.execute(
+        "SELECT id FROM players WHERE id = ? AND organization_id = ?", (player_id, g.org["id"])
+    ).fetchone()
+    if not owned:
+        conn.close()
+        return {"ok": False, "error": "That player isn't part of this organization."}, 400
+
+    if not files:
+        conn.close()
+        return {"ok": False, "error": "No uploaded files to save."}, 400
+
+    for f in files:
+        safe_name = secure_filename(f.get("filename") or f["stored_filename"])
+        conn.execute(
+            "INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (g.org["id"], player_id, entry_date, title or safe_name, category, notes, f["stored_filename"]),
+        )
+    conn.commit()
+    conn.close()
+
+    flash(f"Uploaded {len(files)} video{'s' if len(files) != 1 else ''}.", "success")
+    return {"ok": True, "redirect": url_for("player_detail", player_id=player_id)}
+
+
 @app.route("/<org_slug>/videos/<int:video_id>/delete", methods=["POST"])
 @admin_required
 def delete_video(video_id):
