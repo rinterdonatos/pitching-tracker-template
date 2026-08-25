@@ -3,6 +3,7 @@ import re
 import csv
 import io
 import base64
+import math
 import random
 import secrets
 import smtplib
@@ -2687,8 +2688,10 @@ def _rank_feed_videos(videos):
     """Order the feed by a blended score instead of pure recency: harder
     velocity readings and bullpen/game reps are what a coach actually wants
     to evaluate first, recent uploads get a boost so the feed stays fresh,
-    and a small random jitter keeps the order from going stale on repeat
-    visits without overriding the real signal."""
+    popular players/clips (followers, favorites) get a nudge upward, and a
+    healthy random jitter keeps the order from going stale on repeat visits
+    and makes sure every video - not just the popular ones - has a real
+    shot at the top of the feed."""
     if not videos:
         return videos
 
@@ -2696,6 +2699,15 @@ def _rank_feed_videos(videos):
     max_velo = max(velos) if velos else None
     min_velo = min(velos) if velos else None
     today = date.today()
+
+    # Popularity is log-scaled before normalizing so one heavily-followed
+    # player or one viral clip can't just run away with the feed by having
+    # 10x the raw count of everyone else - going from 5 to 50 followers
+    # matters a lot more to the score than going from 500 to 545.
+    max_followers = max((v["follower_count"] or 0) for v in videos)
+    max_favorites = max((v["favorite_count"] or 0) for v in videos)
+    log_max_followers = math.log1p(max_followers)
+    log_max_favorites = math.log1p(max_favorites)
 
     scored = []
     for v in videos:
@@ -2719,8 +2731,22 @@ def _rank_feed_videos(videos):
             days_old = 365
         recency_score = 1.0 / (1.0 + days_old / 30.0)
 
-        weighted = (0.35 * velo_score) + (0.25 * category_score) + (0.25 * recency_score)
-        jitter = random.random() * 0.15
+        follower_score = (math.log1p(v["follower_count"] or 0) / log_max_followers) if log_max_followers else 0.0
+        favorite_score = (math.log1p(v["favorite_count"] or 0) / log_max_favorites) if log_max_favorites else 0.0
+        popularity_score = (0.5 * follower_score) + (0.5 * favorite_score)
+
+        weighted = (
+            (0.20 * velo_score)
+            + (0.15 * category_score)
+            + (0.20 * recency_score)
+            + (0.15 * popularity_score)
+        )
+        # Max weighted score is 0.70 - a jitter of up to 0.30 is deliberately
+        # bigger than the entire popularity weight, so even a video from a
+        # player with zero followers/favorites still has a real (if smaller)
+        # chance of landing near the top against the most popular player on
+        # any given load. Popularity shifts the odds, it doesn't decide them.
+        jitter = random.random() * 0.30
         scored.append((weighted + jitter, v))
 
     scored.sort(key=lambda pair: pair[0], reverse=True)
@@ -2740,11 +2766,13 @@ def coach_feed():
         params = params + [g.coach["id"]]
 
     videos = conn.execute(
-        f"""SELECT v.*, p.name AS player_name, p.position, p.grad_year,
+        f"""SELECT v.*, p.name AS player_name, p.position, p.grad_year, p.photo_filename AS player_photo_filename,
                    t.name AS team_name, o.name AS org_name,
                    EXISTS(SELECT 1 FROM video_favorites vf WHERE vf.video_id = v.id AND vf.coach_id = ?) AS is_favorited,
                    EXISTS(SELECT 1 FROM player_follows pf WHERE pf.player_id = v.player_id AND pf.coach_id = ?) AS is_followed,
-                   bv.best_velo AS player_best_velo
+                   bv.best_velo AS player_best_velo,
+                   (SELECT COUNT(*) FROM video_favorites vf2 WHERE vf2.video_id = v.id) AS favorite_count,
+                   (SELECT COUNT(*) FROM player_follows pf2 WHERE pf2.player_id = v.player_id) AS follower_count
             FROM videos v
             JOIN players p ON p.id = v.player_id
             LEFT JOIN teams t ON t.id = p.team_id
@@ -5107,20 +5135,9 @@ def upload_video():
             stored_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{safe_name}"
             upload_media(file.stream, f"uploads/videos/{stored_filename}", file.content_type)
 
-            # The upload form's JS captures a poster frame client-side and
-            # attaches it under this indexed field name, matching each
-            # video file's position in the list - optional, since capture
-            # can fail for some formats/browsers, in which case the player
-            # page just falls back to a generic placeholder thumbnail.
-            thumbnail_filename = None
-            thumb_file = request.files.get(f"video_thumb_{idx}")
-            if thumb_file and thumb_file.filename:
-                thumbnail_filename = stored_filename.rsplit(".", 1)[0] + ".jpg"
-                upload_media(thumb_file.stream, f"uploads/videos/thumbs/{thumbnail_filename}", "image/jpeg")
-
             conn.execute(
-                "INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename, thumbnail_filename) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (g.org["id"], player_id, entry_date, title or safe_name, category, notes, stored_filename, thumbnail_filename),
+                "INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (g.org["id"], player_id, entry_date, title or safe_name, category, notes, stored_filename),
             )
             uploaded_count += 1
 
@@ -5173,8 +5190,6 @@ def presign_video_upload():
         safe_name = secure_filename(original_name)
         stored_filename = f"{datetime.now().strftime('%Y%m%d%H%M%S%f')}_{safe_name}"
         key = f"uploads/videos/{stored_filename}"
-        thumb_stored_filename = stored_filename.rsplit(".", 1)[0] + ".jpg"
-        thumb_key = f"uploads/videos/thumbs/{thumb_stored_filename}"
         try:
             # ContentType is deliberately left out of the signed params here -
             # if it were included, the browser's PUT would have to send back
@@ -5187,18 +5202,6 @@ def presign_video_upload():
                 Params={"Bucket": R2_MEDIA_BUCKET_NAME, "Key": key},
                 ExpiresIn=3600,
             )
-            # Thumbnail is optional (the browser might not be able to
-            # capture one from every video format) so a failure here
-            # shouldn't sink the whole file - just means no thumbnail_url.
-            thumbnail_url = None
-            try:
-                thumbnail_url = client.generate_presigned_url(
-                    "put_object",
-                    Params={"Bucket": R2_MEDIA_BUCKET_NAME, "Key": thumb_key},
-                    ExpiresIn=3600,
-                )
-            except Exception:
-                pass
         except Exception:
             results.append({"filename": original_name, "error": "Couldn't get an upload URL."})
             continue
@@ -5208,8 +5211,6 @@ def presign_video_upload():
             "key": key,
             "url": url,
             "content_type": content_type,
-            "thumbnail_stored_filename": thumb_stored_filename,
-            "thumbnail_url": thumbnail_url,
         })
 
     return {"ok": True, "files": results}
@@ -5245,8 +5246,8 @@ def finalize_video_upload():
     for f in files:
         safe_name = secure_filename(f.get("filename") or f["stored_filename"])
         conn.execute(
-            "INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename, thumbnail_filename) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (g.org["id"], player_id, entry_date, title or safe_name, category, notes, f["stored_filename"], f.get("thumbnail_filename") or None),
+            "INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (g.org["id"], player_id, entry_date, title or safe_name, category, notes, f["stored_filename"]),
         )
     conn.commit()
     conn.close()

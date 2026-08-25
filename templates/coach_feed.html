@@ -80,7 +80,6 @@
         <div class="feed-item" data-video-id="{{ v['id'] }}">
           <video
             src="{{ media_url('uploads/videos/' ~ v['filename']) }}"
-            poster="{{ media_url('uploads/videos/thumbs/' ~ v['thumbnail_filename']) if v['thumbnail_filename'] else static_url('img/video-placeholder.svg') }}"
             playsinline
             loop
             preload="metadata"
@@ -96,12 +95,20 @@
             {% if v['title'] %}<div class="video-title">{{ v['title'] }}{% if v['category'] %} &middot; {{ v['category'] }}{% endif %}</div>{% endif %}
           </div>
           <div class="feed-item-actions">
-            <button class="feed-follow-btn {{ 'following' if v['is_followed'] }}" data-player-id="{{ v['player_id'] }}" type="button" aria-label="Follow player">
-              {{ '★' if v['is_followed'] else '☆' }}
+            <button class="feed-avatar-btn {{ 'following' if v['is_followed'] }}" data-player-id="{{ v['player_id'] }}" type="button" aria-label="{{ 'Following ' ~ v['player_name'] if v['is_followed'] else 'Follow ' ~ v['player_name'] }}">
+              {% if v['player_photo_filename'] %}
+                <img class="feed-avatar-img" src="{{ media_url('uploads/photos/' ~ v['player_photo_filename']) }}" alt="">
+              {% else %}
+                <span class="feed-avatar-initials">{{ v['player_name'] | initials }}</span>
+              {% endif %}
+              <span class="feed-avatar-badge" aria-hidden="true">+</span>
             </button>
-            <button class="feed-fav-btn {{ 'favorited' if v['is_favorited'] }}" data-video-id="{{ v['id'] }}" type="button" aria-label="Favorite">
-              {{ '♥' if v['is_favorited'] else '♡' }}
-            </button>
+            <div class="feed-fav-wrap">
+              <button class="feed-fav-btn {{ 'favorited' if v['is_favorited'] }}" data-video-id="{{ v['id'] }}" type="button" aria-label="Favorite">
+                {{ '♥' if v['is_favorited'] else '♡' }}
+              </button>
+              <span class="feed-fav-count">{{ v['favorite_count'] }}</span>
+            </div>
           </div>
         </div>
       {% endfor %}
@@ -169,13 +176,22 @@
         }
       });
 
-      // Favoriting: optimistic UI update, then confirm with the server.
+      // Favoriting: optimistic UI update (icon + count), then confirm with
+      // the server. The count is adjusted locally rather than re-fetched -
+      // good enough for a like counter, and avoids an extra round trip.
       document.querySelectorAll('.feed-fav-btn').forEach(function (btn) {
+        var countEl = btn.parentElement.querySelector('.feed-fav-count');
+        function bumpCount(delta) {
+          if (!countEl) return;
+          var next = Math.max(0, (parseInt(countEl.textContent, 10) || 0) + delta);
+          countEl.textContent = next;
+        }
         btn.addEventListener('click', function () {
           var videoId = btn.getAttribute('data-video-id');
           var wasFavorited = btn.classList.contains('favorited');
           btn.classList.toggle('favorited');
           btn.textContent = wasFavorited ? '♡' : '♥';
+          bumpCount(wasFavorited ? -1 : 1);
 
           fetch('/coach/videos/' + videoId + '/favorite', {
             method: 'POST',
@@ -183,24 +199,33 @@
           })
             .then(function (r) { return r.json(); })
             .then(function (data) {
-              btn.classList.toggle('favorited', !!data.favorited);
-              btn.textContent = data.favorited ? '♥' : '♡';
+              var nowFavorited = !!data.favorited;
+              if (nowFavorited !== !wasFavorited) {
+                // Server disagreed with the optimistic guess - reconcile
+                // both the icon and the count to match reality.
+                bumpCount(nowFavorited ? 1 : -1);
+              }
+              btn.classList.toggle('favorited', nowFavorited);
+              btn.textContent = nowFavorited ? '♥' : '♡';
             })
             .catch(function () {
               // Network hiccup - revert the optimistic change.
               btn.classList.toggle('favorited', wasFavorited);
               btn.textContent = wasFavorited ? '♥' : '♡';
+              bumpCount(wasFavorited ? 1 : -1);
             });
         });
       });
 
-      // Following a player: same optimistic-update pattern as favoriting.
-      document.querySelectorAll('.feed-follow-btn').forEach(function (btn) {
+      // Following a player straight from the video, TikTok-style: tapping
+      // the avatar in the action rail follows/unfollows without leaving the
+      // feed. The little "+" badge on the avatar is hidden via the
+      // 'following' class once followed (see CSS).
+      document.querySelectorAll('.feed-avatar-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
           var playerId = btn.getAttribute('data-player-id');
           var wasFollowing = btn.classList.contains('following');
           btn.classList.toggle('following');
-          btn.textContent = wasFollowing ? '☆' : '★';
 
           fetch('/coach/players/' + playerId + '/follow', {
             method: 'POST',
@@ -209,11 +234,9 @@
             .then(function (r) { return r.json(); })
             .then(function (data) {
               btn.classList.toggle('following', !!data.followed);
-              btn.textContent = data.followed ? '★' : '☆';
             })
             .catch(function () {
               btn.classList.toggle('following', wasFollowing);
-              btn.textContent = wasFollowing ? '★' : '☆';
             });
         });
       });

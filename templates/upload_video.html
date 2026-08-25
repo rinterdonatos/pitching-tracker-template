@@ -78,67 +78,6 @@
         progressWrap.style.display = 'none';
       }
 
-      // Grabs a frame partway into the video as a JPEG blob, using an
-      // offscreen <video> + <canvas> - so the player page can show an
-      // actual thumbnail instead of the plain black box a <video> element
-      // renders before anything's played (especially bad on mobile
-      // Safari). Best-effort: some formats/browsers can't decode this way,
-      // so this resolves null rather than rejecting, and the caller just
-      // skips the thumbnail for that file.
-      function captureThumbnail(file) {
-        return new Promise(function (resolve) {
-          var objectUrl = URL.createObjectURL(file);
-          var settled = false;
-          function finish(blob) {
-            if (settled) return;
-            settled = true;
-            URL.revokeObjectURL(objectUrl);
-            resolve(blob || null);
-          }
-          var giveUp = setTimeout(function () { finish(null); }, 8000);
-          var videoEl = document.createElement('video');
-          videoEl.preload = 'metadata';
-          videoEl.muted = true;
-          videoEl.playsInline = true;
-          videoEl.addEventListener('loadeddata', function () {
-            try {
-              videoEl.currentTime = Math.min(0.5, (videoEl.duration || 1) * 0.1) || 0.1;
-            } catch (e) { clearTimeout(giveUp); finish(null); }
-          });
-          videoEl.addEventListener('seeked', function () {
-            try {
-              var canvas = document.createElement('canvas');
-              canvas.width = videoEl.videoWidth || 640;
-              canvas.height = videoEl.videoHeight || 360;
-              canvas.getContext('2d').drawImage(videoEl, 0, 0, canvas.width, canvas.height);
-              canvas.toBlob(function (blob) { clearTimeout(giveUp); finish(blob); }, 'image/jpeg', 0.82);
-            } catch (e) { clearTimeout(giveUp); finish(null); }
-          });
-          videoEl.addEventListener('error', function () { clearTimeout(giveUp); finish(null); });
-          videoEl.src = objectUrl;
-        });
-      }
-
-      // Captures + uploads a thumbnail for each file in the background.
-      // Entirely best-effort - a failure here never blocks or fails the
-      // actual video upload, it just means that video falls back to the
-      // generic placeholder thumbnail on the player page.
-      function uploadThumbnails(usable) {
-        return Promise.all(usable.map(function (u) {
-          if (!u.entry.thumbnail_url) return null;
-          return captureThumbnail(u.file)
-            .then(function (blob) {
-              if (!blob) return;
-              return fetch(u.entry.thumbnail_url, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'image/jpeg' },
-                body: blob,
-              }).then(function (r) { if (r.ok) u.thumbnailUploaded = true; });
-            })
-            .catch(function () {});
-        }));
-      }
-
       // Uploads each file straight to R2 via its presigned URL, tracking
       // combined progress across every file at once.
       function putAllFiles(usable) {
@@ -186,7 +125,6 @@
               return {
                 stored_filename: u.entry.stored_filename,
                 filename: u.file.name,
-                thumbnail_filename: u.thumbnailUploaded ? u.entry.thumbnail_stored_filename : null,
               };
             }),
           }),
@@ -208,14 +146,9 @@
         }
         if (!usable.length) throw new Error('nothing usable');
 
-        // Thumbnails upload in parallel with the video itself and never
-        // block or fail the main upload if they don't work out.
-        var thumbnailWork = uploadThumbnails(usable).catch(function () {});
-
         return putAllFiles(usable)
           .then(function () {
             setProgress(100, 'Saving...');
-            return thumbnailWork;
           })
           .then(function () { return finalizeUpload(usable); });
       }

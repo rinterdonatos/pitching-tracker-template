@@ -1553,6 +1553,13 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   gap: 18px;
 }
 
+.feed-fav-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
 .feed-fav-btn {
   background: rgba(0, 0, 0, 0.4);
   border: none;
@@ -1569,21 +1576,65 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 }
 .feed-fav-btn.favorited { color: #fb7185; }
 
-.feed-follow-btn {
-  background: rgba(0, 0, 0, 0.4);
-  border: none;
+.feed-fav-count {
   color: #fff;
-  width: 64px;
-  height: 64px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+}
+
+/* TikTok-style follow button: the player's avatar sits right in the action
+   rail on the video itself, with a small "+" badge overlapping the bottom
+   edge. Tapping it follows the player without leaving the feed; the badge
+   disappears once followed so the avatar reads as "already following". */
+.feed-avatar-btn {
+  position: relative;
+  background: none;
+  border: none;
+  padding: 0;
+  width: 52px;
+  height: 52px;
   border-radius: 50%;
-  font-size: 1.8rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.feed-avatar-img,
+.feed-avatar-initials {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 2px solid #fff;
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  line-height: 1;
+  background: var(--phx-blue, #4338ca);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1rem;
+  object-fit: cover;
 }
-.feed-follow-btn.following { color: #facc15; }
+
+.feed-avatar-badge {
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  transform: translateX(-50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fb7185;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #000;
+}
+
+.feed-avatar-btn.following .feed-avatar-badge { display: none; }
 
 .follow-btn {
   background: var(--phx-white);
