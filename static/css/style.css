@@ -334,6 +334,45 @@ form.card-form {
   box-shadow: var(--shadow-sm);
 }
 
+dialog.invite-modal {
+  border: none;
+  border-radius: 14px;
+  padding: 0;
+  max-width: 480px;
+  width: calc(100% - 40px);
+  box-shadow: var(--shadow-lg);
+}
+dialog.invite-modal::backdrop {
+  background: rgba(15, 23, 42, 0.5);
+}
+dialog.invite-modal .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--phx-border);
+}
+dialog.invite-modal .modal-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+dialog.invite-modal .modal-close {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--phx-gray);
+  padding: 4px 6px;
+}
+dialog.invite-modal form.card-form {
+  border: none;
+  box-shadow: none;
+  max-width: none;
+  padding: 22px;
+  margin: 0;
+}
+
 .field {
   margin-bottom: 18px;
 }
