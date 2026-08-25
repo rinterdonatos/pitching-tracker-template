@@ -1586,6 +1586,48 @@ ER_COL_NAMES = {"er", "earnedruns"}
 ERA_COL_NAMES = {"era"}
 K_COL_NAMES = {"k", "so", "strikeouts", "ks"}
 
+# Column order for the player page's stat tables, grouped the way a coach
+# actually reads a stat line - workload, then results, then the rates
+# derived from them, then velocity by pitch (fastball first) - instead of
+# alphabetically, which scrambled "ER" ahead of "IP" ahead of "K". Matched
+# via normalize_col(), so "Strikes" / "strikes" / "Strike" all land in the
+# same slot regardless of how they were typed on import. Anything not
+# recognized here (a custom column someone added) sorts alphabetically
+# after all of it, so it still shows up somewhere sane instead of just
+# disappearing or getting buried mid-list.
+STAT_DISPLAY_ORDER = (
+    list(IP_COL_NAMES) + list(PITCHES_COL_NAMES) + list(STRIKES_COL_NAMES) + list(STRIKE_PCT_COL_NAMES)
+    + ["outs", "bf", "battersfaced", "ab", "atbats"]
+    + ["h", "hits", "singles", "doubles", "triples", "hr", "homeruns"]
+    + ["r", "runs"]
+    + list(ER_COL_NAMES)
+    + ["bb", "walks", "hbp", "hitbypitch"]
+    + list(K_COL_NAMES)
+    + ["wp", "wildpitches", "pickoffs"]
+    + list(ERA_COL_NAMES)
+    + ["k/7", "whip"]
+    + [
+        "fbvelo", "fbtopvelo", "sivelo", "sitopvelo", "ctvelo", "cttopvelo",
+        "slvelo", "sltopvelo", "cbvelo", "cbtopvelo", "chvelo", "chtopvelo",
+        "splvelo", "spltopvelo", "swpvelo", "swptopvelo", "maxvelo",
+    ]
+    + ["score", "g", "games", "appearances"]
+)
+STAT_ORDER_RANK = {name: i for i, name in enumerate(STAT_DISPLAY_ORDER)}
+
+
+def _stat_sort_key(name):
+    norm = normalize_col(name)
+    if norm in STAT_ORDER_RANK:
+        return (0, STAT_ORDER_RANK[norm], "")
+    if "velo" in (name or "").lower():
+        # An unrecognized velo column (a custom pitch type) still groups
+        # with the other velocity readings instead of scattering off
+        # into alphabetical order on its own.
+        return (0, len(STAT_DISPLAY_ORDER), name.lower())
+    return (1, 0, name.lower())
+
+
 # Innings a game is worth for these rate stats. High school baseball plays
 # 7-inning games (not the MLB's 9), so ERA and K/7 are scaled off this instead.
 INNINGS_PER_GAME = 7
@@ -4135,7 +4177,7 @@ def _build_player_profile_context(conn, player_id, date_from, date_to, is_coach_
     category_tables = []
     for cat in sorted(raw_by_category.keys(), key=_category_sort_key):
         bucket = raw_by_category[cat]
-        stat_names = sorted(bucket["stat_names"])
+        stat_names = sorted(bucket["stat_names"], key=_stat_sort_key)
         dates = sorted(bucket["dates"])
 
         table_rows = []
