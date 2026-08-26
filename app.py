@@ -2024,6 +2024,13 @@ def home():
     return render_template("landing.html")
 
 
+@app.route("/pricing")
+def pricing():
+    """Public pricing page - same marketing-site family as landing()/home()
+    above, just its own URL so it can be linked to directly."""
+    return render_template("pricing.html")
+
+
 @app.route("/terms")
 def terms():
     """One Terms of Service for the whole platform, not per-organization -
@@ -2049,6 +2056,7 @@ def robots_txt():
         "Allow: /$",
         "Allow: /start$",
         "Allow: /home$",
+        "Allow: /pricing$",
         "Allow: /terms$",
         "Allow: /privacy$",
         "",
@@ -2062,6 +2070,7 @@ def sitemap_xml():
     pages = [
         url_for("landing", _external=True),
         url_for("start", _external=True),
+        url_for("pricing", _external=True),
         url_for("terms", _external=True),
         url_for("privacy", _external=True),
     ]

@@ -51,6 +51,7 @@
         <a class="nav-link" href="#how">How It Works</a>
         <a class="nav-link" href="#product">Product</a>
         <a class="nav-link" href="#benefits">Benefits</a>
+        <a class="nav-link" href="{{ url_for('pricing') }}">Pricing</a>
         <div class="nav-divider"></div>
         <a class="nav-log-in" href="{{ url_for('org_picker') }}">Log In</a>
         <a class="btn-cta" href="{{ url_for('start') }}" style="padding:9px 18px; font-size:0.86rem;">Get Started</a>
@@ -311,7 +312,7 @@
   </section>
 
   <footer class="landing-footer">
-    <p>&copy; {{ current_year() }} {{ platform_name }}. <a href="{{ url_for('org_picker') }}">Log in</a> &middot; <a href="{{ url_for('start') }}">Create an organization</a> &middot; <a href="{{ url_for('terms') }}">Terms</a> &middot; <a href="{{ url_for('privacy') }}">Privacy</a></p>
+    <p>&copy; {{ current_year() }} {{ platform_name }}. <a href="{{ url_for('pricing') }}">Pricing</a> &middot; <a href="{{ url_for('org_picker') }}">Log in</a> &middot; <a href="{{ url_for('start') }}">Create an organization</a> &middot; <a href="{{ url_for('terms') }}">Terms</a> &middot; <a href="{{ url_for('privacy') }}">Privacy</a></p>
   </footer>
 
   <script>

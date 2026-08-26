@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pricing - {{ platform_name }}</title>
+  <meta name="description" content="Simple, transparent pricing for {{ platform_name }} - player development and recruiting for baseball and softball programs.">
+  <meta name="theme-color" content="#0b1120">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&family=Poppins:ital,wght@0,800;1,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
+  <link rel="icon" href="{{ static_url('img/favicon.svg') }}">
+  <link rel="alternate icon" href="{{ static_url('img/favicon.ico') }}">
+  <style>
+    :root {
+      --phx-blue: #1e293b;
+      --phx-blue-dark: #0f172a;
+      --phx-orange: #14b8a6;
+      --phx-orange-dark: #0d9488;
+      --brand-dark: #0b1120;
+      --brand-dark-2: #131f36;
+      --brand-cta: #f97316;
+      --brand-cta-light: #fb923c;
+      --font-display: 'Sora', 'Inter', -apple-system, sans-serif;
+      --font-impact: 'Anton', 'Sora', -apple-system, sans-serif;
+    }
+  </style>
+</head>
+<body style="background:#fff;">
+
+  <header class="landing-header">
+    <div class="landing-header-inner">
+      <a class="landing-brand" href="{{ url_for('landing') }}">
+        <img src="{{ static_url('img/default-badge.svg') }}" alt="{{ platform_name }} logo">
+        <span>{{ platform_name }}</span>
+      </a>
+      <div class="landing-nav-links">
+        <a class="nav-link" href="{{ url_for('home') }}">Home</a>
+        <a class="nav-link active" href="{{ url_for('pricing') }}">Pricing</a>
+        <div class="nav-divider"></div>
+        <a class="nav-log-in" href="{{ url_for('org_picker') }}">Log In</a>
+        <a class="btn-cta" href="{{ url_for('start') }}" style="padding:9px 18px; font-size:0.86rem;">Get Started</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="pricing-hero">
+    <h1>Simple, transparent pricing</h1>
+    <p>For baseball and softball programs of every size. No setup fee, cancel anytime.</p>
+  </section>
+
+  <section class="pricing-grid">
+    <div class="pricing-card">
+      <div class="pricing-name">Starter</div>
+      <p class="pricing-cap">Up to 20 players</p>
+      <div class="pricing-price"><span class="amount">$80</span><span class="period">/month</span></div>
+      <p class="pricing-sub">or $799/year (save 17%)</p>
+      <ul class="pricing-features">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Unlimited video &amp; stat uploads</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>CSV &amp; TrackMan import</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Coach recruiting portal</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>1 admin account</li>
+      </ul>
+      <p class="pricing-overage">+$6/player over 20</p>
+      <a class="btn-secondary" href="{{ url_for('start') }}">Get Started</a>
+    </div>
+
+    <div class="pricing-card featured">
+      <span class="pricing-badge">Most Popular</span>
+      <div class="pricing-name">Growth</div>
+      <p class="pricing-cap">Up to 40 players</p>
+      <div class="pricing-price"><span class="amount">$150</span><span class="period">/month</span></div>
+      <p class="pricing-sub">or $1,499/year (save 17%)</p>
+      <ul class="pricing-features">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Everything in Starter</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Custom team branding &amp; logo</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Multiple teams &amp; admins</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Lesson calendar</li>
+      </ul>
+      <p class="pricing-overage">+$5/player over 40</p>
+      <a class="btn-cta" href="{{ url_for('start') }}">Get Started</a>
+    </div>
+
+    <div class="pricing-card">
+      <div class="pricing-name">Pro</div>
+      <p class="pricing-cap">Unlimited players</p>
+      <div class="pricing-price"><span class="amount">$295</span><span class="period">/month</span></div>
+      <p class="pricing-sub">or $2,999/year (save 15%)</p>
+      <ul class="pricing-features">
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Everything in Growth</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Unlimited teams &amp; admins</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Priority support</li>
+        <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Best value past ~70 players</li>
+      </ul>
+      <p class="pricing-sub" style="margin-bottom:24px;">&nbsp;</p>
+      <a class="btn-secondary" href="{{ url_for('start') }}">Get Started</a>
+    </div>
+  </section>
+
+  <p class="pricing-footnote">Every plan includes video &amp; stat tracking, TrackMan import, and the coach recruiting portal &mdash; free for coaches to browse.</p>
+
+  <footer class="landing-footer">
+    <p><a href="{{ url_for('home') }}">&larr; Back to home</a> &middot; <a href="{{ url_for('org_picker') }}">Log in</a> &middot; <a href="{{ url_for('start') }}">Create an organization</a> &middot; <a href="{{ url_for('terms') }}">Terms</a> &middot; <a href="{{ url_for('privacy') }}">Privacy</a></p>
+    <p style="margin-top:6px;">&copy; {{ current_year() }} {{ platform_name }}.</p>
+  </footer>
+
+  <script>
+    (function () {
+      var header = document.querySelector('.landing-header');
+      function onScroll() {
+        if (window.scrollY > 8) header.classList.add('scrolled');
+        else header.classList.remove('scrolled');
+      }
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+    })();
+  </script>
+</body>
+</html>
