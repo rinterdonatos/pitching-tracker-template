@@ -85,7 +85,7 @@
             webkit-playsinline
             muted
             loop
-            preload="metadata"
+            preload="{{ 'metadata' if loop.first else 'none' }}"
           ></video>
           <button class="feed-mute-btn" type="button" aria-label="Toggle sound">🔇</button>
           <div class="feed-item-info">
@@ -162,11 +162,32 @@
         setMuteIcon(item, video.muted);
       }
 
+      // Every clip loads with preload="none" except the first (see the
+      // template above) - loading metadata/data for every clip in the feed
+      // at once was competing for bandwidth with whichever one the person
+      // was actually trying to watch, which is what made swiping feel
+      // laggy. Instead, as soon as a clip starts playing, the next one
+      // down starts quietly buffering in the background, so by the time
+      // someone swipes to it, it's usually already got a head start.
+      var feedItems = Array.from(document.querySelectorAll('.feed-item'));
+      function primeNext(afterItem) {
+        var idx = feedItems.indexOf(afterItem);
+        if (idx === -1) return;
+        var nextItem = feedItems[idx + 1];
+        if (!nextItem) return;
+        var nextVideo = nextItem.querySelector('video');
+        if (nextVideo && nextVideo.preload !== 'auto') {
+          nextVideo.preload = 'auto';
+          nextVideo.load();
+        }
+      }
+
       var observer = new IntersectionObserver(function (entries) {
         entries.forEach(function (entry) {
           var video = entry.target.querySelector('video');
           if (!video) return;
           if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
+            primeNext(entry.target);
             video.muted = true;
             var playPromise = video.play();
             if (playPromise && playPromise.then) {
@@ -187,7 +208,7 @@
         });
       }, { root: feed, threshold: [0, 0.6, 1] });
 
-      document.querySelectorAll('.feed-item').forEach(function (item) {
+      feedItems.forEach(function (item) {
         observer.observe(item);
         var video = item.querySelector('video');
         var muteBtn = item.querySelector('.feed-mute-btn');
