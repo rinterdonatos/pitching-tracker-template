@@ -432,6 +432,22 @@ def org_player_count(conn, org_id):
     return conn.execute("SELECT COUNT(*) FROM players WHERE organization_id = ?", (org_id,)).fetchone()[0]
 
 
+def org_has_billing_access(org):
+    """Whether this org is allowed past the billing paywall: grandfathered
+    or manually exempt (billing_exempt), on an active paid plan, or on a
+    hand-granted trial. Everything stays open if billing isn't configured
+    at all yet - the paywall only ever turns on once Stripe is set up."""
+    if not BILLING_ENABLED or not org:
+        return True
+    if org["billing_exempt"]:
+        return True
+    if org["subscription_status"] in ("active", "trialing", "past_due"):
+        return True
+    if org_trial_days_left(org) is not None:
+        return True
+    return False
+
+
 def org_plan_cap(org):
     """Max players included in an org's plan, or None if unlimited - which
     covers both the Pro plan and, just as importantly, every org that has
@@ -799,10 +815,18 @@ ORG_EXEMPT_ENDPOINTS = {
     # any one org), and deliberately not part of the /<org_slug>/ scheme so
     # one org's data is never confused with another's.
     "platform_organizations", "platform_org_detail", "platform_grant_trial", "platform_revoke_trial",
+    "platform_toggle_billing_exempt",
     "platform_save_team", "platform_delete_team",
     "platform_delete_player", "platform_verify_video", "platform_delete_video", "platform_enter_org",
     "platform_delete_org",
     "platform_admins_page", "platform_admin_add", "platform_admin_resend_invite", "platform_admin_delete",
+}
+
+# Reachable even from behind the billing paywall (see require_login) - an
+# org that's locked out still needs a way to actually subscribe and a way
+# to sign out, or the lockout would be a dead end with no way to fix it.
+BILLING_WALL_EXEMPT_ENDPOINTS = {
+    "subscribe_wall", "billing", "billing_checkout", "billing_portal", "logout", "account",
 }
 
 
@@ -1591,6 +1615,17 @@ def init_db():
         conn.execute("ALTER TABLE organizations ADD COLUMN trial_ends_at TEXT")
         conn.commit()
 
+    # The billing paywall (see org_has_billing_access / require_login) only
+    # ever applies to organizations created after it went live. Every org
+    # that already existed the moment this column is added gets
+    # grandfathered in as exempt, in the same migration, so nobody who was
+    # already using the app - including you - gets locked out retroactively.
+    # New signups from this point on default to 0 (not exempt).
+    if "billing_exempt" not in org_billing_cols:
+        conn.execute("ALTER TABLE organizations ADD COLUMN billing_exempt INTEGER DEFAULT 0")
+        conn.execute("UPDATE organizations SET billing_exempt = 1")
+        conn.commit()
+
     # Teams can optionally have their own logo (uniform patch, school crest,
     # etc.) shown on the Teams page - separate from the organization's own
     # logo, which is the whole program's brand rather than one team's.
@@ -2173,6 +2208,20 @@ def require_login():
         flash("Please sign in.", "error")
         return redirect(url_for("login", org_slug=org_slug, next=request.path))
 
+    # Billing paywall: an org created after billing went live, with no
+    # active plan and no hand-granted trial, can't get past this. Every org
+    # that already existed before billing_exempt was introduced was
+    # grandfathered in automatically (see the migration) and is unaffected.
+    # A platform admin using "Enter Site" always gets through, regardless -
+    # they need to be able to reach any org to support it.
+    if (
+        getattr(g, "org", None) is not None
+        and not session.get("platform_admin_id")
+        and request.endpoint not in BILLING_WALL_EXEMPT_ENDPOINTS
+        and not org_has_billing_access(g.org)
+    ):
+        return redirect(url_for("subscribe_wall", org_slug=g.org["slug"]))
+
     return None
 
 
@@ -2714,6 +2763,16 @@ def update_org_branding():
 # Optional and additive: an org with no plan on file keeps working exactly
 # as it always has (org_plan_cap() returns None -> unlimited). Subscribing
 # is something an admin opts into from here, not a gate in front of /start.
+
+@app.route("/<org_slug>/subscribe")
+def subscribe_wall():
+    """Where an org lands once the billing paywall kicks in (see the check
+    in require_login()) - no active plan, no live trial, not exempt.
+    Reachable by anyone signed in to the org, admin or not, so a regular
+    member understands why they're stuck; only an admin gets a way to
+    actually fix it, same as the rest of billing."""
+    return render_template("subscribe_wall.html")
+
 
 @app.route("/<org_slug>/billing")
 @admin_required
@@ -3543,6 +3602,23 @@ def platform_grant_trial(org_id):
     conn.commit()
     conn.close()
     flash(f"{org['name']} now has a free trial through {ends_at[:10]}.", "success")
+    return redirect(url_for("platform_org_detail", org_id=org_id))
+
+
+@app.route("/platform/organizations/<int:org_id>/billing-exempt/toggle", methods=["POST"])
+@platform_admin_required
+def platform_toggle_billing_exempt(org_id):
+    """Manual override for the billing paywall - marks an org as never
+    needing a plan or trial to get in. Used both to grandfather in orgs
+    that predate billing and to comp specific orgs (friends and family,
+    schools you don't want to charge, etc.) going forward."""
+    conn = get_db()
+    org = _platform_get_org(conn, org_id)
+    new_value = 0 if org["billing_exempt"] else 1
+    conn.execute("UPDATE organizations SET billing_exempt = ? WHERE id = ?", (new_value, org_id))
+    conn.commit()
+    conn.close()
+    flash(f"{org['name']} is now {'exempt from' if new_value else 'subject to'} the billing paywall.", "success")
     return redirect(url_for("platform_org_detail", org_id=org_id))
 
 

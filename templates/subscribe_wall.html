@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>Subscribe to continue - {{ org_name }}</title>
+  <link rel="stylesheet" href="{{ static_url('css/style.css') }}">
+  <link rel="icon" href="{{ org_logo }}">
+</head>
+<body>
+  <header class="legal-header">
+    <span style="display:contents;">
+      <img src="{{ org_logo }}" alt="{{ org_name }} logo">
+      <span>{{ org_name }}</span>
+    </span>
+  </header>
+
+  <div class="legal-wrap" style="text-align:center;">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flash {{ category }}" style="text-align:left;">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <h1>Subscribe to continue</h1>
+
+    {% if session.get('is_admin') %}
+      <p>
+        {{ org_name }} doesn't have an active plan right now, so the site is paused for everyone here.
+        Pick a plan to pick up right where you left off - nothing about your roster, stats, or video changes.
+      </p>
+      <a class="btn" href="{{ url_for('billing') }}" style="display:inline-block; margin-top:10px;">View Plans</a>
+    {% else %}
+      <p>
+        {{ org_name }}'s plan isn't active right now, so the site is paused until an admin renews it.
+        Nothing about your data has changed - check back once your admin has subscribed.
+      </p>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('logout') }}" style="margin-top:24px;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button type="submit" class="btn secondary" style="padding:8px 18px; font-size:0.85rem;">Log Out</button>
+    </form>
+  </div>
+</body>
+</html>
