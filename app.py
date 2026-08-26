@@ -2707,13 +2707,28 @@ def coach_leaderboards():
     params = params + [g.coach["id"]]
     teams, grad_years, positions = _coach_filter_options(conn)
 
-    velo_leaders = conn.execute(
+    # Top Velo used to blend Bullpen, Pulldown, and Game/Live-ABs readings
+    # into one "any pitch" number - but a Pulldown max-effort throw and a
+    # Bullpen fastball aren't really the same measurement, so they're split
+    # into their own leaderboards instead of getting averaged together.
+    bullpen_velo_leaders = conn.execute(
         f"""SELECT p.id, p.name, t.name AS team_name, o.name AS org_name, MAX(s.stat_value) AS value
             FROM stat_entries s
             JOIN players p ON p.id = s.player_id
             LEFT JOIN teams t ON t.id = p.team_id
             JOIN organizations o ON o.id = p.organization_id
-            WHERE lower(s.stat_name) LIKE '%velo%' AND {where_sql}
+            WHERE lower(s.stat_name) LIKE '%velo%' AND s.category = 'Bullpen' AND {where_sql}
+            GROUP BY p.id ORDER BY value DESC LIMIT 10""",
+        params,
+    ).fetchall()
+
+    pulldown_velo_leaders = conn.execute(
+        f"""SELECT p.id, p.name, t.name AS team_name, o.name AS org_name, MAX(s.stat_value) AS value
+            FROM stat_entries s
+            JOIN players p ON p.id = s.player_id
+            LEFT JOIN teams t ON t.id = p.team_id
+            JOIN organizations o ON o.id = p.organization_id
+            WHERE lower(s.stat_name) LIKE '%velo%' AND s.category = 'Pulldown' AND {where_sql}
             GROUP BY p.id ORDER BY value DESC LIMIT 10""",
         params,
     ).fetchall()
@@ -2743,7 +2758,8 @@ def coach_leaderboards():
 
     conn.close()
     return render_template(
-        "coach_leaderboards.html", velo_leaders=velo_leaders, strike_leaders=strike_leaders,
+        "coach_leaderboards.html", bullpen_velo_leaders=bullpen_velo_leaders,
+        pulldown_velo_leaders=pulldown_velo_leaders, strike_leaders=strike_leaders,
         k_leaders=k_leaders, teams=teams, grad_years=grad_years, positions=positions, filters=filters,
     )
 
@@ -3721,12 +3737,25 @@ def leaderboard():
         filter_cond += " AND p.grad_year = ?"
         params.append(grad_year_filter)
 
-    velo_leaders = conn.execute(
+    # Split the same way as the coach portal's leaderboard - a Pulldown
+    # max-effort throw and a Bullpen fastball aren't the same measurement,
+    # so they shouldn't get blended into one "any pitch" number.
+    bullpen_velo_leaders = conn.execute(
         f"""SELECT p.id, p.name, t.name AS team_name, MAX(s.stat_value) AS value
             FROM stat_entries s
             JOIN players p ON p.id = s.player_id
             LEFT JOIN teams t ON t.id = p.team_id
-            WHERE lower(s.stat_name) LIKE '%velo%'{filter_cond}
+            WHERE lower(s.stat_name) LIKE '%velo%' AND s.category = 'Bullpen'{filter_cond}
+            GROUP BY p.id ORDER BY value DESC LIMIT 10""",
+        params,
+    ).fetchall()
+
+    pulldown_velo_leaders = conn.execute(
+        f"""SELECT p.id, p.name, t.name AS team_name, MAX(s.stat_value) AS value
+            FROM stat_entries s
+            JOIN players p ON p.id = s.player_id
+            LEFT JOIN teams t ON t.id = p.team_id
+            WHERE lower(s.stat_name) LIKE '%velo%' AND s.category = 'Pulldown'{filter_cond}
             GROUP BY p.id ORDER BY value DESC LIMIT 10""",
         params,
     ).fetchall()
@@ -3754,7 +3783,8 @@ def leaderboard():
 
     conn.close()
     return render_template(
-        "leaderboard.html", velo_leaders=velo_leaders, strike_leaders=strike_leaders,
+        "leaderboard.html", bullpen_velo_leaders=bullpen_velo_leaders,
+        pulldown_velo_leaders=pulldown_velo_leaders, strike_leaders=strike_leaders,
         k_leaders=k_leaders, teams=all_teams, team_filter=team_filter,
         grad_years=grad_years, grad_year_filter=grad_year_filter,
     )

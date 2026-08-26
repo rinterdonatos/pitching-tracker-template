@@ -40,15 +40,27 @@
 
   <div class="stat-grid">
     <div class="stat-card">
-      <h4>Top Velo (any pitch)</h4>
-      {% if velo_leaders %}
-        {% for row in velo_leaders %}
+      <h4>Top Velo (Bullpen)</h4>
+      {% if bullpen_velo_leaders %}
+        {% for row in bullpen_velo_leaders %}
           <div class="meta" style="display:flex; justify-content:space-between; margin-bottom:6px;">
             <span>{{ loop.index }}. {{ row['name'] }} <span style="color:var(--phx-gray); font-size:0.82rem;">({{ row['org_name'] }}{% if row['team_name'] %} · {{ row['team_name'] }}{% endif %})</span></span>
-            <strong>{{ row['value'] }}</strong>
+            <strong>{{ row['value'] | fmt_stat }}</strong>
           </div>
         {% endfor %}
-      {% else %}<p class="hint" style="margin:0;">No velo data yet.</p>{% endif %}
+      {% else %}<p class="hint" style="margin:0;">No bullpen velo data yet.</p>{% endif %}
+    </div>
+
+    <div class="stat-card">
+      <h4>Top Velo (Pulldown)</h4>
+      {% if pulldown_velo_leaders %}
+        {% for row in pulldown_velo_leaders %}
+          <div class="meta" style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <span>{{ loop.index }}. {{ row['name'] }} <span style="color:var(--phx-gray); font-size:0.82rem;">({{ row['org_name'] }}{% if row['team_name'] %} · {{ row['team_name'] }}{% endif %})</span></span>
+            <strong>{{ row['value'] | fmt_stat }}</strong>
+          </div>
+        {% endfor %}
+      {% else %}<p class="hint" style="margin:0;">No pulldown velo data yet.</p>{% endif %}
     </div>
 
     <div class="stat-card">
