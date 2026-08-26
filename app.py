@@ -2737,9 +2737,11 @@ def billing_checkout():
 
     line_items = [{"price": price_id, "quantity": 1}]
     if plan["overage_price_id"]:
-        # Metered price - Stripe requires no quantity on the line item
-        # itself; usage is reported later via sync_overage_quantity().
-        line_items.append({"price": plan["overage_price_id"]})
+        # Licensed (not metered) per-unit price - starts at 0 extra
+        # players. Stripe requires an explicit quantity for this price
+        # type (unlike a true metered price); sync_overage_quantity()
+        # adjusts it later as the roster crosses the plan's cap.
+        line_items.append({"price": plan["overage_price_id"], "quantity": 0})
 
     checkout_kwargs = dict(
         mode="subscription",
