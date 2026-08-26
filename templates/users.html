@@ -72,6 +72,13 @@
     </div>
   </div>
 
+  <p style="margin:-8px 0 14px; font-size:0.78rem; color:var(--phx-gray);">
+    Plan: <strong style="color:var(--phx-blue-dark);">{{ g.org['plan'] | title if g.org['plan'] else 'Free' }}</strong>
+    {% set trial_left = g.org | trial_days_left %}
+    {% if trial_left is not none %}<span style="color:#10b981;">(trial, {{ trial_left }}d left)</span>{% endif %}
+    &middot; <a href="{{ url_for('billing') }}" style="font-weight:600;">Change plan</a>
+  </p>
+
   <p class="hint" style="max-width:640px;">
     Anyone listed here can sign in with their email or phone number.
     Admins can manage everyone except the site owner, who can't be removed or demoted.
