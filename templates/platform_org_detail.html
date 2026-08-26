@@ -15,6 +15,28 @@
     "Enter Site" signs you in as this org's own owner account - full access, nothing new for their staff to see on their Users page.
   </p>
 
+  <div class="section-title">Billing</div>
+  <p class="hint" style="margin-top:-8px;">
+    Plan: <strong>{{ org['plan'] | title if org['plan'] else 'None' }}</strong>
+    {% if org['subscription_status'] %} ({{ org['subscription_status'] }}){% endif %}
+    {% set trial_left = org | trial_days_left %}
+    {% if trial_left is not none %}
+      &middot; <strong>Free trial</strong> - {{ trial_left }} day{{ 's' if trial_left != 1 }} left (through {{ org['trial_ends_at'][:10] }})
+    {% endif %}
+  </p>
+  <div style="display:flex; gap:8px; align-items:center; margin-bottom:20px; flex-wrap:wrap;">
+    <form method="POST" action="{{ url_for('platform_grant_trial', org_id=org['id']) }}" style="display:flex; gap:6px; align-items:center;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="number" name="days" value="30" min="1" max="365" style="width:70px;">
+      <button class="btn secondary" type="submit">Grant Free Trial</button>
+    </form>
+    {% if org['trial_ends_at'] %}
+      <form method="POST" action="{{ url_for('platform_revoke_trial', org_id=org['id']) }}"
+            onsubmit="return confirm('End {{ org['name'] }}\'s free trial now?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn danger" type="submit">End Trial</button>
+      </form>
+    {% endif %}
+  </div>
+
   <div class="section-title">Teams ({{ teams|length }})</div>
   {% if teams %}
     <table class="data-table">

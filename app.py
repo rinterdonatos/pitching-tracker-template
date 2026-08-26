@@ -380,10 +380,13 @@ STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 BILLING_ENABLED = bool(STRIPE_SECRET_KEY)
-# Every new subscription gets this many days free before the first charge -
-# Stripe still collects a card at checkout, it just doesn't bill it until
-# the trial ends. Set STRIPE_TRIAL_DAYS=0 to turn trials off entirely.
-TRIAL_DAYS = int(os.environ.get("STRIPE_TRIAL_DAYS", "30"))
+# Off by default - trials here are something you grant by hand to specific
+# orgs (Platform Admin -> an org -> "Grant Free Trial"), not something every
+# signup gets automatically. Set STRIPE_TRIAL_DAYS to a positive number only
+# if you want every new subscription to include that many free days at
+# checkout instead (Stripe still collects a card, it just doesn't bill it
+# until the trial ends).
+TRIAL_DAYS = int(os.environ.get("STRIPE_TRIAL_DAYS", "0"))
 
 if BILLING_ENABLED:
     import stripe
@@ -437,6 +440,20 @@ def org_plan_cap(org):
     if not org or not org["plan"] or org["subscription_status"] not in ("active", "trialing", "past_due"):
         return None
     return PLANS.get(org["plan"], {}).get("cap")
+
+
+def org_trial_days_left(org):
+    """Days left on a hand-granted trial (see trial_ends_at above), or None
+    if the org isn't on one. Never negative - once it's passed, it's just
+    not a trial anymore."""
+    if not org or not org["trial_ends_at"]:
+        return None
+    try:
+        ends = datetime.strptime(org["trial_ends_at"], "%Y-%m-%d %H:%M:%S")
+    except (ValueError, TypeError):
+        return None
+    days_left = (ends - datetime.now()).days
+    return max(0, days_left) if ends > datetime.now() else None
 
 
 def sync_overage_quantity(org):
@@ -766,7 +783,8 @@ ORG_EXEMPT_ENDPOINTS = {
     # above: gated by platform_admin_required (a session flag, not tied to
     # any one org), and deliberately not part of the /<org_slug>/ scheme so
     # one org's data is never confused with another's.
-    "platform_organizations", "platform_org_detail", "platform_save_team", "platform_delete_team",
+    "platform_organizations", "platform_org_detail", "platform_grant_trial", "platform_revoke_trial",
+    "platform_save_team", "platform_delete_team",
     "platform_delete_player", "platform_verify_video", "platform_delete_video", "platform_enter_org",
     "platform_delete_org",
     "platform_admins_page", "platform_admin_add", "platform_admin_resend_invite", "platform_admin_delete",
@@ -1550,6 +1568,14 @@ def init_db():
         conn.execute("ALTER TABLE organizations ADD COLUMN overage_item_id TEXT")
         conn.commit()
 
+    # A trial granted by hand (Platform Admin -> an org -> "Grant Free
+    # Trial"), separate from Stripe's own per-subscription trial support.
+    # This is how you comp a specific org - no card, no Stripe subscription
+    # required - rather than every signup getting a trial automatically.
+    if "trial_ends_at" not in org_billing_cols:
+        conn.execute("ALTER TABLE organizations ADD COLUMN trial_ends_at TEXT")
+        conn.commit()
+
     # Teams can optionally have their own logo (uniform patch, school crest,
     # etc.) shown on the Teams page - separate from the organization's own
     # logo, which is the whole program's brand rather than one team's.
@@ -1988,6 +2014,7 @@ def format_stat(value):
 
 
 app.jinja_env.filters["fmt_stat"] = format_stat
+app.jinja_env.filters["trial_days_left"] = org_trial_days_left
 
 
 # ---------- Accounts & login ----------
@@ -3476,6 +3503,44 @@ def platform_org_detail(org_id):
     ).fetchall()
     conn.close()
     return render_template("platform_org_detail.html", org=org, teams=teams, players=players, videos=videos)
+
+
+@app.route("/platform/organizations/<int:org_id>/trial/grant", methods=["POST"])
+@platform_admin_required
+def platform_grant_trial(org_id):
+    """Comp a specific org a free trial - no card, no Stripe subscription
+    needed. This is the manual, per-org alternative to every signup getting
+    a trial automatically (see TRIAL_DAYS)."""
+    try:
+        days = max(1, int(request.form.get("days", "30")))
+    except ValueError:
+        days = 30
+    ends_at = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_db()
+    org = _platform_get_org(conn, org_id)
+    if not org:
+        conn.close()
+        abort(404)
+    conn.execute("UPDATE organizations SET trial_ends_at = ? WHERE id = ?", (ends_at, org_id))
+    conn.commit()
+    conn.close()
+    flash(f"{org['name']} now has a free trial through {ends_at[:10]}.", "success")
+    return redirect(url_for("platform_org_detail", org_id=org_id))
+
+
+@app.route("/platform/organizations/<int:org_id>/trial/revoke", methods=["POST"])
+@platform_admin_required
+def platform_revoke_trial(org_id):
+    conn = get_db()
+    org = _platform_get_org(conn, org_id)
+    if not org:
+        conn.close()
+        abort(404)
+    conn.execute("UPDATE organizations SET trial_ends_at = NULL WHERE id = ?", (org_id,))
+    conn.commit()
+    conn.close()
+    flash(f"Ended {org['name']}'s free trial.", "success")
+    return redirect(url_for("platform_org_detail", org_id=org_id))
 
 
 @app.route("/platform/organizations/<int:org_id>/teams/<int:team_id>/save", methods=["POST"])

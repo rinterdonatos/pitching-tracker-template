@@ -3,6 +3,13 @@
 {% block content %}
   <div class="page-title"><h2>Billing</h2></div>
 
+  {% set trial_left = g.org | trial_days_left %}
+  {% if trial_left is not none %}
+    <p class="hint" style="font-size:0.9rem; background:#ecfdf5; border-left:3px solid #10b981; padding:10px 14px; border-radius:6px;">
+      You're on a free trial - {{ trial_left }} day{{ 's' if trial_left != 1 }} left. No charge until you choose a plan below.
+    </p>
+  {% endif %}
+
   {% if not billing_enabled %}
     <p class="hint" style="font-size:0.9rem;">
       Billing isn't turned on for {{ platform_name }} yet - no plan has been configured, so every
@@ -43,7 +50,6 @@
       {% else %}
         You're not subscribed to a paid plan yet.
       {% endif %}
-      {% if trial_days %}Every plan starts with a {{ trial_days }}-day free trial - you won't be charged until it ends.{% endif %}
     </p>
 
     <div class="stat-grid">
@@ -61,7 +67,7 @@
           <form method="POST" action="{{ url_for('billing_checkout') }}" style="margin-bottom:8px;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="plan" value="{{ key }}">
             <input type="hidden" name="interval" value="monthly">
-            <button class="btn" type="submit" style="width:100%;">{{ 'Start ' + trial_days|string + '-day free trial' if trial_days else 'Subscribe monthly' }}</button>
+            <button class="btn" type="submit" style="width:100%;">Subscribe monthly</button>
           </form>
           <form method="POST" action="{{ url_for('billing_checkout') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="plan" value="{{ key }}">
