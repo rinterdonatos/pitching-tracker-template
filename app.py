@@ -356,6 +356,131 @@ BACKUP_TOKEN = os.environ.get("PHX_BACKUP_TOKEN", "")
 OWNER_TOKEN = os.environ.get("PHX_OWNER_TOKEN", "")
 BACKUP_RETENTION = 30  # keep the last 30 nightly snapshots, prune anything older
 
+# ---------------------------------------------------------------------------
+# Payments (Stripe). Optional - if STRIPE_SECRET_KEY isn't set, billing
+# simply isn't offered: orgs sign up and use the app for free, same as
+# before this feature existed, and every billing route/page quietly
+# no-ops or hides itself. Once you're ready to charge for it:
+#   1. Create a Stripe account (stripe.com) and, while testing, stay in
+#      test mode (toggle in the Stripe dashboard).
+#   2. Run stripe_setup.py with your Stripe secret key to create
+#      the Starter/Growth/Pro products and their monthly+annual+overage
+#      prices - it prints the exact env vars below.
+#   3. Set these environment variables (Render: Environment tab):
+#        STRIPE_SECRET_KEY=sk_test_... (sk_live_... when you go live)
+#        STRIPE_PUBLISHABLE_KEY=pk_test_...
+#        STRIPE_WEBHOOK_SECRET=whsec_...   (from the webhook you add in
+#          the Stripe dashboard, pointed at https://yourdomain/webhooks/stripe,
+#          listening for checkout.session.completed, customer.subscription.*)
+#        STRIPE_PRICE_STARTER_MONTHLY / _ANNUAL / _OVERAGE
+#        STRIPE_PRICE_GROWTH_MONTHLY / _ANNUAL / _OVERAGE
+#        STRIPE_PRICE_PRO_MONTHLY / _ANNUAL
+# ---------------------------------------------------------------------------
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+BILLING_ENABLED = bool(STRIPE_SECRET_KEY)
+# Every new subscription gets this many days free before the first charge -
+# Stripe still collects a card at checkout, it just doesn't bill it until
+# the trial ends. Set STRIPE_TRIAL_DAYS=0 to turn trials off entirely.
+TRIAL_DAYS = int(os.environ.get("STRIPE_TRIAL_DAYS", "30"))
+
+if BILLING_ENABLED:
+    import stripe
+    stripe.api_key = STRIPE_SECRET_KEY
+
+# Mirrors the tiers on the public /pricing page exactly - cap is the number
+# of players included before per-player overage kicks in (None = unlimited).
+PLANS = {
+    "starter": {
+        "label": "Starter",
+        "cap": 20,
+        "monthly_price_id": os.environ.get("STRIPE_PRICE_STARTER_MONTHLY", ""),
+        "annual_price_id": os.environ.get("STRIPE_PRICE_STARTER_ANNUAL", ""),
+        "overage_price_id": os.environ.get("STRIPE_PRICE_STARTER_OVERAGE", ""),
+        "overage_amount": 6,
+        "monthly_amount": 80,
+        "annual_amount": 799,
+    },
+    "growth": {
+        "label": "Growth",
+        "cap": 40,
+        "monthly_price_id": os.environ.get("STRIPE_PRICE_GROWTH_MONTHLY", ""),
+        "annual_price_id": os.environ.get("STRIPE_PRICE_GROWTH_ANNUAL", ""),
+        "overage_price_id": os.environ.get("STRIPE_PRICE_GROWTH_OVERAGE", ""),
+        "overage_amount": 5,
+        "monthly_amount": 150,
+        "annual_amount": 1499,
+    },
+    "pro": {
+        "label": "Pro",
+        "cap": None,
+        "monthly_price_id": os.environ.get("STRIPE_PRICE_PRO_MONTHLY", ""),
+        "annual_price_id": os.environ.get("STRIPE_PRICE_PRO_ANNUAL", ""),
+        "overage_price_id": "",
+        "overage_amount": 0,
+        "monthly_amount": 295,
+        "annual_amount": 2999,
+    },
+}
+
+
+def org_player_count(conn, org_id):
+    return conn.execute("SELECT COUNT(*) FROM players WHERE organization_id = ?", (org_id,)).fetchone()[0]
+
+
+def org_plan_cap(org):
+    """Max players included in an org's plan, or None if unlimited - which
+    covers both the Pro plan and, just as importantly, every org that has
+    never subscribed at all. Billing being optional means an org with no
+    plan on file must never get retroactively capped."""
+    if not org or not org["plan"] or org["subscription_status"] not in ("active", "trialing", "past_due"):
+        return None
+    return PLANS.get(org["plan"], {}).get("cap")
+
+
+def sync_overage_quantity(org):
+    """Tell Stripe how many players an org is over its plan's cap, so the
+    next invoice bills the right number of extra-player line items. Safe to
+    call after every roster change - a no-op for orgs with no active
+    subscription, no overage item (Pro has no cap to be over), or billing
+    disabled entirely."""
+    if not BILLING_ENABLED or not org or not org["stripe_subscription_id"] or not org["overage_item_id"]:
+        return
+    cap = PLANS.get(org["plan"] or "", {}).get("cap")
+    if cap is None:
+        return
+    conn = get_db()
+    count = org_player_count(conn, org["id"])
+    conn.close()
+    try:
+        stripe.SubscriptionItem.modify(org["overage_item_id"], quantity=max(0, count - cap))
+    except Exception:
+        app.logger.exception("Failed to sync Stripe overage quantity for org %s", org["id"])
+
+
+def _apply_subscription_to_org(conn, org_id, customer_id, subscription_id, subscription_obj=None):
+    """Single source of truth for writing a Stripe subscription's state onto
+    an organizations row - called from the webhook for both the initial
+    checkout completion and any later plan/status change, so the two paths
+    can never drift out of sync with each other."""
+    sub = subscription_obj or stripe.Subscription.retrieve(subscription_id)
+    plan_key = (sub.get("metadata") or {}).get("plan", "")
+    interval = (sub.get("metadata") or {}).get("interval", "monthly")
+    plan_conf = PLANS.get(plan_key, {})
+    overage_item_id = None
+    for item in sub["items"]["data"]:
+        if plan_conf.get("overage_price_id") and item["price"]["id"] == plan_conf["overage_price_id"]:
+            overage_item_id = item["id"]
+    conn.execute(
+        """UPDATE organizations SET stripe_customer_id = ?, stripe_subscription_id = ?, plan = ?,
+           billing_interval = ?, subscription_status = ?, overage_item_id = ? WHERE id = ?""",
+        (customer_id, subscription_id, plan_key or None, interval, sub.get("status"), overage_item_id, org_id),
+    )
+    conn.commit()
+    org = conn.execute("SELECT * FROM organizations WHERE id = ?", (org_id,)).fetchone()
+    sync_overage_quantity(org)
+
 
 def r2_client():
     import boto3
@@ -624,7 +749,7 @@ ORG_EXEMPT_ENDPOINTS = {
     # Machine-to-machine only, authenticated with its own shared-secret
     # token (see backup_db) rather than a user session - there's no human
     # login involved, so it must never be routed through the login redirect.
-    "backup_db", "create_platform_admin",
+    "backup_db", "create_platform_admin", "stripe_webhook",
     # Platform admin's own login - has to be reachable while logged out,
     # same as the org login/coach login routes below.
     "platform_login", "platform_logout", "platform_set_password",
@@ -1412,6 +1537,19 @@ def init_db():
         conn.execute("ALTER TABLE organizations ADD COLUMN theme_accent TEXT")
         conn.commit()
 
+    # Stripe billing state, one row per org. Every column stays NULL for an
+    # org that has never subscribed - see org_plan_cap()'s comment on why
+    # that has to mean "unlimited," not "blocked."
+    org_billing_cols = {row["name"] for row in conn.execute("PRAGMA table_info(organizations)")}
+    if "stripe_customer_id" not in org_billing_cols:
+        conn.execute("ALTER TABLE organizations ADD COLUMN stripe_customer_id TEXT")
+        conn.execute("ALTER TABLE organizations ADD COLUMN stripe_subscription_id TEXT")
+        conn.execute("ALTER TABLE organizations ADD COLUMN plan TEXT")
+        conn.execute("ALTER TABLE organizations ADD COLUMN billing_interval TEXT")
+        conn.execute("ALTER TABLE organizations ADD COLUMN subscription_status TEXT")
+        conn.execute("ALTER TABLE organizations ADD COLUMN overage_item_id TEXT")
+        conn.commit()
+
     # Teams can optionally have their own logo (uniform patch, school crest,
     # etc.) shown on the Teams page - separate from the organization's own
     # logo, which is the whole program's brand rather than one team's.
@@ -2028,7 +2166,7 @@ def home():
 def pricing():
     """Public pricing page - same marketing-site family as landing()/home()
     above, just its own URL so it can be linked to directly."""
-    return render_template("pricing.html")
+    return render_template("pricing.html", trial_days=TRIAL_DAYS)
 
 
 @app.route("/terms")
@@ -2187,6 +2325,16 @@ def start():
             session["organization_id"] = org_id
             conn.close()
             flash(f"{org_name} is live. Welcome aboard!", "success")
+
+            # If they arrived here from a specific /pricing card, take them
+            # straight to checkout for that plan instead of dumping them on
+            # the roster with no next step. Anyone who came in directly
+            # (no plan chosen) just lands on their new empty roster, same
+            # as before this feature existed - subscribing stays optional.
+            plan_key = request.form.get("plan", "")
+            if BILLING_ENABLED and plan_key in PLANS:
+                return redirect(url_for("billing", org_slug=slug, preselect=plan_key,
+                                         interval=request.form.get("interval", "monthly")))
             return redirect(url_for("index", org_slug=slug))
         conn.close()
         return redirect(url_for("start"))
@@ -2518,6 +2666,136 @@ def update_org_branding():
         delete_media(f"uploads/logos/{old_logo_filename}")
     flash("Logo updated - your site's colors have been refreshed to match.", "success")
     return redirect(url_for("account"))
+
+
+# ---------- Routes: billing (Stripe) ----------
+# Optional and additive: an org with no plan on file keeps working exactly
+# as it always has (org_plan_cap() returns None -> unlimited). Subscribing
+# is something an admin opts into from here, not a gate in front of /start.
+
+@app.route("/<org_slug>/billing")
+@admin_required
+def billing():
+    conn = get_db()
+    player_count = org_player_count(conn, g.org["id"])
+    conn.close()
+    return render_template(
+        "billing.html",
+        plans=PLANS,
+        player_count=player_count,
+        billing_enabled=BILLING_ENABLED,
+        publishable_key=STRIPE_PUBLISHABLE_KEY,
+        trial_days=TRIAL_DAYS,
+    )
+
+
+@app.route("/<org_slug>/billing/checkout", methods=["POST"])
+@admin_required
+def billing_checkout():
+    if not BILLING_ENABLED:
+        flash("Billing isn't set up yet - ask your platform admin.", "error")
+        return redirect(url_for("billing"))
+
+    plan_key = request.form.get("plan", "")
+    interval = "annual" if request.form.get("interval") == "annual" else "monthly"
+    plan = PLANS.get(plan_key)
+    price_id = plan and (plan["annual_price_id"] if interval == "annual" else plan["monthly_price_id"])
+    if not plan or not price_id:
+        flash("That plan isn't available yet - ask your platform admin.", "error")
+        return redirect(url_for("billing"))
+
+    conn = get_db()
+    user = conn.execute("SELECT * FROM users WHERE id = ?", (session["user_id"],)).fetchone()
+    conn.close()
+
+    line_items = [{"price": price_id, "quantity": 1}]
+    if plan["overage_price_id"]:
+        # Metered price - Stripe requires no quantity on the line item
+        # itself; usage is reported later via sync_overage_quantity().
+        line_items.append({"price": plan["overage_price_id"]})
+
+    checkout_kwargs = dict(
+        mode="subscription",
+        line_items=line_items,
+        client_reference_id=str(g.org["id"]),
+        metadata={"organization_id": str(g.org["id"]), "plan": plan_key, "interval": interval},
+        subscription_data={
+            "metadata": {"organization_id": str(g.org["id"]), "plan": plan_key, "interval": interval},
+            **({"trial_period_days": TRIAL_DAYS} if TRIAL_DAYS > 0 else {}),
+        },
+        success_url=url_for("billing", org_slug=g.org["slug"], _external=True) + "?checkout=success",
+        cancel_url=url_for("billing", org_slug=g.org["slug"], _external=True) + "?checkout=cancelled",
+        allow_promotion_codes=True,
+    )
+    if g.org["stripe_customer_id"]:
+        checkout_kwargs["customer"] = g.org["stripe_customer_id"]
+    elif user["email"]:
+        checkout_kwargs["customer_email"] = user["email"]
+
+    try:
+        checkout_session = stripe.checkout.Session.create(**checkout_kwargs)
+    except Exception:
+        app.logger.exception("Stripe checkout session creation failed for org %s", g.org["id"])
+        flash("Couldn't start checkout - try again in a moment.", "error")
+        return redirect(url_for("billing"))
+
+    return redirect(checkout_session.url, code=303)
+
+
+@app.route("/<org_slug>/billing/portal", methods=["POST"])
+@admin_required
+def billing_portal():
+    if not BILLING_ENABLED or not g.org["stripe_customer_id"]:
+        flash("No billing account on file yet - subscribe to a plan first.", "error")
+        return redirect(url_for("billing"))
+    try:
+        portal_session = stripe.billing_portal.Session.create(
+            customer=g.org["stripe_customer_id"],
+            return_url=url_for("billing", org_slug=g.org["slug"], _external=True),
+        )
+    except Exception:
+        app.logger.exception("Stripe billing portal session creation failed for org %s", g.org["id"])
+        flash("Couldn't open the billing portal - try again in a moment.", "error")
+        return redirect(url_for("billing"))
+    return redirect(portal_session.url, code=303)
+
+
+@app.route("/webhooks/stripe", methods=["POST"])
+@csrf.exempt  # signed by Stripe (Stripe-Signature header), not a browser
+              # session - there's no CSRF token to check, same as backup_db.
+def stripe_webhook():
+    if not BILLING_ENABLED:
+        abort(404)
+
+    payload = request.get_data()
+    sig_header = request.headers.get("Stripe-Signature", "")
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+    except (ValueError, stripe.error.SignatureVerificationError):
+        abort(400)
+
+    obj = event["data"]["object"]
+    conn = get_db()
+
+    if event["type"] == "checkout.session.completed":
+        org_id = obj.get("client_reference_id") or (obj.get("metadata") or {}).get("organization_id")
+        subscription_id = obj.get("subscription")
+        if org_id and subscription_id:
+            _apply_subscription_to_org(conn, int(org_id), obj.get("customer"), subscription_id)
+
+    elif event["type"] in ("customer.subscription.updated", "customer.subscription.created"):
+        org_id = (obj.get("metadata") or {}).get("organization_id")
+        if org_id:
+            _apply_subscription_to_org(conn, int(org_id), obj.get("customer"), obj.get("id"), subscription_obj=obj)
+
+    elif event["type"] == "customer.subscription.deleted":
+        org_id = (obj.get("metadata") or {}).get("organization_id")
+        if org_id:
+            conn.execute("UPDATE organizations SET subscription_status = 'canceled' WHERE id = ?", (int(org_id),))
+            conn.commit()
+
+    conn.close()
+    return {"ok": True}
 
 
 @app.route("/<org_slug>/logout", methods=["POST"])
@@ -4106,6 +4384,25 @@ def add_player():
         )
         _save_contacts(conn, cur.lastrowid, _contacts_from_form())
         conn.commit()
+
+        # Plan enforcement is deliberately additive, not a hard block: an org
+        # can always add the player, they just start incurring the plan's
+        # per-player overage rate once they're past the included cap. Orgs
+        # with no active subscription (org_plan_cap() -> None) are unaffected.
+        cap = org_plan_cap(g.org)
+        if cap is not None:
+            count = org_player_count(conn, g.org["id"])
+            sync_overage_quantity(g.org)
+            if count == cap + 1:
+                overage_rate = PLANS.get(g.org["plan"], {}).get("overage_amount", 0)
+                flash(
+                    f"Added {name}. You're now over your {g.org['plan'].title()} plan's {cap}-player "
+                    f"cap, so extra players are billed at ${overage_rate}/player this cycle.",
+                    "success",
+                )
+                conn.close()
+                return redirect(url_for("index"))
+
         conn.close()
         flash(f"Added {name} to the player page.", "success")
         return redirect(url_for("index"))
@@ -4497,6 +4794,7 @@ def delete_player(player_id):
     conn.execute("DELETE FROM players WHERE id = ? AND organization_id = ?", (player_id, g.org["id"]))
     conn.commit()
     conn.close()
+    sync_overage_quantity(g.org)
     flash("Player removed.", "success")
     return redirect(url_for("index"))
 

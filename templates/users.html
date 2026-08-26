@@ -39,7 +39,11 @@
                     <button class="btn secondary" type="submit" style="font-size:0.75rem; padding:3px 8px;">Reset Password</button>
                   </form>
                 {% endif %}
-                <form method="POST" action="{{ url_for('change_user_role', user_id=u['id']) }}" style="display:inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                {% set who = u['name'] or u['email'] or u['phone'] or 'this person' %}
+                {% set role_confirm_msg = ('Remove admin access from ' + who + '?') if u['is_admin']
+                     else ('Give ' + who + ' admin access? They will be able to manage stats, video, and every other user (except the owner).') %}
+                <form method="POST" action="{{ url_for('change_user_role', user_id=u['id']) }}" style="display:inline;"
+                      onsubmit="return confirm({{ role_confirm_msg | tojson }});"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="btn secondary" type="submit" style="font-size:0.75rem; padding:3px 8px;">
                     {{ 'Remove Admin' if u['is_admin'] else 'Make Admin' }}
                   </button>

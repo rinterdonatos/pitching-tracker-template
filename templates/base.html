@@ -43,6 +43,7 @@
       {% if session.get('is_admin') %}
         <a href="{{ url_for('manage_uploads') }}" class="{{ 'active' if request.endpoint == 'manage_uploads' }}">Manage Uploads</a>
         <a href="{{ url_for('users_page') }}" class="{{ 'active' if request.endpoint == 'users_page' }}">Users</a>
+        <a href="{{ url_for('billing') }}" class="{{ 'active' if request.endpoint == 'billing' }}">Billing</a>
       {% endif %}
       <a href="{{ url_for('account') }}" class="{{ 'active' if request.endpoint == 'account' }}">Account</a>
       <form method="POST" action="{{ url_for('logout') }}" style="display:inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

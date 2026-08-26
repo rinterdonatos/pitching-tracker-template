@@ -47,7 +47,8 @@
 
   <section class="pricing-hero">
     <h1>Simple, transparent pricing</h1>
-    <p>For baseball and softball programs of every size. No setup fee, cancel anytime.</p>
+    <p>For baseball and softball programs of every size.
+      {% if trial_days %}Every plan starts with a free {{ trial_days }}-day trial &mdash; {% endif %}no setup fee, cancel anytime.</p>
   </section>
 
   <section class="pricing-grid">
@@ -63,7 +64,7 @@
         <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>1 admin account</li>
       </ul>
       <p class="pricing-overage">+$6/player over 20</p>
-      <a class="btn-secondary" href="{{ url_for('start') }}">Get Started</a>
+      <a class="btn-secondary" href="{{ url_for('start', plan='starter', interval='monthly') }}">Get Started</a>
     </div>
 
     <div class="pricing-card featured">
@@ -79,7 +80,7 @@
         <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Lesson calendar</li>
       </ul>
       <p class="pricing-overage">+$5/player over 40</p>
-      <a class="btn-cta" href="{{ url_for('start') }}">Get Started</a>
+      <a class="btn-cta" href="{{ url_for('start', plan='growth', interval='monthly') }}">Get Started</a>
     </div>
 
     <div class="pricing-card">
@@ -94,7 +95,7 @@
         <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>Best value past ~70 players</li>
       </ul>
       <p class="pricing-sub" style="margin-bottom:24px;">&nbsp;</p>
-      <a class="btn-secondary" href="{{ url_for('start') }}">Get Started</a>
+      <a class="btn-secondary" href="{{ url_for('start', plan='pro', interval='monthly') }}">Get Started</a>
     </div>
   </section>
 
@@ -102,6 +103,7 @@
 
   <footer class="landing-footer">
     <p><a href="{{ url_for('home') }}">&larr; Back to home</a> &middot; <a href="{{ url_for('org_picker') }}">Log in</a> &middot; <a href="{{ url_for('start') }}">Create an organization</a> &middot; <a href="{{ url_for('terms') }}">Terms</a> &middot; <a href="{{ url_for('privacy') }}">Privacy</a></p>
+    <p style="margin-top:6px;">Questions? <a href="mailto:reed.interdonato@moundhq.com">reed.interdonato@moundhq.com</a> &middot; <a href="tel:+16027369299">602-736-9299</a></p>
     <p style="margin-top:6px;">&copy; {{ current_year() }} {{ platform_name }}.</p>
   </footer>
 
