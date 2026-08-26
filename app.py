@@ -489,6 +489,21 @@ def _apply_subscription_to_org(conn, org_id, customer_id, subscription_id, subsc
     for item in sub["items"]["data"]:
         if plan_conf.get("overage_price_id") and item["price"]["id"] == plan_conf["overage_price_id"]:
             overage_item_id = item["id"]
+
+    # The overage price never rides along in the initial Checkout Session
+    # (see billing_checkout() - Stripe's hosted checkout requires quantity
+    # >= 1 there, but a brand-new subscriber starts at 0 players over cap).
+    # First time we see this subscription, attach it here instead, via the
+    # Subscription Item API, which does allow quantity 0.
+    if not overage_item_id and plan_conf.get("overage_price_id") and sub.get("status") != "canceled":
+        try:
+            new_item = stripe.SubscriptionItem.create(
+                subscription=sub["id"], price=plan_conf["overage_price_id"], quantity=0,
+            )
+            overage_item_id = new_item["id"]
+        except Exception:
+            app.logger.exception("Failed to attach overage item for org %s", org_id)
+
     conn.execute(
         """UPDATE organizations SET stripe_customer_id = ?, stripe_subscription_id = ?, plan = ?,
            billing_interval = ?, subscription_status = ?, overage_item_id = ? WHERE id = ?""",
@@ -2735,13 +2750,14 @@ def billing_checkout():
     user = conn.execute("SELECT * FROM users WHERE id = ?", (session["user_id"],)).fetchone()
     conn.close()
 
+    # Just the base plan price at checkout - Stripe's hosted Checkout page
+    # requires every line item's quantity to be >= 1, so the overage price
+    # (which needs to start at 0, since a brand-new org has 0 players over
+    # its cap) can't be added here. It's attached to the subscription
+    # separately, right after checkout completes - see
+    # _apply_subscription_to_org(), which uses the Subscription Item API
+    # instead (quantity 0 is allowed there).
     line_items = [{"price": price_id, "quantity": 1}]
-    if plan["overage_price_id"]:
-        # Licensed (not metered) per-unit price - starts at 0 extra
-        # players. Stripe requires an explicit quantity for this price
-        # type (unlike a true metered price); sync_overage_quantity()
-        # adjusts it later as the roster crosses the plan's cap.
-        line_items.append({"price": plan["overage_price_id"], "quantity": 0})
 
     checkout_kwargs = dict(
         mode="subscription",
