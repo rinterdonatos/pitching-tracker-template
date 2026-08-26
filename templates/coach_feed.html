@@ -80,11 +80,14 @@
         <div class="feed-item" data-video-id="{{ v['id'] }}">
           <video
             src="{{ media_url('uploads/videos/' ~ v['filename']) }}"
+            poster="{{ static_url('img/video-placeholder.svg') }}"
             playsinline
+            webkit-playsinline
+            muted
             loop
             preload="metadata"
           ></video>
-          <button class="feed-mute-btn" type="button" aria-label="Toggle sound">🔊</button>
+          <button class="feed-mute-btn" type="button" aria-label="Toggle sound">🔇</button>
           <div class="feed-item-info">
             <a class="player-name" href="{{ url_for('coach_player_detail', player_id=v['player_id']) }}">{{ v['player_name'] }}</a>
             <div class="player-meta">
@@ -131,15 +134,32 @@
 
       // Play whichever item is actually on screen, pause everything else -
       // keeps this smooth on mobile instead of every clip playing at once.
-      // Sound is on by default (coaches want arm-action/velo call-outs to
-      // be audible without having to tap first); browsers block unmuted
-      // autoplay unless the user already interacted with the page, so if
-      // that gets rejected we fall back to a muted autoplay - the mute
-      // button (top-right of each clip, like the favorite/follow buttons)
-      // always reflects and controls the real state either way.
+      //
+      // Every clip starts muted (the one autoplay path virtually every
+      // mobile browser allows without a prior tap - trying unmuted first,
+      // like an earlier version of this did, left clips stuck paused on a
+      // black frame on phones that block that outright). Sound is still on
+      // by default anywhere that allows it: right after a muted play()
+      // succeeds, it immediately tries to unmute, and quietly falls back
+      // to muted if the browser blocks that too. The mute button (and
+      // tapping the video itself) always reflects and controls the real
+      // state either way.
       function setMuteIcon(item, muted) {
         var btn = item.querySelector('.feed-mute-btn');
         if (btn) btn.textContent = muted ? '🔇' : '🔊';
+      }
+
+      function tryUnmute(item, video) {
+        video.muted = false;
+        var p = video.play();
+        if (p && p.catch) {
+          p.catch(function () {
+            video.muted = true;
+            video.play().catch(function () {});
+            setMuteIcon(item, true);
+          });
+        }
+        setMuteIcon(item, video.muted);
       }
 
       var observer = new IntersectionObserver(function (entries) {
@@ -147,16 +167,20 @@
           var video = entry.target.querySelector('video');
           if (!video) return;
           if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
-            video.muted = false;
+            video.muted = true;
             var playPromise = video.play();
-            if (playPromise && playPromise.catch) {
-              playPromise.catch(function () {
-                video.muted = true;
-                video.play().catch(function () {});
-                setMuteIcon(entry.target, true);
-              });
+            if (playPromise && playPromise.then) {
+              playPromise.then(function () { tryUnmute(entry.target, video); })
+                .catch(function () {
+                  // Even muted autoplay was blocked - leave the poster
+                  // showing with a tap-to-play affordance rather than a
+                  // silently stuck black frame; the video-click handler
+                  // below covers manually starting it.
+                  setMuteIcon(entry.target, true);
+                });
+            } else {
+              tryUnmute(entry.target, video);
             }
-            setMuteIcon(entry.target, video.muted);
           } else {
             video.pause();
           }
@@ -172,6 +196,17 @@
             video.muted = !video.muted;
             setMuteIcon(item, video.muted);
             if (!video.muted) video.play().catch(function () {});
+          });
+        }
+        // Manual escape hatch: tapping the clip itself toggles play/pause,
+        // so if autoplay ever gets blocked outright, it's never a dead end.
+        if (video) {
+          video.addEventListener('click', function () {
+            if (video.paused) {
+              video.play().catch(function () {});
+            } else {
+              video.pause();
+            }
           });
         }
       });

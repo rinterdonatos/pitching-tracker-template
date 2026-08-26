@@ -83,6 +83,11 @@
       function putAllFiles(usable) {
         var loaded = usable.map(function () { return 0; });
         var grandTotal = usable.reduce(function (sum, u) { return sum + u.file.size; }, 0) || 1;
+        // One simple "Loading N videos" label for the whole batch instead
+        // of counting up file-by-file - the bar itself already shows
+        // combined progress across every file, so the label doesn't need
+        // to track which specific file happens to be sending bytes.
+        var loadingLabel = 'Loading ' + usable.length + ' video' + (usable.length === 1 ? '' : 's');
 
         function putOne(u, idx) {
           return new Promise(function (resolve, reject) {
@@ -93,10 +98,7 @@
               if (!e.lengthComputable) return;
               loaded[idx] = e.loaded;
               var total = loaded.reduce(function (a, b) { return a + b; }, 0);
-              setProgress(
-                Math.min(99, Math.round((total / grandTotal) * 100)),
-                'Uploading ' + (idx + 1) + ' of ' + usable.length + '...'
-              );
+              setProgress(Math.min(99, Math.round((total / grandTotal) * 100)), loadingLabel);
             });
             xhr.addEventListener('load', function () {
               if (xhr.status >= 200 && xhr.status < 300) resolve();
