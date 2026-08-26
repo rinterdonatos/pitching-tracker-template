@@ -229,6 +229,31 @@
               video.pause();
             }
           });
+
+          // Mark a clip "seen" after it's actually been playing for a
+          // beat (not just scrolled past for a split second) - the feed
+          // ranking uses this to push already-watched clips down in favor
+          // of stuff this coach hasn't seen yet. Best-effort/fire-and-
+          // forget: losing one of these to a network hiccup just means
+          // that clip might resurface a bit sooner, nothing breaks.
+          var videoId = item.getAttribute('data-video-id');
+          var seenTimer = null;
+          var markedSeen = false;
+          video.addEventListener('playing', function () {
+            if (markedSeen || seenTimer) return;
+            seenTimer = setTimeout(function () {
+              seenTimer = null;
+              if (markedSeen || video.paused) return;
+              markedSeen = true;
+              fetch('/coach/videos/' + videoId + '/seen', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'fetch', 'X-CSRFToken': csrfToken },
+              }).catch(function () {});
+            }, 1500);
+          });
+          video.addEventListener('pause', function () {
+            if (seenTimer) { clearTimeout(seenTimer); seenTimer = null; }
+          });
         }
       });
 

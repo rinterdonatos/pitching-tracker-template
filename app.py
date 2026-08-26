@@ -1477,6 +1477,25 @@ def init_db():
     )
     conn.commit()
 
+    # Tracks which videos a coach has already watched in the feed, so the
+    # ranking can push already-seen clips down instead of resurfacing the
+    # same ones every visit. One row per coach/video pair - re-watching
+    # just bumps viewed_at rather than creating duplicates.
+    conn.execute(
+        """CREATE TABLE IF NOT EXISTS video_views (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            coach_id INTEGER NOT NULL,
+            video_id INTEGER NOT NULL,
+            viewed_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (coach_id) REFERENCES coaches (id) ON DELETE CASCADE,
+            FOREIGN KEY (video_id) REFERENCES videos (id) ON DELETE CASCADE
+        )"""
+    )
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_video_views_coach_video ON video_views(coach_id, video_id)"
+    )
+    conn.commit()
+
     # No longer used for gating anything (see platform_admins table instead)
     # - kept only so older code paths that still read/write this column on
     # a user row (login, /setup, /start, join) don't break on a fresh DB.
@@ -2768,10 +2787,11 @@ def _rank_feed_videos(videos):
     """Order the feed by a blended score instead of pure recency: harder
     velocity readings and bullpen/game reps are what a coach actually wants
     to evaluate first, recent uploads get a boost so the feed stays fresh,
-    popular players/clips (followers, favorites) get a nudge upward, and a
-    healthy random jitter keeps the order from going stale on repeat visits
-    and makes sure every video - not just the popular ones - has a real
-    shot at the top of the feed."""
+    popular players/clips (followers, favorites) get a nudge upward, clips
+    this coach has already watched get pushed way down (but not excluded
+    entirely), and a healthy random jitter keeps the order from going stale
+    on repeat visits and makes sure every video - not just the popular
+    ones - has a real shot at the top of the feed."""
     if not videos:
         return videos
 
@@ -2821,6 +2841,14 @@ def _rank_feed_videos(videos):
             + (0.20 * recency_score)
             + (0.15 * popularity_score)
         )
+        # A clip this coach has already watched takes a flat penalty - not
+        # a big enough hit to make it mathematically impossible to resurface
+        # (nothing to show otherwise would be worse), but deliberately
+        # smaller than the jitter amplitude below so there's always at
+        # least a small window where a re-watch can still happen, while an
+        # unseen clip wins the comparison the large majority of the time.
+        if v["is_seen"]:
+            weighted = max(0.0, weighted - 0.22)
         # Max weighted score is 0.70 - a jitter of up to 0.30 is deliberately
         # bigger than the entire popularity weight, so even a video from a
         # player with zero followers/favorites still has a real (if smaller)
@@ -2852,7 +2880,8 @@ def coach_feed():
                    EXISTS(SELECT 1 FROM player_follows pf WHERE pf.player_id = v.player_id AND pf.coach_id = ?) AS is_followed,
                    bv.best_velo AS player_best_velo,
                    (SELECT COUNT(*) FROM video_favorites vf2 WHERE vf2.video_id = v.id) AS favorite_count,
-                   (SELECT COUNT(*) FROM player_follows pf2 WHERE pf2.player_id = v.player_id) AS follower_count
+                   (SELECT COUNT(*) FROM player_follows pf2 WHERE pf2.player_id = v.player_id) AS follower_count,
+                   EXISTS(SELECT 1 FROM video_views vv WHERE vv.video_id = v.id AND vv.coach_id = ?) AS is_seen
             FROM videos v
             JOIN players p ON p.id = v.player_id
             LEFT JOIN teams t ON t.id = p.team_id
@@ -2865,7 +2894,7 @@ def coach_feed():
             ) bv ON bv.player_id = v.player_id
             WHERE {where_sql} AND v.recruiting_visible = 1
             ORDER BY v.entry_date DESC, v.id DESC""",
-        [g.coach["id"], g.coach["id"]] + params,
+        [g.coach["id"], g.coach["id"], g.coach["id"]] + params,
     ).fetchall()
     videos = _rank_feed_videos(videos)
     teams, grad_years, positions = _coach_filter_options(conn)
@@ -2910,6 +2939,26 @@ def coach_favorite_toggle(video_id):
     if request.headers.get("X-Requested-With") == "fetch":
         return {"favorited": favorited}
     return redirect(request.referrer or url_for("coach_feed"))
+
+
+@app.route("/coach/videos/<int:video_id>/seen", methods=["POST"])
+@coach_required
+def coach_mark_video_seen(video_id):
+    """Fired from the feed once a clip actually starts playing (not just
+    scrolls past) - records that this coach has watched it, so the feed
+    ranking can push it down in favor of stuff they haven't seen yet.
+    Fire-and-forget from the client, so this stays lightweight: no need to
+    re-validate recruiting visibility here the way favoriting does, since
+    this has no effect on what's shown to anyone, only on ordering."""
+    conn = get_db()
+    conn.execute(
+        """INSERT INTO video_views (coach_id, video_id, viewed_at) VALUES (?, ?, datetime('now'))
+           ON CONFLICT(coach_id, video_id) DO UPDATE SET viewed_at = excluded.viewed_at""",
+        (g.coach["id"], video_id),
+    )
+    conn.commit()
+    conn.close()
+    return {"ok": True}
 
 
 @app.route("/coach/favorites")
