@@ -492,14 +492,30 @@ def sync_overage_quantity(org):
         app.logger.exception("Failed to sync Stripe overage quantity for org %s", org["id"])
 
 
+def _stripe_field(obj, key, default=None):
+    """Read a field off a Stripe SDK object without assuming which style of
+    resource object we got back. Newer stripe-python releases return
+    strongly-typed resource objects for API responses and webhook event
+    payloads that no longer implement the dict interface - calling
+    .get(key) on them raises AttributeError ("X is not a dict. Use
+    .to_dict() to convert it."). getattr() works on both that and the
+    older dict-like StripeObject, and a missing attribute just falls back
+    to default the same way .get() would."""
+    if obj is None:
+        return default
+    val = getattr(obj, key, default)
+    return default if val is None else val
+
+
 def _apply_subscription_to_org(conn, org_id, customer_id, subscription_id, subscription_obj=None):
     """Single source of truth for writing a Stripe subscription's state onto
     an organizations row - called from the webhook for both the initial
     checkout completion and any later plan/status change, so the two paths
     can never drift out of sync with each other."""
     sub = subscription_obj or stripe.Subscription.retrieve(subscription_id)
-    plan_key = (sub.get("metadata") or {}).get("plan", "")
-    interval = (sub.get("metadata") or {}).get("interval", "monthly")
+    metadata = _stripe_field(sub, "metadata")
+    plan_key = _stripe_field(metadata, "plan", "")
+    interval = _stripe_field(metadata, "interval", "monthly")
     plan_conf = PLANS.get(plan_key, {})
     overage_item_id = None
     for item in sub["items"]["data"]:
@@ -511,7 +527,7 @@ def _apply_subscription_to_org(conn, org_id, customer_id, subscription_id, subsc
     # >= 1 there, but a brand-new subscriber starts at 0 players over cap).
     # First time we see this subscription, attach it here instead, via the
     # Subscription Item API, which does allow quantity 0.
-    if not overage_item_id and plan_conf.get("overage_price_id") and sub.get("status") != "canceled":
+    if not overage_item_id and plan_conf.get("overage_price_id") and _stripe_field(sub, "status") != "canceled":
         try:
             new_item = stripe.SubscriptionItem.create(
                 subscription=sub["id"], price=plan_conf["overage_price_id"], quantity=0,
@@ -523,7 +539,7 @@ def _apply_subscription_to_org(conn, org_id, customer_id, subscription_id, subsc
     conn.execute(
         """UPDATE organizations SET stripe_customer_id = ?, stripe_subscription_id = ?, plan = ?,
            billing_interval = ?, subscription_status = ?, overage_item_id = ? WHERE id = ?""",
-        (customer_id, subscription_id, plan_key or None, interval, sub.get("status"), overage_item_id, org_id),
+        (customer_id, subscription_id, plan_key or None, interval, _stripe_field(sub, "status"), overage_item_id, org_id),
     )
     conn.commit()
     org = conn.execute("SELECT * FROM organizations WHERE id = ?", (org_id,)).fetchone()
@@ -2882,18 +2898,21 @@ def stripe_webhook():
     conn = get_db()
 
     if event["type"] == "checkout.session.completed":
-        org_id = obj.get("client_reference_id") or (obj.get("metadata") or {}).get("organization_id")
-        subscription_id = obj.get("subscription")
+        metadata = _stripe_field(obj, "metadata")
+        org_id = _stripe_field(obj, "client_reference_id") or _stripe_field(metadata, "organization_id")
+        subscription_id = _stripe_field(obj, "subscription")
         if org_id and subscription_id:
-            _apply_subscription_to_org(conn, int(org_id), obj.get("customer"), subscription_id)
+            _apply_subscription_to_org(conn, int(org_id), _stripe_field(obj, "customer"), subscription_id)
 
     elif event["type"] in ("customer.subscription.updated", "customer.subscription.created"):
-        org_id = (obj.get("metadata") or {}).get("organization_id")
+        metadata = _stripe_field(obj, "metadata")
+        org_id = _stripe_field(metadata, "organization_id")
         if org_id:
-            _apply_subscription_to_org(conn, int(org_id), obj.get("customer"), obj.get("id"), subscription_obj=obj)
+            _apply_subscription_to_org(conn, int(org_id), _stripe_field(obj, "customer"), _stripe_field(obj, "id"), subscription_obj=obj)
 
     elif event["type"] == "customer.subscription.deleted":
-        org_id = (obj.get("metadata") or {}).get("organization_id")
+        metadata = _stripe_field(obj, "metadata")
+        org_id = _stripe_field(metadata, "organization_id")
         if org_id:
             conn.execute("UPDATE organizations SET subscription_status = 'canceled' WHERE id = ?", (int(org_id),))
             conn.commit()
