@@ -32,7 +32,7 @@
         {{ org_name }} doesn't have an active plan right now, so the site is paused for everyone here.
         Pick a plan to pick up right where you left off - nothing about your roster, stats, or video changes.
       </p>
-      <a class="btn" href="{{ url_for('billing') }}" style="display:inline-block; margin-top:10px;">View Plans</a>
+      <a class="btn" href="{{ url_for('billing') }}" style="display:inline-block; margin-top:10px; color:#ffffff; text-decoration:none; font-weight:700;">View Plans</a>
     {% else %}
       <p>
         {{ org_name }}'s plan isn't active right now, so the site is paused until an admin renews it.
