@@ -1465,6 +1465,14 @@ def init_db():
         conn.execute("ALTER TABLE throwing_entries ADD COLUMN event_time TEXT")
         conn.commit()
 
+    # Migration: recurring events. Entries generated from one "repeat" setup
+    # (e.g. every Tue/Thu through November) all share a recurrence_id, so
+    # they can later be found and bulk-deleted as a series - NULL for a
+    # normal one-off entry.
+    if "recurrence_id" not in throwing_cols:
+        conn.execute("ALTER TABLE throwing_entries ADD COLUMN recurrence_id TEXT")
+        conn.commit()
+
     # Migration: the pre-multi-tenant schema had a single-column UNIQUE
     # constraint baked directly into teams.name and users.email/phone
     # (global uniqueness across the whole site). That's what the composite
@@ -1906,6 +1914,47 @@ def parse_date(value):
         except ValueError:
             continue
     return datetime.today().strftime("%Y-%m-%d")
+
+
+def _recurrence_dates(start_date, repeat, repeat_days, until_raw, cap=200):
+    """Expands a repeat setup from the calendar's "Add a Lesson Day" form
+    into the list of entry_date strings (YYYY-MM-DD) to insert - always
+    includes the start date itself, even if it falls outside the pattern
+    (e.g. a custom-days series where the start date's own weekday isn't
+    checked). repeat_days is a list of Python weekday numbers
+    (Monday=0..Sunday=6) as strings, used only when repeat == 'custom'.
+    Caps the result so a stray end-of-time "repeat until" can't generate an
+    unbounded number of rows - a coach doing a full fall season of 2x/week
+    practices lands well under 200."""
+    start = datetime.strptime(start_date, "%Y-%m-%d").date()
+    if repeat not in ("weekly", "biweekly", "custom"):
+        return [start_date]
+
+    until = parse_date(until_raw) if until_raw.strip() else None
+    if not until:
+        return [start_date]
+    end = datetime.strptime(until, "%Y-%m-%d").date()
+    if end < start:
+        return [start_date]
+
+    if repeat == "custom":
+        weekdays = {int(d) for d in repeat_days if d.isdigit() and 0 <= int(d) <= 6}
+        if not weekdays:
+            weekdays = {start.weekday()}
+        dates, cur = [], start
+        while cur <= end and len(dates) < cap:
+            if cur.weekday() in weekdays:
+                dates.append(cur.strftime("%Y-%m-%d"))
+            cur += timedelta(days=1)
+        return dates or [start_date]
+
+    # weekly / biweekly: same weekday as the start date, every 1 or 2 weeks.
+    step_days = 7 if repeat == "weekly" else 14
+    dates, cur = [], start
+    while cur <= end and len(dates) < cap:
+        dates.append(cur.strftime("%Y-%m-%d"))
+        cur += timedelta(days=step_days)
+    return dates or [start_date]
 
 
 def parse_event_time_minutes(value):
@@ -5158,17 +5207,31 @@ def add_calendar_entry():
     raw_team = request.form.get("team_id", "").strip()
     team_id = int(raw_team) if raw_team.isdigit() else None
 
+    repeat = request.form.get("repeat", "none")
+    repeat_days = request.form.getlist("repeat_days")
+    repeat_until = request.form.get("repeat_until", "")
+
     if not message:
         flash("Add a message for that lesson day (e.g. the player's name).", "error")
     else:
+        dates = _recurrence_dates(entry_date, repeat, repeat_days, repeat_until)
+        # Entries generated together share a recurrence_id so they can later
+        # be found and removed as a series (see delete_calendar_series) -
+        # a plain one-off entry gets NULL, same as before this feature.
+        recurrence_id = secrets.token_hex(8) if len(dates) > 1 else None
+
         conn = get_db()
-        conn.execute(
-            "INSERT INTO throwing_entries (organization_id, entry_date, message, team_id, location, details, event_time) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (g.org["id"], entry_date, message, team_id, location, details, event_time or None),
+        conn.executemany(
+            "INSERT INTO throwing_entries (organization_id, entry_date, message, team_id, location, details, event_time, recurrence_id) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [(g.org["id"], d, message, team_id, location, details, event_time or None, recurrence_id) for d in dates],
         )
         conn.commit()
         conn.close()
-        flash("Added to the calendar.", "success")
+        if len(dates) > 1:
+            flash(f"Added {len(dates)} lesson days to the calendar.", "success")
+        else:
+            flash("Added to the calendar.", "success")
 
     year, month = entry_date.split("-")[0], entry_date.split("-")[1]
     return redirect(url_for("lesson_calendar", year=int(year), month=int(month), team=team_id))
@@ -5188,6 +5251,35 @@ def delete_calendar_entry(entry_id):
     if entry:
         year, month = entry["entry_date"].split("-")[0], entry["entry_date"].split("-")[1]
         flash("Removed from the calendar.", "success")
+        return redirect(url_for("lesson_calendar", year=int(year), month=int(month), team=entry["team_id"]))
+    return redirect(url_for("lesson_calendar"))
+
+
+@app.route("/<org_slug>/calendar/<int:entry_id>/delete-series", methods=["POST"])
+def delete_calendar_series(entry_id):
+    """Removes this entry and every later occurrence in the same recurring
+    series (same recurrence_id, entry_date on or after this one) - past
+    occurrences are left alone, matching how 'this and following events'
+    works in Google/Apple Calendar. A one-off entry has no recurrence_id, so
+    this just falls back to deleting the single entry."""
+    conn = get_db()
+    entry = conn.execute(
+        "SELECT * FROM throwing_entries WHERE id = ? AND organization_id = ?", (entry_id, g.org["id"])
+    ).fetchone()
+    if entry:
+        if entry["recurrence_id"]:
+            conn.execute(
+                "DELETE FROM throwing_entries WHERE organization_id = ? AND recurrence_id = ? AND entry_date >= ?",
+                (g.org["id"], entry["recurrence_id"], entry["entry_date"]),
+            )
+        else:
+            conn.execute("DELETE FROM throwing_entries WHERE id = ?", (entry_id,))
+        conn.commit()
+    conn.close()
+
+    if entry:
+        year, month = entry["entry_date"].split("-")[0], entry["entry_date"].split("-")[1]
+        flash("Removed this and future lesson days in the series.", "success")
         return redirect(url_for("lesson_calendar", year=int(year), month=int(month), team=entry["team_id"]))
     return redirect(url_for("lesson_calendar"))
 

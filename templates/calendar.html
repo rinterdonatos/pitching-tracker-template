@@ -56,8 +56,9 @@
                  data-entry-id="{{ entry['id'] }}"
                  data-comments="{{ (comments_by_entry.get(entry['id']) or []) | tojson }}"
                  data-comment-url="{{ url_for('add_calendar_comment', entry_id=entry['id']) }}"
-                 data-delete-url="{{ url_for('delete_calendar_entry', entry_id=entry['id']) }}">
-              <span>{% if entry['event_time'] %}<strong>{{ entry['event_time'] }}</strong> &middot; {% endif %}{{ entry['message'] }}</span>
+                 data-delete-url="{{ url_for('delete_calendar_entry', entry_id=entry['id']) }}"
+                 data-delete-series-url="{{ url_for('delete_calendar_series', entry_id=entry['id']) if entry['recurrence_id'] else '' }}">
+              <span>{% if entry['event_time'] %}<strong>{{ entry['event_time'] }}</strong> &middot; {% endif %}{{ entry['message'] }}{% if entry['recurrence_id'] %} <span class="hint" title="Part of a recurring series" style="font-weight:400;">&#8635;</span>{% endif %}</span>
               <form method="POST" action="{{ url_for('delete_calendar_entry', entry_id=entry['id']) }}" onsubmit="return confirm('Remove this lesson day?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" title="Remove">&times;</button>
               </form>
@@ -108,6 +109,32 @@
           <label for="modal-details">Other Info (optional)</label>
           <textarea id="modal-details" name="details" rows="2" placeholder="e.g. bring cleats, arrive 15 min early"></textarea>
         </div>
+
+        <div class="repeat-controls">
+          <div class="field">
+            <label for="modal-repeat">Repeats</label>
+            <select id="modal-repeat" name="repeat">
+              <option value="none">Doesn't repeat</option>
+              <option value="weekly">Weekly</option>
+              <option value="biweekly">Every 2 weeks</option>
+              <option value="custom">Custom days</option>
+            </select>
+          </div>
+          <div class="field repeat-days-field" hidden>
+            <label>Repeat on</label>
+            <div class="weekday-checks">
+              {% for num, label in [(0,'Mon'),(1,'Tue'),(2,'Wed'),(3,'Thu'),(4,'Fri'),(5,'Sat'),(6,'Sun')] %}
+                <label class="weekday-check"><input type="checkbox" name="repeat_days" value="{{ num }}"> {{ label }}</label>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="field repeat-until-field" hidden>
+            <label for="modal-repeat_until">Repeat until</label>
+            <input type="date" id="modal-repeat_until" name="repeat_until">
+            <div class="hint">Adds one lesson day for each matching date through this day.</div>
+          </div>
+        </div>
+
         <button class="btn" type="submit">Add Event</button>
         <button class="btn secondary" type="button" onclick="closeDayModal()">Cancel</button>
       </form>
@@ -151,9 +178,12 @@
         <button class="btn secondary" type="submit">Post Comment</button>
       </form>
 
-      <div style="margin-top:16px; display:flex; gap:8px;">
+      <div style="margin-top:16px; display:flex; gap:8px; flex-wrap:wrap;">
         <form id="view-delete-form" method="POST" action="" onsubmit="return confirm('Remove this lesson day?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <button class="btn danger" type="submit">Remove Event</button>
+        </form>
+        <form id="view-delete-series-form" method="POST" action="" hidden onsubmit="return confirm('Remove this and every future lesson day in this series? Past occurrences are left alone.');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="btn danger" type="submit">Remove This &amp; Future</button>
         </form>
         <button class="btn secondary" type="button" onclick="closeViewModal()">Close</button>
       </div>
@@ -323,6 +353,14 @@
 
       document.getElementById('view-delete-form').action = entryEl.dataset.deleteUrl;
 
+      const seriesForm = document.getElementById('view-delete-series-form');
+      if (entryEl.dataset.deleteSeriesUrl) {
+        seriesForm.action = entryEl.dataset.deleteSeriesUrl;
+        seriesForm.hidden = false;
+      } else {
+        seriesForm.hidden = true;
+      }
+
       viewModal.style.display = 'flex';
     }
 
@@ -430,6 +468,54 @@
     }
 
     document.querySelectorAll('.time-combo').forEach(initTimeCombo);
+
+    // --- Repeat controls (both the click-a-day modal and the bottom form
+    // share this markup/behavior): picking Weekly/Every 2 weeks/Custom days
+    // reveals the "repeat until" date field (and makes it required, so a
+    // repeating series can't silently do nothing because the date was left
+    // blank); Custom days additionally reveals the weekday checkboxes and
+    // pre-checks whichever weekday the chosen start date falls on. ---
+    function initRepeatControls(container) {
+      const select = container.querySelector('select[name="repeat"]');
+      if (!select) return;
+      const untilField = container.querySelector('.repeat-until-field');
+      const untilInput = untilField ? untilField.querySelector('input[name="repeat_until"]') : null;
+      const daysField = container.querySelector('.repeat-days-field');
+      const dayChecks = daysField ? Array.from(daysField.querySelectorAll('input[name="repeat_days"]')) : [];
+
+      function sync() {
+        const repeating = select.value !== 'none';
+        if (untilField) untilField.hidden = !repeating;
+        if (untilInput) untilInput.required = repeating;
+        const custom = select.value === 'custom';
+        if (daysField) daysField.hidden = !custom;
+        // Default to the start date's own weekday so switching to Custom
+        // days doesn't start with nothing checked.
+        if (custom && dayChecks.length && !dayChecks.some(c => c.checked)) {
+          const dateInput = container.closest('form').querySelector('input[type="date"][name="entry_date"], input[type="hidden"][id$="entry-date"]');
+          const iso = dateInput ? dateInput.value : '';
+          if (iso) {
+            const jsDay = new Date(iso + 'T00:00:00').getDay(); // Sun=0..Sat=6
+            const pyDay = (jsDay + 6) % 7; // convert to Mon=0..Sun=6
+            const match = dayChecks.find(c => Number(c.value) === pyDay);
+            if (match) match.checked = true;
+          }
+        }
+      }
+      select.addEventListener('change', sync);
+      sync();
+    }
+    document.querySelectorAll('.repeat-controls').forEach(initRepeatControls);
+
+    // The modal's date is set by JS (openDayModal) after the page loads, so
+    // its repeat controls need re-synced at that point too, not just once
+    // on initial render when the hidden date field is still empty.
+    const modalRepeatControls = modal.querySelector('.repeat-controls');
+    const _openDayModal = openDayModal;
+    openDayModal = function (iso) {
+      _openDayModal(iso);
+      if (modalRepeatControls) initRepeatControls(modalRepeatControls);
+    };
   </script>
 
   <div class="section-title">Add a Lesson Day{% if current_team %} ({{ current_team['name'] }}){% else %} (General){% endif %}</div>
@@ -460,6 +546,32 @@
       <label for="details">Other Info (optional)</label>
       <textarea id="details" name="details" rows="2" placeholder="e.g. bring cleats, arrive 15 min early"></textarea>
     </div>
+
+    <div class="repeat-controls">
+      <div class="field">
+        <label for="repeat">Repeats</label>
+        <select id="repeat" name="repeat">
+          <option value="none">Doesn't repeat</option>
+          <option value="weekly">Weekly</option>
+          <option value="biweekly">Every 2 weeks</option>
+          <option value="custom">Custom days</option>
+        </select>
+      </div>
+      <div class="field repeat-days-field" hidden>
+        <label>Repeat on</label>
+        <div class="weekday-checks">
+          {% for num, label in [(0,'Mon'),(1,'Tue'),(2,'Wed'),(3,'Thu'),(4,'Fri'),(5,'Sat'),(6,'Sun')] %}
+            <label class="weekday-check"><input type="checkbox" name="repeat_days" value="{{ num }}"> {{ label }}</label>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="field repeat-until-field" hidden>
+        <label for="repeat_until">Repeat until</label>
+        <input type="date" id="repeat_until" name="repeat_until">
+        <div class="hint">Adds one lesson day for each matching date through this day - e.g. every Tue/Thu through the end of the season.</div>
+      </div>
+    </div>
+
     <button class="btn" type="submit">Add to Calendar</button>
   </form>
 {% endblock %}

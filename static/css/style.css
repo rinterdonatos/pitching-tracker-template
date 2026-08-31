@@ -489,6 +489,31 @@ dialog.invite-modal form.card-form {
   background: var(--phx-bg);
 }
 
+/* Weekday picker for "Custom days" recurring calendar events. */
+.weekday-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.weekday-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--phx-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+.weekday-check:has(input:checked) {
+  border-color: var(--phx-blue);
+  background: var(--phx-bg);
+  color: var(--phx-blue-dark);
+}
+.weekday-check input { margin: 0; }
+
 .measurables-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
