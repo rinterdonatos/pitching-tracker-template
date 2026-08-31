@@ -2732,7 +2732,21 @@ def account():
         return redirect(url_for("account"))
 
     conn.close()
-    return render_template("account.html", user=user)
+
+    # Billing lives inside this same page now (admins only) - see billing()
+    # just below, which redirects here instead of rendering its own template.
+    billing_context = {}
+    if user["is_admin"]:
+        conn = get_db()
+        player_count = org_player_count(conn, g.org["id"])
+        conn.close()
+        billing_context = dict(
+            plans=PLANS,
+            player_count=player_count,
+            billing_enabled=BILLING_ENABLED,
+        )
+
+    return render_template("account.html", user=user, **billing_context)
 
 
 @app.route("/<org_slug>/branding", methods=["POST"])
@@ -2793,17 +2807,12 @@ def subscribe_wall():
 @app.route("/<org_slug>/billing")
 @admin_required
 def billing():
-    conn = get_db()
-    player_count = org_player_count(conn, g.org["id"])
-    conn.close()
-    return render_template(
-        "billing.html",
-        plans=PLANS,
-        player_count=player_count,
-        billing_enabled=BILLING_ENABLED,
-        publishable_key=STRIPE_PUBLISHABLE_KEY,
-        trial_days=TRIAL_DAYS,
-    )
+    """Billing is now a section inside the combined Account page (see
+    account()). This route stays so existing links, the Stripe checkout
+    success/cancel URLs, the billing-portal return URL, and the
+    preselect-a-plan redirect from /start all keep working - it just
+    forwards straight into the account page's billing section."""
+    return redirect(url_for("account", org_slug=g.org["slug"], **request.args))
 
 
 @app.route("/<org_slug>/billing/checkout", methods=["POST"])
