@@ -506,6 +506,21 @@ dialog.invite-modal form.card-form {
   margin-bottom: 20px;
 }
 
+/* Account page: Change Password and Organization Branding sit side by side
+   on wide screens, each keeping its own section title and full-size
+   card-form above the other. Flexbox (not grid) so a lone child - e.g. a
+   non-admin who only sees Change Password - naturally fills the full width
+   instead of being stuck in a half-width column. Collapses to stacked
+   below the breakpoint. */
+.account-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 28px;
+  align-items: flex-start;
+}
+.account-columns > div { flex: 1 1 380px; }
+.account-columns form.card-form { max-width: none; }
+
 .profile-col .section-title {
   font-size: 0.85rem;
   margin: 0 0 8px;
@@ -1347,6 +1362,8 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   .contact-row { grid-template-columns: 1fr; }
   .measurables-grid { grid-template-columns: 1fr 1fr; }
   .profile-columns { grid-template-columns: 1fr; }
+  .account-columns { gap: 0; }
+  .account-columns > div { flex-basis: 100%; }
 
   form.card-form { padding: 18px; }
   .login-card { padding: 28px 22px; }
