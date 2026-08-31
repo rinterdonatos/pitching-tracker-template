@@ -321,7 +321,7 @@ app.jinja_env.globals["current_year"] = lambda: datetime.now().year
 # Contact address shown on the Terms/Privacy pages - falls back to whatever
 # the SMTP "from" address is configured as, then to a placeholder, so this
 # never renders blank even on a fresh install with no env vars set yet.
-SUPPORT_EMAIL = os.environ.get("PHX_SUPPORT_EMAIL", "") or SMTP_FROM or "support@moundhq.com"
+SUPPORT_EMAIL = os.environ.get("PHX_SUPPORT_EMAIL", "") or SMTP_FROM or "help@moundhq.com"
 app.jinja_env.globals["support_email"] = SUPPORT_EMAIL
 
 
