@@ -1993,7 +1993,7 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 .panel-caption { text-align: center; font-size: 0.8rem; color: rgba(255, 255, 255, 0.4); margin-top: 24px; }
 
 .chart-mock { height: 120px; display: flex; align-items: flex-end; gap: 8px; }
-.chart-mock .bar { flex: 1; background: linear-gradient(180deg, var(--phx-orange) 0%, var(--phx-orange-dark) 100%); border-radius: 5px 5px 0 0; opacity: 0.85; }
+.chart-mock .bar { flex: 1; background: linear-gradient(180deg, var(--phx-blue) 0%, var(--phx-blue-dark) 100%); border-radius: 5px 5px 0 0; opacity: 0.85; }
 .chart-mock .bar.peak { background: linear-gradient(180deg, var(--brand-cta-light), var(--brand-cta)); opacity: 1; }
 
 .video-mock-row { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.03); margin-bottom: 8px; }
