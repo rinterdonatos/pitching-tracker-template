@@ -3,6 +3,10 @@
 {% block content %}
   {% set can_edit = (not is_coach_view) and (session.get('is_admin') or session.get('player_id') == player['id']) %}
   {% set self_url = url_for('coach_player_detail', player_id=player['id']) if is_coach_view else url_for('player_detail', player_id=player['id']) %}
+  {% set active_tab = request.args.get('tab', 'pitching') %}
+  {% if active_tab not in ['pitching', 'hitting'] %}{% set active_tab = 'pitching' %}{% endif %}
+  {% set ctx = hitting if active_tab == 'hitting' else pitching %}
+  {% set other_qs = '&date_from=' ~ date_from ~ '&date_to=' ~ date_to if (date_from or date_to) else '' %}
   <div class="page-title">
     <div class="player-header" style="margin-bottom:0;">
       {% if player['photo_filename'] %}
@@ -26,7 +30,7 @@
         {% if can_edit %}
           <a class="btn secondary" href="{{ url_for('edit_player', player_id=player['id']) }}">Edit Info</a>
         {% endif %}
-        <a class="btn secondary" href="{{ url_for('upload_csv', player=player['name']) }}">+ Add Stats/Video</a>
+        <a class="btn secondary" href="{{ url_for('upload_csv', player=player['name'], domain=active_tab) }}">+ Add Stats/Video</a>
         {% if session.get('is_admin') %}
           <form method="POST" action="{{ url_for('delete_player', player_id=player['id']) }}" style="display:inline;" onsubmit="return confirm('Remove {{ player['name'] }} and all their data?');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button class="btn danger" type="submit">Remove Player</button>
@@ -127,9 +131,15 @@
     </div>
   {% endif %}
 
+  <div class="section-tabs" role="tablist" style="margin-bottom:10px;">
+    <a class="section-tab {{ 'active' if active_tab == 'pitching' }}" href="{{ self_url }}?tab=pitching{{ other_qs }}">Pitching</a>
+    <a class="section-tab {{ 'active' if active_tab == 'hitting' }}" href="{{ self_url }}?tab=hitting{{ other_qs }}">Hitting</a>
+  </div>
+
   <div class="section-title">Progress Over Time</div>
 
   <form method="GET" class="date-range-filter">
+    <input type="hidden" name="tab" value="{{ active_tab }}">
     <div class="field">
       <label for="date_from">From</label>
       <input type="date" id="date_from" name="date_from" value="{{ date_from }}" onchange="this.form.submit()">
@@ -139,7 +149,7 @@
       <input type="date" id="date_to" name="date_to" value="{{ date_to }}" onchange="this.form.submit()">
     </div>
     {% if date_from or date_to %}
-      <a class="btn secondary" href="{{ self_url }}?range=all">Show All Data</a>
+      <a class="btn secondary" href="{{ self_url }}?range=all&tab={{ active_tab }}">Show All Data</a>
     {% endif %}
     <span class="hint date-range-hint">
       {% if is_default_range %}
@@ -152,15 +162,29 @@
     </span>
   </form>
 
-  {% if category_tables %}
-    {% if velocity_by_stat %}
+  {% if active_tab == 'hitting' and ctx.game_line %}
+    {% set headline_stats = [('AB','AB'), ('H','H'), ('2B','2B'), ('3B','3B'), ('HR','HR'), ('RBI','RBI'), ('R','R'), ('SB','SB'), ('BB','BB'), ('K','K'), ('AVG','AVG'), ('OBP','OBP'), ('SLG','SLG'), ('OPS','OPS'), ('Exit Velo','Top Exit Velo')] %}
+    <div class="compact-card" style="margin-bottom:16px;">
+      <div class="compact-facts">
+        {% for key, label in headline_stats %}
+          {% if ctx.game_line.get(key) is not none %}
+            <span class="compact-fact"><b>{{ ctx.game_line.get(key) | fmt_stat }}</b> <span class="compact-fact-label">{{ label }}</span></span>
+          {% endif %}
+        {% endfor %}
+      </div>
+      <p class="hint" style="margin:8px 0 0;">Season line from the Game box score below (totals across the date range shown).</p>
+    </div>
+  {% endif %}
+
+  {% if ctx.category_tables %}
+    {% if ctx.velocity_by_stat %}
       {% set fb_count = namespace(n=0) %}
-      {% for sn in velocity_by_stat.keys() %}{% if 'fb' in sn.lower() or 'fastball' in sn.lower() %}{% set fb_count.n = fb_count.n + 1 %}{% endif %}{% endfor %}
-      {% if fb_count.n > 0 and velocity_by_stat | length > fb_count.n %}
+      {% for sn in ctx.velocity_by_stat.keys() %}{% if 'fb' in sn.lower() or 'fastball' in sn.lower() %}{% set fb_count.n = fb_count.n + 1 %}{% endif %}{% endfor %}
+      {% if fb_count.n > 0 and ctx.velocity_by_stat | length > fb_count.n %}
         <button class="btn secondary" type="button" id="chart-toggle" style="margin-bottom:12px;">Show All Velocity Charts</button>
       {% endif %}
       <div class="stat-grid" id="velocity-grid">
-        {% for stat_name in velocity_by_stat.keys() | sort %}
+        {% for stat_name in ctx.velocity_by_stat.keys() | sort %}
           {% set is_fb = 'fb' in stat_name.lower() or 'fastball' in stat_name.lower() %}
           <div class="stat-card {{ 'fb-chart' if is_fb else 'extra-chart' }}" {% if not is_fb and fb_count.n > 0 %}hidden{% endif %}>
             <h4>{{ stat_name }}</h4>
@@ -170,7 +194,7 @@
       </div>
     {% endif %}
 
-    {% for table in category_tables %}
+    {% for table in ctx.category_tables %}
       <h3 class="spreadsheet-title">{{ table.category }}</h3>
       <div class="spreadsheet-wrap">
         <table class="spreadsheet-table">
@@ -204,27 +228,32 @@
       </div>
     {% endfor %}
     <p class="hint" style="margin-top:4px;">
-      Bottom row: counting stats (IP, H, K, BB, Pitches, Strikes, Outs...) are season totals;
-      velocity readings show the best one ever recorded; other rates (Strike %, ERA, K/7, Avg Spin) are averages.
-      IP totals use baseball notation (.1 and .2 are thirds of an inning).
+      {% if active_tab == 'hitting' %}
+        Bottom row: counting stats (AB, H, HR, RBI, R, SB, BB, K...) are totals; exit velo, bat speed, and distance
+        show the best one ever recorded; other rates (AVG, OBP, SLG, OPS) are averages.
+      {% else %}
+        Bottom row: counting stats (IP, H, K, BB, Pitches, Strikes, Outs...) are season totals;
+        velocity readings show the best one ever recorded; other rates (Strike %, ERA, K/7, Avg Spin) are averages.
+        IP totals use baseball notation (.1 and .2 are thirds of an inning).
+      {% endif %}
     </p>
   {% else %}
     <div class="empty-state">
       {% if date_from or date_to %}
         <p>No stats in this date range.</p>
-        <a class="btn secondary" href="{{ self_url }}?range=all">Show All Data</a>
+        <a class="btn secondary" href="{{ self_url }}?range=all&tab={{ active_tab }}">Show All Data</a>
       {% else %}
-        <p>No stats yet{% if not is_coach_view %} for {{ player['name'] }}{% endif %}.</p>
+        <p>No {{ active_tab }} stats yet{% if not is_coach_view %} for {{ player['name'] }}{% endif %}.</p>
         {% if not is_coach_view %}
-          <a class="btn" href="{{ url_for('upload_csv') }}">Import Stats CSV</a>
+          <a class="btn" href="{{ url_for('upload_csv', domain=active_tab) }}">Import Stats CSV</a>
         {% endif %}
       {% endif %}
     </div>
   {% endif %}
 
-  {% if tm_sessions %}
+  {% if ctx.tm_sessions %}
     <div class="section-title">TrackMan Reports</div>
-    {% for s in tm_sessions %}
+    {% for s in ctx.tm_sessions %}
       <details style="background:#fff; border:1px solid var(--phx-border); border-radius:10px; padding:12px 16px; margin-bottom:10px;" {% if loop.first %}open{% endif %}>
         <summary style="cursor:pointer; font-weight:700;">
           {{ s.date }}: {{ s.category }} &middot; {{ s.pitch_count }} pitches, {{ s.strikes }} strikes
@@ -302,10 +331,10 @@
     </p>
   {% endif %}
 
-  {% if pinned_videos %}
+  {% if ctx.pinned_videos %}
     <div class="section-title">Pinned Videos</div>
     <div class="pinned-videos-grid">
-      {% for v in pinned_videos %}
+      {% for v in ctx.pinned_videos %}
         <div class="video-item">
           <div class="video-slide" id="video-{{ v['id'] }}">
             <video controls preload="metadata" src="{{ media_url('uploads/videos/' ~ v['filename']) }}"></video>
@@ -322,7 +351,7 @@
               {% endif %}
               <h4>{{ v['title'] }}{% if v['category'] %} <span class="text-muted" style="font-weight:400;">&middot; {{ v['category'] }}</span>{% endif %}</h4>
               {% if v['notes'] %}<p>{{ v['notes'] }}</p>{% endif %}
-              {% with day_stats = stats_by_date.get(v['entry_date']) %}{% include "_day_stats.html" %}{% endwith %}
+              {% with day_stats = ctx.stats_by_date.get(v['entry_date']) %}{% include "_day_stats.html" %}{% endwith %}
               {% if can_edit %}
                 <form method="POST" action="{{ url_for('toggle_video_pin', video_id=v['id']) }}" style="display:inline;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                   <button class="btn secondary" type="submit" style="margin-top:6px;">Unpin</button>
@@ -376,10 +405,10 @@
   {% endif %}
 
   <div class="section-title">Video Timeline</div>
-  {% if video_groups %}
+  {% if ctx.video_groups %}
     <div class="video-list">
       {# Only the 3 most recent video days show by default. #}
-      {% for group in video_groups %}
+      {% for group in ctx.video_groups %}
         <div class="video-item video-group {% if loop.index > 3 %}older-video{% endif %}" {% if loop.index > 3 %}hidden{% endif %}>
           {% if group.videos | length > 1 %}
             <div class="video-group-nav">
@@ -388,7 +417,7 @@
               <button type="button" class="video-nav-btn" data-nav="next" aria-label="Next video">&rarr;</button>
             </div>
           {% endif %}
-          {% with day_stats = stats_by_date.get(group.date) %}{% include "_day_stats.html" %}{% endwith %}
+          {% with day_stats = ctx.stats_by_date.get(group.date) %}{% include "_day_stats.html" %}{% endwith %}
           {% for v in group.videos %}
             <div class="video-slide" id="video-{{ v['id'] }}" {% if not loop.first %}style="display:none;"{% endif %}>
               <video controls preload="metadata" src="{{ media_url('uploads/videos/' ~ v['filename']) }}"></video>
@@ -457,21 +486,21 @@
         </div>
       {% endfor %}
     </div>
-    {% if video_groups | length > 3 %}
-      <button type="button" class="btn secondary" id="toggle-videos" data-count="{{ video_groups | length }}"
+    {% if ctx.video_groups | length > 3 %}
+      <button type="button" class="btn secondary" id="toggle-videos" data-count="{{ ctx.video_groups | length }}"
               style="margin-top:10px; font-size:0.78rem; padding:4px 10px;">
-        Show All {{ video_groups | length }} Video Days
+        Show All {{ ctx.video_groups | length }} Video Days
       </button>
     {% endif %}
   {% else %}
     <div class="empty-state">
       {% if date_from or date_to %}
         <p>No videos in this date range.</p>
-        <a class="btn secondary" href="{{ self_url }}?range=all">Show All Data</a>
+        <a class="btn secondary" href="{{ self_url }}?range=all&tab={{ active_tab }}">Show All Data</a>
       {% else %}
-        <p>No videos yet for {{ player['name'] }}.</p>
+        <p>No {{ active_tab }} videos yet for {{ player['name'] }}.</p>
         {% if not is_coach_view %}
-          <a class="btn" href="{{ url_for('upload_video') }}">Add Video</a>
+          <a class="btn" href="{{ url_for('upload_video', domain=active_tab) }}">Add Video</a>
         {% endif %}
       {% endif %}
     </div>
@@ -568,19 +597,23 @@
     </div>
   {% endif %}
 
-  {% if velocity_by_stat %}
+  {% if ctx.velocity_by_stat %}
   <script>
     // Only velocity stats get a line chart (Bullpen/Pulldown/Game together on
     // one chart per pitch). Every other stat is rendered server-side above as
     // a plain grid/table, so this script has nothing to do if there's no
     // velocity data, and a charting failure can only affect these cards.
-    const velocityByStat = {{ velocity_by_stat | tojson }};
+    const velocityByStat = {{ ctx.velocity_by_stat | tojson }};
     const throwingTypeColors = {
       'Bullpen': '#0a1e3f',
       'Live ABs': '#e0b400',
       'Live BP': '#e0b400',
       'Game': '#cb2030',
-      'Pulldown': '#5c6066'
+      'Pulldown': '#5c6066',
+      'HitTrax': '#0a1e3f',
+      'Blast': '#e0b400',
+      'BP': '#5c6066',
+      'Tee Work': '#cb2030'
     };
 
     // Charting library is loaded from a CDN, and CDNs occasionally get

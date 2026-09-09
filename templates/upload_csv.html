@@ -16,6 +16,54 @@
       How to format your CSV / Excel file (click to view)
     </summary>
     <div style="font-size:0.9rem; color:#444; margin-top:12px;">
+    {% if domain == 'hitting' %}
+
+      <p style="margin-top:0;"><strong>Using Excel?</strong> Build your sheet normally, then use <em>File &rarr; Save As &rarr; CSV (Comma delimited)</em>. Only .csv files can be imported.</p>
+
+      <p><strong>Row 1 must be column headers.</strong> Each row below it is one player's stats for one date. Column names are matched case-insensitively, and spaces/underscores don't matter.</p>
+
+      <table class="csv-preview">
+        <thead><tr><th>Column</th><th>Required?</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Player</strong> (or Name, Batter, Player Name)</td><td>Required</td><td>Must match a roster name exactly (capitalization doesn't matter). HitTrax and Blast exports usually already have a name column like this - rows with unrecognized names are skipped.</td></tr>
+          <tr><td><strong>Date</strong></td><td>Recommended</td><td>Accepted formats: 2026-08-04, 8/4/2026, 8/4/26, Aug 4, 2026. If missing, today's date is used.</td></tr>
+          <tr><td>AB + H</td><td>Optional</td><td>Include both and <strong>AVG</strong> and <strong>SLG</strong> are calculated automatically. Add BB/HBP and <strong>OBP</strong> + <strong>OPS</strong> are calculated too.</td></tr>
+          <tr><td>Any other numeric column</td><td>Optional</td><td>Exit velo, launch angle, distance, bat speed, attack angle, RBI, SB - anything numeric gets tracked and charted automatically, using whatever column name your file already has. % signs and commas are fine.</td></tr>
+        </tbody>
+      </table>
+
+      <p><strong>Got a raw HitTrax or Blast export?</strong> You don't need to reformat it - upload the file exactly as it downloads. Every numeric column becomes a tracked stat automatically, using HitTrax's or Blast's own column names (Exit Velo, Launch Angle, Distance, Bat Speed, Attack Angle, and so on all get picked up as-is). Just set <strong>Import as</strong> below to HitTrax or Blast so it's grouped separately on the player page.</p>
+
+      <p><strong>Each session type has its own typical layout:</strong></p>
+
+      <p style="margin-bottom:4px;"><strong>Game</strong> (the box score line - AVG/OBP/SLG/OPS get computed from AB/H/BB/HBP/2B/3B/HR):</p>
+      <table class="csv-preview">
+        <thead><tr><th>Player</th><th>Date</th><th>AB</th><th>H</th><th>2B</th><th>3B</th><th>HR</th><th>BB</th><th>K</th><th>RBI</th><th>R</th><th>SB</th><th>Exit Velo</th></tr></thead>
+        <tbody>
+          <tr><td>Jake Thompson</td><td>2026-08-04</td><td>4</td><td>2</td><td>1</td><td>0</td><td>0</td><td>1</td><td>1</td><td>2</td><td>1</td><td>1</td><td>98.4</td></tr>
+        </tbody>
+      </table>
+
+      <p style="margin-bottom:4px;"><strong>HitTrax</strong> (batted-ball data, whatever columns your export has - one row per swing or one summarized row per session, either works):</p>
+      <table class="csv-preview">
+        <thead><tr><th>Player</th><th>Date</th><th>Exit Velo</th><th>Launch Angle</th><th>Distance</th></tr></thead>
+        <tbody>
+          <tr><td>Jake Thompson</td><td>2026-08-04</td><td>96.2</td><td>18</td><td>312</td></tr>
+        </tbody>
+      </table>
+
+      <p style="margin-bottom:4px;"><strong>Blast</strong> (bat sensor swing mechanics):</p>
+      <table class="csv-preview">
+        <thead><tr><th>Player</th><th>Date</th><th>Bat Speed</th><th>Attack Angle</th><th>Time to Contact</th></tr></thead>
+        <tbody>
+          <tr><td>Jake Thompson</td><td>2026-08-04</td><td>68.4</td><td>9</td><td>0.142</td></tr>
+        </tbody>
+      </table>
+
+      <p>Don't have a file yet, or just tallying a game by hand? Use the <strong>Build a CSV</strong> tool below - it sets up Game box-score columns for you and you can just fill in the boxes.</p>
+
+      <p style="margin-bottom:0;">Blank cells (or NULL, N/A, -, none) are simply skipped. They won't record a zero.</p>
+    {% else %}
 
       <p style="margin-top:0;"><strong>Using Excel?</strong> Build your sheet normally, then use <em>File &rarr; Save As &rarr; CSV (Comma delimited)</em>. Only .csv files can be imported.</p>
 
@@ -80,31 +128,39 @@
       <p>Don't want to make the file yourself? Use the <strong>Build a CSV</strong> tool below the upload form. It sets up the right columns for each session type automatically.</p>
 
       <p style="margin-bottom:0;">Blank cells (or NULL, N/A, -, none) are simply skipped. They won't record a zero. Sample files are in the <code>sample_data/</code> folder.</p>
+    {% endif %}
     </div>
   </details>
 
   <form class="card-form" method="POST" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="domain" value="{{ domain }}">
     <div class="field">
       <label for="csv_file">CSV File *</label>
       <input type="file" id="csv_file" name="csv_file" accept=".csv" required>
       <div class="hint">
-        Must include a <strong>Player</strong> (or <strong>Name</strong>) column matching a roster name,
+        Must include a <strong>Player</strong> (or <strong>Name</strong>{% if domain == 'hitting' %}, <strong>Batter</strong>{% endif %}) column matching a roster name,
         and ideally a <strong>Date</strong> column. Every other numeric column gets tracked automatically.
         Not sure how to set up your file? <a href="#format-guide" onclick="document.getElementById('format-guide').open = true;">See the formatting guide above</a>.
       </div>
     </div>
     <div class="field">
-      <label for="category">Session type</label>
+      <label for="category">{{ 'Import as' if domain == 'hitting' else 'Session type' }}</label>
       <select id="category" name="category" onchange="document.getElementById('category-other-wrap').style.display = this.value === 'Other' ? 'block' : 'none';">
         {% for opt in category_options %}
-          <option value="{{ opt }}" {% if opt == 'Bullpen' %}selected{% endif %}>{{ opt }}</option>
+          <option value="{{ opt }}" {% if (domain == 'hitting' and opt == 'Game') or (domain != 'hitting' and opt == 'Bullpen') %}selected{% endif %}>{{ opt }}</option>
         {% endfor %}
       </select>
-      <div class="hint">Used to group these stats on the player page, e.g. Bullpen and Pulldown sessions stay separate from Game stats.</div>
+      <div class="hint">
+        {% if domain == 'hitting' %}
+          Used to group these stats on the player page - a Game box score, raw HitTrax export, and raw Blast export each stay in their own table.
+        {% else %}
+          Used to group these stats on the player page, e.g. Bullpen and Pulldown sessions stay separate from Game stats.
+        {% endif %}
+      </div>
     </div>
     <div class="field" id="category-other-wrap" style="display:none;">
-      <label for="category_other">Custom session type</label>
-      <input type="text" id="category_other" name="category_other" placeholder="e.g. Weighted Ball, Long Toss">
+      <label for="category_other">Custom {{ 'category' if domain == 'hitting' else 'session type' }}</label>
+      <input type="text" id="category_other" name="category_other" placeholder="{{ 'e.g. Soft Toss' if domain == 'hitting' else 'e.g. Weighted Ball, Long Toss' }}">
     </div>
     <button class="btn" type="submit">Upload &amp; Import</button>
   </form>
@@ -160,11 +216,12 @@
   <script>
     const ROSTER = [{% for p in players %}{{ p['name'] | tojson }}{% if not loop.last %}, {% endif %}{% endfor %}];
     const TODAY = new Date().toISOString().slice(0, 10);
+    const DOMAIN = {{ domain | tojson }};
     // Coming from a player's page pre-fills that player in the builder.
     const PRESET_PLAYER = new URLSearchParams(window.location.search).get('player') || '';
 
     // Stat columns that fit each session type. Player + Date are always first.
-    const TYPE_COLUMNS = {
+    const PITCHING_TYPE_COLUMNS = {
       "Bullpen":     ["Pitches", "Strikes", "FB Top Velo", "SL Top Velo", "CB Top Velo", "CH Top Velo"],
       "Pulldown":    ["Max Velo"],
       "Game":        ["IP", "ER", "K", "BB", "H", "Pitches", "Strikes", "FB Velo"],
@@ -173,6 +230,20 @@
       "Practice":    ["Score"],
       "Other":       ["Stat 1", "Stat 2"]
     };
+    // Hitting side: Game is a manually-tallied box score (AVG/OBP/SLG/OPS get
+    // computed automatically from AB+H, +BB/HBP/2B/3B/HR if present). HitTrax
+    // and Blast are for hand-entering a couple of swings without a real
+    // export file - a real device CSV should just be uploaded as-is instead
+    // of retyped here, since every numeric column in it is tracked automatically.
+    const HITTING_TYPE_COLUMNS = {
+      "Game":     ["AB", "H", "2B", "3B", "HR", "BB", "K", "HBP", "RBI", "R", "SB", "Exit Velo"],
+      "HitTrax":  ["Exit Velo", "Launch Angle", "Distance"],
+      "Blast":    ["Bat Speed", "Attack Angle", "Time to Contact"],
+      "BP":       ["Swings", "Exit Velo"],
+      "Tee Work": ["Swings", "Exit Velo"],
+      "Other":    ["Stat 1", "Stat 2"]
+    };
+    const TYPE_COLUMNS = DOMAIN === 'hitting' ? HITTING_TYPE_COLUMNS : PITCHING_TYPE_COLUMNS;
 
     const headRow = document.getElementById('builder-head');
     const body = document.getElementById('builder-body');
@@ -187,6 +258,8 @@
     const INTEGER_STATS = new Set([
       'pitches', 'strikes', 'outs', 'k', 'so', 'strikeouts',
       'bb', 'walks', 'h', 'hits', 'hbp', 'er', 'score',
+      'ab', 'atbats', '2b', 'doubles', '3b', 'triples', 'hr', 'homeruns',
+      'rbi', 'r', 'runs', 'sb', 'stolenbases', 'swings',
     ]);
     function isIntegerStat(name) {
       return INTEGER_STATS.has((name || '').trim().toLowerCase());
@@ -361,6 +434,7 @@
       fd.append('csv_file', new File([csv], builderFilename(), { type: 'text/csv' }));
       fd.append('category', type);
       fd.append('category_other', document.getElementById('builder-other').value.trim());
+      fd.append('domain', DOMAIN);
       status.textContent = 'Importing...';
       try {
         const resp = await fetch('{{ url_for("upload_csv") }}', { method: 'POST', body: fd });

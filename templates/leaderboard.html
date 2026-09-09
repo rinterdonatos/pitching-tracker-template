@@ -3,7 +3,19 @@
 {% block content %}
   <div class="page-title"><h2>Leaderboard</h2></div>
 
+  {% set active_tab = request.args.get('tab', 'pitching') %}
+  {% if active_tab not in ['pitching', 'hitting'] %}{% set active_tab = 'pitching' %}{% endif %}
+  {% set other_qs = '' %}
+  {% if team_filter %}{% set other_qs = other_qs ~ '&team=' ~ team_filter %}{% endif %}
+  {% if grad_year_filter %}{% set other_qs = other_qs ~ '&grad_year=' ~ grad_year_filter %}{% endif %}
+
+  <div class="section-tabs" role="tablist" style="margin-bottom:18px;">
+    <a class="section-tab {{ 'active' if active_tab == 'pitching' }}" href="{{ url_for('leaderboard') }}?tab=pitching{{ other_qs }}">Pitching</a>
+    <a class="section-tab {{ 'active' if active_tab == 'hitting' }}" href="{{ url_for('leaderboard') }}?tab=hitting{{ other_qs }}">Hitting</a>
+  </div>
+
   <form method="GET" style="margin-bottom:22px; display:flex; gap:10px; flex-wrap:wrap;">
+    <input type="hidden" name="tab" value="{{ active_tab }}">
     <select name="team" onchange="this.form.submit()" class="control">
       <option value="">All teams</option>
       {% for t in teams %}
@@ -17,10 +29,11 @@
       {% endfor %}
     </select>
     {% if team_filter or grad_year_filter %}
-      <a class="btn secondary" href="{{ url_for('leaderboard') }}">Clear Filters</a>
+      <a class="btn secondary" href="{{ url_for('leaderboard') }}?tab={{ active_tab }}">Clear Filters</a>
     {% endif %}
   </form>
 
+  {% if active_tab == 'pitching' %}
   <div class="stat-grid">
     <div class="stat-card">
       <h4>Top Velo (Bullpen)</h4>
@@ -70,5 +83,68 @@
       {% else %}<p class="hint" style="margin:0;">No strikeout data yet.</p>{% endif %}
     </div>
   </div>
-  <p class="hint" style="margin-top:12px;">Based on imported CSV and TrackMan stats. Rankings update automatically as new data comes in.</p>
+  {% else %}
+  <div class="stat-grid">
+    <div class="stat-card">
+      <h4>Top Exit Velo</h4>
+      {% if exit_velo_leaders %}
+        {% for row in exit_velo_leaders %}
+          <div class="meta" style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <a href="{{ url_for('player_detail', player_id=row['id']) }}?tab=hitting">{{ loop.index }}. {{ row['name'] }}</a>
+            <strong>{{ row['value'] | fmt_stat }}</strong>
+          </div>
+        {% endfor %}
+      {% else %}<p class="hint" style="margin:0;">No exit velo data yet.</p>{% endif %}
+    </div>
+
+    <div class="stat-card">
+      <h4>Top Bat Speed</h4>
+      {% if bat_speed_leaders %}
+        {% for row in bat_speed_leaders %}
+          <div class="meta" style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <a href="{{ url_for('player_detail', player_id=row['id']) }}?tab=hitting">{{ loop.index }}. {{ row['name'] }}</a>
+            <strong>{{ row['value'] | fmt_stat }}</strong>
+          </div>
+        {% endfor %}
+      {% else %}<p class="hint" style="margin:0;">No bat speed data yet.</p>{% endif %}
+    </div>
+
+    <div class="stat-card">
+      <h4>Batting Average (avg, min data)</h4>
+      {% if avg_leaders %}
+        {% for row in avg_leaders %}
+          <div class="meta" style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <a href="{{ url_for('player_detail', player_id=row['id']) }}?tab=hitting">{{ loop.index }}. {{ row['name'] }}</a>
+            <strong>{{ '%.3f' | format(row['value']) }}</strong>
+          </div>
+        {% endfor %}
+      {% else %}<p class="hint" style="margin:0;">No batting average data yet.</p>{% endif %}
+    </div>
+
+    <div class="stat-card">
+      <h4>Home Runs (season total)</h4>
+      {% if hr_leaders %}
+        {% for row in hr_leaders %}
+          <div class="meta" style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <a href="{{ url_for('player_detail', player_id=row['id']) }}?tab=hitting">{{ loop.index }}. {{ row['name'] }}</a>
+            <strong>{{ row['value'] | int }}</strong>
+          </div>
+        {% endfor %}
+      {% else %}<p class="hint" style="margin:0;">No home run data yet.</p>{% endif %}
+    </div>
+
+    <div class="stat-card">
+      <h4>RBI (season total)</h4>
+      {% if rbi_leaders %}
+        {% for row in rbi_leaders %}
+          <div class="meta" style="display:flex; justify-content:space-between; margin-bottom:6px;">
+            <a href="{{ url_for('player_detail', player_id=row['id']) }}?tab=hitting">{{ loop.index }}. {{ row['name'] }}</a>
+            <strong>{{ row['value'] | int }}</strong>
+          </div>
+        {% endfor %}
+      {% else %}<p class="hint" style="margin:0;">No RBI data yet.</p>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+  <p class="hint" style="margin-top:12px;">Based on imported CSV, TrackMan, HitTrax, and Blast stats. Rankings update automatically as new data comes in.</p>
 {% endblock %}

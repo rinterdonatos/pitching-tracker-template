@@ -1596,6 +1596,10 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 .feed-item-info .player-name:hover { text-decoration: underline; }
 .feed-item-info .player-meta { font-size: 0.88rem; opacity: 0.9; margin-top: 2px; }
 .feed-item-info .video-title { font-size: 0.85rem; opacity: 0.85; margin-top: 6px; }
+.feed-day-stats { font-size: 0.8rem; opacity: 0.85; margin-top: 6px; line-height: 1.5; }
+.feed-day-stats-cat { font-weight: 700; margin-right: 4px; }
+.feed-day-stats-item { white-space: nowrap; }
+.feed-day-stats-sep { margin: 0 5px; opacity: 0.6; }
 
 .feed-item-actions {
   position: absolute;
@@ -1753,6 +1757,28 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   opacity: 0.7;
 }
 .feed-tab.active { background: #fff; color: #111; opacity: 1; }
+
+/* Inline pill tab bar - Pitching/Hitting toggle on the player page and
+   leaderboard, in-flow (unlike .feed-tabs above, which is a fixed overlay
+   for the coach video feed). */
+.section-tabs {
+  display: inline-flex;
+  gap: 2px;
+  background: var(--phx-bg, #f6f5f0);
+  border: 1px solid var(--phx-border);
+  border-radius: 999px;
+  padding: 4px;
+}
+.section-tab {
+  color: var(--phx-blue-dark);
+  text-decoration: none;
+  padding: 7px 18px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  opacity: 0.6;
+}
+.section-tab.active { background: var(--phx-blue); color: #fff; opacity: 1; }
 
 /* ---------- Public marketing landing page (v2) ---------- */
 

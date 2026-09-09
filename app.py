@@ -204,21 +204,37 @@ ALLOWED_CSV_EXT = {"csv"}
 # video upload forms. "Other" reveals a free-text box for anything else.
 CATEGORY_OPTIONS = ["Bullpen", "Pulldown", "Game", "Live ABs", "Flat Ground", "Practice", "Other"]
 
+# Same idea, but for the Hitting side of the site. Kept as an entirely
+# separate list (not merged with CATEGORY_OPTIONS above) because a couple of
+# names collide on purpose - "Game" and "Live ABs" mean something different
+# from the pitcher's side of the ball than the hitter's - and stat_entries /
+# videos rows carry a `domain` column ('pitching' or 'hitting') precisely so
+# the two never get blended together despite sharing a category name.
+HITTING_CATEGORY_OPTIONS = ["Game", "HitTrax", "Blast", "BP", "Tee Work", "Other"]
+HITTING_VIDEO_CATEGORY_OPTIONS = ["Live AB - Hitting", "Game", "BP", "Tee Work", "Other"]
+
 # Session types whose velo stats get charted on the player page. Each chart
 # shows one line per session type (e.g. the fastball chart compares Bullpen,
 # Live ABs, and Game velo). "Live BP" is kept for data imported before that
 # category was renamed to "Live ABs".
 VELOCITY_CHART_CATEGORIES = ["Bullpen", "Live ABs", "Live BP", "Game", "Pulldown"]
 
+# Same idea for hitting: any stat name containing "velo" (Exit Velo) or
+# "speed" (Bat Speed) recorded under one of these categories gets its own
+# chart, one line per category.
+HITTING_VELOCITY_CHART_CATEGORIES = ["Game", "HitTrax", "Blast", "BP", "Tee Work"]
+
 # Preferred display order for categories that exist; anything else found in
 # the data is appended after these, alphabetically. Used by the player
 # page's per-category spreadsheet tables.
 CATEGORY_SORT_ORDER = ["Bullpen", "Pulldown", "Game", "Live ABs", "Live BP", "Flat Ground", "Practice", "General"]
+HITTING_CATEGORY_SORT_ORDER = ["Game", "HitTrax", "Blast", "BP", "Tee Work", "General"]
 
 
-def _category_sort_key(cat):
+def _category_sort_key(cat, domain="pitching"):
+    order = HITTING_CATEGORY_SORT_ORDER if domain == "hitting" else CATEGORY_SORT_ORDER
     try:
-        return (0, CATEGORY_SORT_ORDER.index(cat))
+        return (0, order.index(cat))
     except ValueError:
         return (1, cat.lower())
 
@@ -1319,6 +1335,22 @@ def init_db():
         conn.execute("ALTER TABLE videos ADD COLUMN thumbnail_filename TEXT")
         conn.commit()
 
+    # Migration: hitting. Pitching and hitting share the same videos /
+    # stat_entries tables (same shape, same per-category pivot-table and
+    # charting logic), but a category name like "Game" or "Live ABs" means
+    # something different depending which side of the ball it's on - so a
+    # `domain` column ('pitching' or 'hitting') keeps the two from ever
+    # blending together. Every row that predates this column is pitching
+    # data, so the default backfills existing rows correctly with no
+    # separate UPDATE needed.
+    if "domain" not in video_cols:
+        conn.execute("ALTER TABLE videos ADD COLUMN domain TEXT DEFAULT 'pitching'")
+        conn.commit()
+    stat_entry_cols = {row["name"] for row in conn.execute("PRAGMA table_info(stat_entries)")}
+    if "domain" not in stat_entry_cols:
+        conn.execute("ALTER TABLE stat_entries ADD COLUMN domain TEXT DEFAULT 'pitching'")
+        conn.commit()
+
     # Migration: a player can opt in to recruiting visibility overall and
     # still not want every single clip shown to college coaches (a rough
     # bullpen, something still being worked on, etc.) - defaults to 1 so
@@ -1782,17 +1814,25 @@ CUMULATIVE_STAT_NAMES = {
     "bf", "battersfaced", "ab", "atbats",
     "wp", "wildpitches", "pickoffs",
     "g", "games", "appearances",
+    # Hitting box-score counting stats.
+    "2b", "doubles", "3b", "triples", "rbi", "runsbattedin",
+    "sb", "stolenbases", "cs", "caughtstealing",
+    "pa", "plateappearances", "tb", "totalbases", "swings", "abs",
 }
 
-RATE_STAT_HINTS = ("velo", "%", "pct", "era", "avg", "rate", "k/7")
+RATE_STAT_HINTS = ("velo", "%", "pct", "era", "avg", "rate", "k/7", "speed", "distance", "obp", "slg", "ops")
 
 # Velocity readings are each a single session's peak, so summarizing them
 # across sessions should take the best one ever seen, not blend them into an
 # average - "FB Top Velo" of 92, 93.1, 94 across three bullpens is a 94 mph
 # arm, not a 93.03 mph arm. Spin stats ("Avg Spin") are genuinely meant to be
-# averaged, so this only applies when "velo" is in the name.
+# averaged, so this only applies when "velo" is in the name. Bat Speed and
+# batted-ball Distance (HitTrax / Blast) get the same best-ever treatment for
+# the same reason - a season's "Top Bat Speed" is the fastest swing recorded,
+# not the average of every session's peak.
 def is_max_stat(name):
-    return "velo" in (name or "").lower()
+    low = (name or "").lower()
+    return "velo" in low or "speed" in low or "distance" in low
 
 # ---- TrackMan import ----
 # A TrackMan pitching export is one row PER PITCH. The importer rolls those
@@ -1854,19 +1894,27 @@ K_COL_NAMES = {"k", "so", "strikeouts", "ks"}
 # disappearing or getting buried mid-list.
 STAT_DISPLAY_ORDER = (
     list(IP_COL_NAMES) + list(PITCHES_COL_NAMES) + list(STRIKES_COL_NAMES) + list(STRIKE_PCT_COL_NAMES)
-    + ["outs", "bf", "battersfaced", "ab", "atbats"]
-    + ["h", "hits", "singles", "doubles", "triples", "hr", "homeruns"]
-    + ["r", "runs"]
+    + ["outs", "bf", "battersfaced", "pa", "plateappearances", "ab", "atbats", "abs"]
+    + ["h", "hits", "singles", "doubles", "2b", "triples", "3b", "hr", "homeruns", "tb", "totalbases"]
+    + ["r", "runs", "rbi", "runsbattedin"]
     + list(ER_COL_NAMES)
     + ["bb", "walks", "hbp", "hitbypitch"]
     + list(K_COL_NAMES)
+    + ["sb", "stolenbases", "cs", "caughtstealing"]
     + ["wp", "wildpitches", "pickoffs"]
     + list(ERA_COL_NAMES)
-    + ["k/7", "whip"]
+    + ["k/7", "whip", "avg", "obp", "slg", "ops"]
     + [
         "fbvelo", "fbtopvelo", "sivelo", "sitopvelo", "ctvelo", "cttopvelo",
         "slvelo", "sltopvelo", "cbvelo", "cbtopvelo", "chvelo", "chtopvelo",
         "splvelo", "spltopvelo", "swpvelo", "swptopvelo", "maxvelo",
+    ]
+    + [
+        "exitvelo", "avgexitvelo", "topexitvelo", "launchangle", "avglaunchangle",
+        "distance", "maxdistance", "swings",
+        "batspeed", "avgbatspeed", "topbatspeed", "attackangle", "onplaneefficiency",
+        "earlyconnection", "connectionatimpact", "verticalbatangle", "power",
+        "timetocontact", "peakhandspeed", "rotationalacceleration",
     ]
     + ["score", "g", "games", "appearances"]
 )
@@ -3357,7 +3405,7 @@ def coach_feed():
             LEFT JOIN (
                 SELECT player_id, MAX(stat_value) AS best_velo
                 FROM stat_entries
-                WHERE lower(stat_name) LIKE '%velo%'
+                WHERE lower(stat_name) LIKE '%velo%' AND domain = 'pitching'
                 GROUP BY player_id
             ) bv ON bv.player_id = v.player_id
             WHERE {where_sql} AND v.recruiting_visible = 1
@@ -3365,11 +3413,34 @@ def coach_feed():
         [g.coach["id"], g.coach["id"], g.coach["id"]] + params,
     ).fetchall()
     videos = _rank_feed_videos(videos)
+
+    # Same-day stat snapshot for each clip's caption (mirrors the player
+    # page's "Stats from this day" card): one query for every (player, date,
+    # domain) combo actually in this batch of videos, instead of one query
+    # per video. Keyed as "player_id|entry_date|domain" since Jinja dict
+    # lookups are simplest with a plain string key.
+    day_stats_by_video = {}
+    pairs = {(v["player_id"], v["entry_date"], v["domain"] or "pitching") for v in videos}
+    if pairs:
+        or_clauses = " OR ".join(["(player_id = ? AND entry_date = ? AND domain = ?)"] * len(pairs))
+        stat_rows = conn.execute(
+            f"SELECT player_id, entry_date, domain, category, stat_name, stat_value FROM stat_entries WHERE {or_clauses}",
+            [x for triple in pairs for x in triple],
+        ).fetchall()
+        grouped = {}
+        for row in stat_rows:
+            key = f"{row['player_id']}|{row['entry_date']}|{row['domain'] or 'pitching'}"
+            cat = row["category"] or "General"
+            grouped.setdefault(key, {}).setdefault(cat, []).append(
+                {"stat_name": row["stat_name"], "stat_value": row["stat_value"]}
+            )
+        day_stats_by_video = grouped
+
     teams, grad_years, positions = _coach_filter_options(conn)
     conn.close()
     return render_template(
         "coach_feed.html", videos=videos, teams=teams, grad_years=grad_years,
-        positions=positions, filters=filters,
+        positions=positions, filters=filters, day_stats_by_video=day_stats_by_video,
     )
 
 
@@ -4311,13 +4382,15 @@ def leaderboard():
 
     # Split the same way as the coach portal's leaderboard - a Pulldown
     # max-effort throw and a Bullpen fastball aren't the same measurement,
-    # so they shouldn't get blended into one "any pitch" number.
+    # so they shouldn't get blended into one "any pitch" number. Every query
+    # here is pinned to domain = 'pitching' so a batter's exit velo or
+    # strikeouts-as-a-hitter can never leak into a pitcher's leaderboard.
     bullpen_velo_leaders = conn.execute(
         f"""SELECT p.id, p.name, t.name AS team_name, MAX(s.stat_value) AS value
             FROM stat_entries s
             JOIN players p ON p.id = s.player_id
             LEFT JOIN teams t ON t.id = p.team_id
-            WHERE lower(s.stat_name) LIKE '%velo%' AND s.category = 'Bullpen'{filter_cond}
+            WHERE lower(s.stat_name) LIKE '%velo%' AND s.category = 'Bullpen' AND s.domain = 'pitching'{filter_cond}
             GROUP BY p.id ORDER BY value DESC LIMIT 10""",
         params,
     ).fetchall()
@@ -4327,7 +4400,7 @@ def leaderboard():
             FROM stat_entries s
             JOIN players p ON p.id = s.player_id
             LEFT JOIN teams t ON t.id = p.team_id
-            WHERE lower(s.stat_name) LIKE '%velo%' AND s.category = 'Pulldown'{filter_cond}
+            WHERE lower(s.stat_name) LIKE '%velo%' AND s.category = 'Pulldown' AND s.domain = 'pitching'{filter_cond}
             GROUP BY p.id ORDER BY value DESC LIMIT 10""",
         params,
     ).fetchall()
@@ -4338,7 +4411,7 @@ def leaderboard():
             FROM stat_entries s
             JOIN players p ON p.id = s.player_id
             LEFT JOIN teams t ON t.id = p.team_id
-            WHERE s.stat_name = 'Strike %'{filter_cond}
+            WHERE s.stat_name = 'Strike %' AND s.domain = 'pitching'{filter_cond}
             GROUP BY p.id ORDER BY value DESC LIMIT 10""",
         params,
     ).fetchall()
@@ -4348,7 +4421,60 @@ def leaderboard():
             FROM stat_entries s
             JOIN players p ON p.id = s.player_id
             LEFT JOIN teams t ON t.id = p.team_id
-            WHERE lower(s.stat_name) IN ('k', 'so', 'strikeouts', 'ks'){filter_cond}
+            WHERE lower(s.stat_name) IN ('k', 'so', 'strikeouts', 'ks') AND s.domain = 'pitching'{filter_cond}
+            GROUP BY p.id ORDER BY value DESC LIMIT 10""",
+        params,
+    ).fetchall()
+
+    # Hitting side - same shape, pinned to domain = 'hitting' so nothing here
+    # is ever a pitcher's own at-bat-facing numbers.
+    exit_velo_leaders = conn.execute(
+        f"""SELECT p.id, p.name, t.name AS team_name, MAX(s.stat_value) AS value
+            FROM stat_entries s
+            JOIN players p ON p.id = s.player_id
+            LEFT JOIN teams t ON t.id = p.team_id
+            WHERE lower(s.stat_name) LIKE '%exit velo%' AND s.domain = 'hitting'{filter_cond}
+            GROUP BY p.id ORDER BY value DESC LIMIT 10""",
+        params,
+    ).fetchall()
+
+    bat_speed_leaders = conn.execute(
+        f"""SELECT p.id, p.name, t.name AS team_name, MAX(s.stat_value) AS value
+            FROM stat_entries s
+            JOIN players p ON p.id = s.player_id
+            LEFT JOIN teams t ON t.id = p.team_id
+            WHERE lower(s.stat_name) LIKE '%bat speed%' AND s.domain = 'hitting'{filter_cond}
+            GROUP BY p.id ORDER BY value DESC LIMIT 10""",
+        params,
+    ).fetchall()
+
+    avg_leaders = conn.execute(
+        f"""SELECT p.id, p.name, t.name AS team_name,
+                   ROUND(AVG(s.stat_value), 3) AS value, COUNT(*) AS sessions
+            FROM stat_entries s
+            JOIN players p ON p.id = s.player_id
+            LEFT JOIN teams t ON t.id = p.team_id
+            WHERE s.stat_name = 'AVG' AND s.domain = 'hitting'{filter_cond}
+            GROUP BY p.id ORDER BY value DESC LIMIT 10""",
+        params,
+    ).fetchall()
+
+    hr_leaders = conn.execute(
+        f"""SELECT p.id, p.name, t.name AS team_name, SUM(s.stat_value) AS value
+            FROM stat_entries s
+            JOIN players p ON p.id = s.player_id
+            LEFT JOIN teams t ON t.id = p.team_id
+            WHERE lower(s.stat_name) IN ('hr', 'homeruns') AND s.domain = 'hitting'{filter_cond}
+            GROUP BY p.id ORDER BY value DESC LIMIT 10""",
+        params,
+    ).fetchall()
+
+    rbi_leaders = conn.execute(
+        f"""SELECT p.id, p.name, t.name AS team_name, SUM(s.stat_value) AS value
+            FROM stat_entries s
+            JOIN players p ON p.id = s.player_id
+            LEFT JOIN teams t ON t.id = p.team_id
+            WHERE lower(s.stat_name) IN ('rbi', 'runsbattedin') AND s.domain = 'hitting'{filter_cond}
             GROUP BY p.id ORDER BY value DESC LIMIT 10""",
         params,
     ).fetchall()
@@ -4357,7 +4483,10 @@ def leaderboard():
     return render_template(
         "leaderboard.html", bullpen_velo_leaders=bullpen_velo_leaders,
         pulldown_velo_leaders=pulldown_velo_leaders, strike_leaders=strike_leaders,
-        k_leaders=k_leaders, teams=all_teams, team_filter=team_filter,
+        k_leaders=k_leaders, exit_velo_leaders=exit_velo_leaders,
+        bat_speed_leaders=bat_speed_leaders, avg_leaders=avg_leaders,
+        hr_leaders=hr_leaders, rbi_leaders=rbi_leaders,
+        teams=all_teams, team_filter=team_filter,
         grad_years=grad_years, grad_year_filter=grad_year_filter,
     )
 
@@ -4649,12 +4778,12 @@ def add_player():
     return render_template("add_player.html", teams=all_teams, contacts=[])
 
 
-def _build_player_profile_context(conn, player_id, date_from, date_to, is_coach_view=False):
-    """Everything a player's profile page needs, besides the `player` row
-    itself: stat tables, velocity charts, video timeline, comments, TrackMan
-    sessions. Shared between the org-member player page and the coach
-    portal's read-only view of the same player, so both stay in sync
-    automatically instead of drifting apart as two separate implementations."""
+def _player_domain_context(conn, player_id, date_from, date_to, domain, is_coach_view=False):
+    """Everything scoped to ONE side of the ball (pitching or hitting): stat
+    tables, velocity/bat-speed charts, video timeline, TrackMan sessions
+    (pitching only). Called twice by _build_player_profile_context() below -
+    once per domain - so the player page can show two independent tabs
+    without a hitting CSV import ever touching a pitching chart or vice versa."""
     date_conds = ""
     date_params = []
     if date_from:
@@ -4665,8 +4794,8 @@ def _build_player_profile_context(conn, player_id, date_from, date_to, is_coach_
         date_params.append(date_to)
 
     stat_rows = conn.execute(
-        f"SELECT entry_date, category, stat_name, stat_value FROM stat_entries WHERE player_id = ?{date_conds} ORDER BY entry_date ASC, id ASC",
-        (player_id, *date_params),
+        f"SELECT entry_date, category, stat_name, stat_value FROM stat_entries WHERE player_id = ? AND domain = ?{date_conds} ORDER BY entry_date ASC, id ASC",
+        (player_id, domain, *date_params),
     ).fetchall()
 
     # Same-day stat snapshot for the video timeline: if a player has, say,
@@ -4687,8 +4816,8 @@ def _build_player_profile_context(conn, player_id, date_from, date_to, is_coach_
     # always shows every video regardless of recruiting_visible.
     visibility_cond = " AND recruiting_visible = 1" if is_coach_view else ""
     videos = conn.execute(
-        f"SELECT * FROM videos WHERE player_id = ?{date_conds}{visibility_cond} ORDER BY pinned DESC, entry_date DESC, id DESC",
-        (player_id, *date_params),
+        f"SELECT * FROM videos WHERE player_id = ? AND domain = ?{date_conds}{visibility_cond} ORDER BY pinned DESC, entry_date DESC, id DESC",
+        (player_id, domain, *date_params),
     ).fetchall()
 
     # Pinned videos get their own side-by-side section up top, so they're
@@ -4707,70 +4836,58 @@ def _build_player_profile_context(conn, player_id, date_from, date_to, is_coach_
         else:
             video_groups.append({"date": v["entry_date"], "videos": [v]})
 
-    video_comment_rows = conn.execute(
-        "SELECT * FROM comments WHERE player_id = ? AND video_id IS NOT NULL ORDER BY created_at ASC",
-        (player_id,),
-    ).fetchall()
-
-    general_comments = conn.execute(
-        "SELECT * FROM comments WHERE player_id = ? AND video_id IS NULL ORDER BY created_at ASC",
-        (player_id,),
-    ).fetchall()
-
-    contacts = conn.execute(
-        "SELECT * FROM player_contacts WHERE player_id = ? ORDER BY id ASC",
-        (player_id,),
-    ).fetchall()
-
-    tm_rows = conn.execute(
-        f"SELECT * FROM trackman_pitches WHERE player_id = ?{date_conds} ORDER BY entry_date DESC, id ASC",
-        (player_id, *date_params),
-    ).fetchall()
-
-    # TrackMan Reports: one entry per session (date + type), each with a
-    # per-pitch-type summary and the full pitch-by-pitch detail.
-    tm_by_session = {}
-    for r in tm_rows:
-        tm_by_session.setdefault((r["entry_date"], r["category"] or "General"), []).append(r)
-
     tm_sessions = []
-    for (d, cat), rows in sorted(tm_by_session.items(), key=lambda kv: kv[0][0], reverse=True):
-        types = {}
-        for r in rows:
-            types.setdefault(r["pitch_type"] or "?", []).append(r)
-        type_rows = []
-        for pt, rs in sorted(types.items(), key=lambda kv: -len(kv[1])):
-            velos = [x["rel_speed"] for x in rs if x["rel_speed"] is not None]
-            spins = [x["spin_rate"] for x in rs if x["spin_rate"] is not None]
-            tilts = [x["spin_axis"] for x in rs if x["spin_axis"]]
-            type_rows.append({
-                "type": pt,
-                "count": len(rs),
-                "max_velo": round(max(velos), 1) if velos else None,
-                "avg_velo": avg_or_none(velos),
-                "avg_spin": avg_or_none(spins, 0),
-                "tilt": max(set(tilts), key=tilts.count) if tilts else None,
-                "ivb": avg_or_none([x["ivb"] for x in rs]),
-                "hb": avg_or_none([x["hb"] for x in rs]),
-                "ext": avg_or_none([x["extension"] for x in rs]),
-                "rel_h": avg_or_none([x["rel_height"] for x in rs]),
-                "rel_s": avg_or_none([x["rel_side"] for x in rs]),
-                "vaa": avg_or_none([x["vaa"] for x in rs]),
-            })
-        strikes = sum(1 for r in rows if normalize_col(r["pitch_call"] or "") in TRACKMAN_STRIKE_CALLS)
-        tm_sessions.append({
-            "date": d, "category": cat, "pitch_count": len(rows),
-            "strikes": strikes, "types": type_rows, "pitches": rows,
-        })
+    if domain == "pitching":
+        tm_rows = conn.execute(
+            f"SELECT * FROM trackman_pitches WHERE player_id = ?{date_conds} ORDER BY entry_date DESC, id ASC",
+            (player_id, *date_params),
+        ).fetchall()
 
-    # Velocity stats (any stat name containing "velo") broken out by
-    # stat_name -> category -> list of {date, value}, so the player page can
-    # chart each pitch with one line per session type. "Top" is dropped from
-    # stat names when grouping so "FB Top Velo" (bullpens) and "FB Velo"
-    # (live ABs / games) land on the same fastball chart.
+        # TrackMan Reports: one entry per session (date + type), each with a
+        # per-pitch-type summary and the full pitch-by-pitch detail.
+        tm_by_session = {}
+        for r in tm_rows:
+            tm_by_session.setdefault((r["entry_date"], r["category"] or "General"), []).append(r)
+
+        for (d, cat), rows in sorted(tm_by_session.items(), key=lambda kv: kv[0][0], reverse=True):
+            types = {}
+            for r in rows:
+                types.setdefault(r["pitch_type"] or "?", []).append(r)
+            type_rows = []
+            for pt, rs in sorted(types.items(), key=lambda kv: -len(kv[1])):
+                velos = [x["rel_speed"] for x in rs if x["rel_speed"] is not None]
+                spins = [x["spin_rate"] for x in rs if x["spin_rate"] is not None]
+                tilts = [x["spin_axis"] for x in rs if x["spin_axis"]]
+                type_rows.append({
+                    "type": pt,
+                    "count": len(rs),
+                    "max_velo": round(max(velos), 1) if velos else None,
+                    "avg_velo": avg_or_none(velos),
+                    "avg_spin": avg_or_none(spins, 0),
+                    "tilt": max(set(tilts), key=tilts.count) if tilts else None,
+                    "ivb": avg_or_none([x["ivb"] for x in rs]),
+                    "hb": avg_or_none([x["hb"] for x in rs]),
+                    "ext": avg_or_none([x["extension"] for x in rs]),
+                    "rel_h": avg_or_none([x["rel_height"] for x in rs]),
+                    "rel_s": avg_or_none([x["rel_side"] for x in rs]),
+                    "vaa": avg_or_none([x["vaa"] for x in rs]),
+                })
+            strikes = sum(1 for r in rows if normalize_col(r["pitch_call"] or "") in TRACKMAN_STRIKE_CALLS)
+            tm_sessions.append({
+                "date": d, "category": cat, "pitch_count": len(rows),
+                "strikes": strikes, "types": type_rows, "pitches": rows,
+            })
+
+    # Velocity/bat-speed stats broken out by stat_name -> category -> list of
+    # {date, value}, so the player page can chart each one with one line per
+    # session type. "Top" is dropped from stat names when grouping so
+    # "FB Top Velo" (bullpens) and "FB Velo" (live ABs / games) land on the
+    # same fastball chart.
+    chart_categories = HITTING_VELOCITY_CHART_CATEGORIES if domain == "hitting" else VELOCITY_CHART_CATEGORIES
     velocity_by_stat = {}
     for row in stat_rows:
-        if "velo" in row["stat_name"].lower() and row["category"] in VELOCITY_CHART_CATEGORIES:
+        low_name = row["stat_name"].lower()
+        if ("velo" in low_name or "speed" in low_name) and row["category"] in chart_categories:
             chart_name = " ".join(w for w in row["stat_name"].split() if w.lower() != "top")
             # Pulldown velo (Max Velo) is fastball velo, so it joins the
             # fastball chart as its own line instead of a separate chart.
@@ -4796,7 +4913,7 @@ def _build_player_profile_context(conn, player_id, date_from, date_to, is_coach_
         bucket["cells"].setdefault(row["entry_date"], {})[row["stat_name"]] = row["stat_value"]
 
     category_tables = []
-    for cat in sorted(raw_by_category.keys(), key=_category_sort_key):
+    for cat in sorted(raw_by_category.keys(), key=lambda c: _category_sort_key(c, domain)):
         bucket = raw_by_category[cat]
         stat_names = sorted(bucket["stat_names"], key=_stat_sort_key)
         dates = sorted(bucket["dates"])
@@ -4807,9 +4924,9 @@ def _build_player_profile_context(conn, player_id, date_from, date_to, is_coach_
             table_rows.append({"date": d, "values": [row_cells.get(sn) for sn in stat_names]})
 
         # Summary row: counting stats (IP, H, K, BB, Pitches, ...) are
-        # totaled like a season stat line; velo readings take the best one
-        # ever recorded; everything else that's a rate (%, ERA, Avg Spin) is
-        # averaged.
+        # totaled like a season stat line; velo/speed/distance readings take
+        # the best one ever recorded; everything else that's a rate (%, ERA,
+        # Avg Spin, AVG/OBP/SLG/OPS) is averaged.
         averages = []
         for sn in stat_names:
             vals = [bucket["cells"][d][sn] for d in dates if sn in bucket["cells"].get(d, {})]
@@ -4828,9 +4945,14 @@ def _build_player_profile_context(conn, player_id, date_from, date_to, is_coach_
             {"category": cat, "stat_names": stat_names, "rows": table_rows, "averages": averages}
         )
 
-    comments_by_video = {}
-    for c in video_comment_rows:
-        comments_by_video.setdefault(c["video_id"], []).append(c)
+    # Quick "season line" for the hitting tab's headline strip: the Game
+    # category's summary row, looked up by stat name instead of the player
+    # page having to zip stat_names/averages back together itself.
+    game_line = {}
+    if domain == "hitting":
+        game_table = next((t for t in category_tables if t["category"] == "Game"), None)
+        if game_table:
+            game_line = dict(zip(game_table["stat_names"], game_table["averages"]))
 
     return {
         "category_tables": category_tables,
@@ -4838,12 +4960,50 @@ def _build_player_profile_context(conn, player_id, date_from, date_to, is_coach_
         "video_groups": video_groups,
         "stats_by_date": stats_by_date,
         "pinned_videos": pinned_videos,
+        "tm_sessions": tm_sessions,
+        "game_line": game_line,
+    }
+
+
+def _build_player_profile_context(conn, player_id, date_from, date_to, is_coach_view=False):
+    """Everything a player's profile page needs, besides the `player` row
+    itself. Shared between the org-member player page and the coach
+    portal's read-only view of the same player, so both stay in sync
+    automatically instead of drifting apart as two separate implementations.
+    Pitching and hitting each get their own scoped context (stat tables,
+    charts, videos) under "pitching"/"hitting"; comments and contacts aren't
+    split by domain since they're about the player generally, not one side
+    of the ball, so they're computed once and shared by both tabs."""
+    pitching_ctx = _player_domain_context(conn, player_id, date_from, date_to, "pitching", is_coach_view)
+    hitting_ctx = _player_domain_context(conn, player_id, date_from, date_to, "hitting", is_coach_view)
+
+    video_comment_rows = conn.execute(
+        "SELECT * FROM comments WHERE player_id = ? AND video_id IS NOT NULL ORDER BY created_at ASC",
+        (player_id,),
+    ).fetchall()
+
+    general_comments = conn.execute(
+        "SELECT * FROM comments WHERE player_id = ? AND video_id IS NULL ORDER BY created_at ASC",
+        (player_id,),
+    ).fetchall()
+
+    contacts = conn.execute(
+        "SELECT * FROM player_contacts WHERE player_id = ? ORDER BY id ASC",
+        (player_id,),
+    ).fetchall()
+
+    comments_by_video = {}
+    for c in video_comment_rows:
+        comments_by_video.setdefault(c["video_id"], []).append(c)
+
+    return {
+        "pitching": pitching_ctx,
+        "hitting": hitting_ctx,
         "comments_by_video": comments_by_video,
         "general_comments": general_comments,
         "contacts": contacts,
         "date_from": date_from,
         "date_to": date_to,
-        "tm_sessions": tm_sessions,
     }
 
 
@@ -5439,6 +5599,9 @@ def upload_csv():
 
     if request.method == "POST":
         file = request.files.get("csv_file")
+        domain = request.form.get("domain", "pitching").strip().lower()
+        if domain not in ("pitching", "hitting"):
+            domain = "pitching"
         category = request.form.get("category", "").strip()
         if category == "Other":
             category = request.form.get("category_other", "").strip()
@@ -5447,12 +5610,12 @@ def upload_csv():
         if not file or not file.filename:
             flash("Please choose a CSV file to upload.", "error")
             conn.close()
-            return redirect(url_for("upload_csv"))
+            return redirect(url_for("upload_csv", domain=domain))
 
         if not allowed_file(file.filename, ALLOWED_CSV_EXT):
             flash("File must be a .csv", "error")
             conn.close()
-            return redirect(url_for("upload_csv"))
+            return redirect(url_for("upload_csv", domain=domain))
 
         # Build a name -> id lookup (case-insensitive)
         name_to_id = {p["name"].strip().lower(): p["id"] for p in players}
@@ -5463,18 +5626,29 @@ def upload_csv():
         if not reader.fieldnames:
             flash("Couldn't read any columns from that CSV.", "error")
             conn.close()
-            return redirect(url_for("upload_csv"))
+            return redirect(url_for("upload_csv", domain=domain))
 
-        # Identify the player and date columns (case-insensitive match)
+        # Identify the player and date columns. Matched loosely (via
+        # normalize_col, so spaces/underscores/case don't matter) and with a
+        # few extra aliases beyond "Player"/"Date" so a raw export straight
+        # out of HitTrax ("Batter") or Blast ("Player Name") matches without
+        # the coach having to rename any columns first.
         fieldnames = reader.fieldnames
-        lower_map = {f.lower().strip(): f for f in fieldnames}
-        player_col = lower_map.get("player") or lower_map.get("name")
-        date_col = lower_map.get("date")
+        norm_map = {normalize_col(f): f for f in fieldnames}
+        player_col = (
+            norm_map.get("player") or norm_map.get("name") or norm_map.get("batter")
+            or norm_map.get("battername") or norm_map.get("playername") or norm_map.get("athlete")
+            or norm_map.get("athletename") or norm_map.get("hitter") or norm_map.get("hittername")
+        )
+        date_col = (
+            norm_map.get("date") or norm_map.get("sessiondate") or norm_map.get("swingdate")
+            or norm_map.get("gamedate")
+        )
 
         if not player_col:
-            flash("CSV needs a 'Player' (or 'Name') column so rows can be matched to your roster.", "error")
+            flash("CSV needs a 'Player' (or 'Name'/'Batter') column so rows can be matched to your roster.", "error")
             conn.close()
-            return redirect(url_for("upload_csv"))
+            return redirect(url_for("upload_csv", domain=domain))
 
         stat_cols = [f for f in fieldnames if f not in (player_col, date_col)]
 
@@ -5495,11 +5669,37 @@ def upload_csv():
         era_col = next((c for c in stat_cols if normalize_col(c) in ERA_COL_NAMES), None)
         k_col = next((c for c in stat_cols if normalize_col(c) in K_COL_NAMES), None)
 
-        auto_era = bool(ip_col and er_col)
-        auto_k7 = bool(ip_col and k_col)
+        auto_era = bool(domain == "pitching" and ip_col and er_col)
+        auto_k7 = bool(domain == "pitching" and ip_col and k_col)
 
         if auto_era and era_col:
             stat_cols = [c for c in stat_cols if c != era_col]
+
+        # Hitting box score: AVG/OBP/SLG/OPS are computed the same way a
+        # season stat line always is, straight from the counting stats,
+        # rather than trusted from a pre-computed column that might be
+        # rounded differently. AB + H is the minimum needed for AVG/SLG;
+        # BB/HBP/SF sweeten OBP if present but aren't required.
+        ab_col = next((c for c in stat_cols if normalize_col(c) in {"ab", "atbats"}), None)
+        h_col = next((c for c in stat_cols if normalize_col(c) in {"h", "hits"}), None)
+        bb_col = next((c for c in stat_cols if normalize_col(c) in {"bb", "walks"}), None)
+        hbp_col = next((c for c in stat_cols if normalize_col(c) in {"hbp", "hitbypitch"}), None)
+        doubles_col = next((c for c in stat_cols if normalize_col(c) in {"2b", "doubles"}), None)
+        triples_col = next((c for c in stat_cols if normalize_col(c) in {"3b", "triples"}), None)
+        hr_col = next((c for c in stat_cols if normalize_col(c) in {"hr", "homeruns"}), None)
+        sf_col = next((c for c in stat_cols if normalize_col(c) in {"sf", "sacflies", "sacrificeflies"}), None)
+        auto_hitting_line = bool(domain == "hitting" and ab_col and h_col)
+
+        def fnum_row(row, col):
+            if not col:
+                return 0.0
+            raw = row.get(col)
+            if is_blank(raw):
+                return 0.0
+            try:
+                return float(raw.strip().replace("%", "").replace(",", ""))
+            except (ValueError, AttributeError):
+                return 0.0
 
         rows_imported = 0
         rows_skipped = 0
@@ -5522,6 +5722,13 @@ def upload_csv():
 
             entry_date = parse_date(row.get(date_col)) if date_col else datetime.today().strftime("%Y-%m-%d")
 
+            def insert_stat(stat_name, value):
+                conn.execute(
+                    """INSERT INTO stat_entries (organization_id, player_id, entry_date, category, stat_name, stat_value, source_file, imported_at, domain)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (g.org["id"], player_id, entry_date, category, stat_name, value, source_file, import_timestamp, domain),
+                )
+
             any_stat = False
             for col in stat_cols:
                 raw_val = row.get(col)
@@ -5532,11 +5739,7 @@ def upload_csv():
                     value = float(cleaned)
                 except ValueError:
                     continue
-                conn.execute(
-                    """INSERT INTO stat_entries (organization_id, player_id, entry_date, category, stat_name, stat_value, source_file, imported_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (g.org["id"], player_id, entry_date, category, col.strip(), value, source_file, import_timestamp),
-                )
+                insert_stat(col.strip(), value)
                 any_stat = True
 
             if auto_strike_pct:
@@ -5548,11 +5751,7 @@ def upload_csv():
                         pitches_val = float(pitches_raw.strip())
                         if pitches_val > 0:
                             strike_pct = round(strikes_val / pitches_val * 100, 1)
-                            conn.execute(
-                                """INSERT INTO stat_entries (organization_id, player_id, entry_date, category, stat_name, stat_value, source_file, imported_at)
-                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                                (g.org["id"], player_id, entry_date, category, "Strike %", strike_pct, source_file, import_timestamp),
-                            )
+                            insert_stat("Strike %", strike_pct)
                             any_stat = True
                     except ValueError:
                         pass
@@ -5572,11 +5771,7 @@ def upload_csv():
                                 try:
                                     er_val = float(er_raw.strip())
                                     era_val = round(er_val / ip_val * INNINGS_PER_GAME, 2)
-                                    conn.execute(
-                                        """INSERT INTO stat_entries (organization_id, player_id, entry_date, category, stat_name, stat_value, source_file, imported_at)
-                                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                                        (g.org["id"], player_id, entry_date, category, "ERA", era_val, source_file, import_timestamp),
-                                    )
+                                    insert_stat("ERA", era_val)
                                     any_stat = True
                                 except ValueError:
                                     pass
@@ -5587,14 +5782,38 @@ def upload_csv():
                                 try:
                                     k_val = float(k_raw.strip())
                                     k7_val = round(k_val / ip_val * INNINGS_PER_GAME, 2)
-                                    conn.execute(
-                                        """INSERT INTO stat_entries (organization_id, player_id, entry_date, category, stat_name, stat_value, source_file, imported_at)
-                                           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                                        (g.org["id"], player_id, entry_date, category, "K/7", k7_val, source_file, import_timestamp),
-                                    )
+                                    insert_stat("K/7", k7_val)
                                     any_stat = True
                                 except ValueError:
                                     pass
+
+            if auto_hitting_line:
+                ab_raw = row.get(ab_col)
+                h_raw = row.get(h_col)
+                if not is_blank(ab_raw) and not is_blank(h_raw):
+                    try:
+                        ab_val = float(ab_raw.strip())
+                        h_val = float(h_raw.strip())
+                    except ValueError:
+                        ab_val = h_val = 0
+                    if ab_val > 0:
+                        bb_val = fnum_row(row, bb_col)
+                        hbp_val = fnum_row(row, hbp_col)
+                        doubles_val = fnum_row(row, doubles_col)
+                        triples_val = fnum_row(row, triples_col)
+                        hr_val = fnum_row(row, hr_col)
+                        sf_val = fnum_row(row, sf_col)
+                        total_bases = h_val + doubles_val + 2 * triples_val + 3 * hr_val
+                        obp_denom = ab_val + bb_val + hbp_val + sf_val
+                        insert_stat("AVG", round(h_val / ab_val, 3))
+                        insert_stat("SLG", round(total_bases / ab_val, 3))
+                        if doubles_val or triples_val or hr_val:
+                            insert_stat("TB", total_bases)
+                        if obp_denom > 0:
+                            obp_val = round((h_val + bb_val + hbp_val) / obp_denom, 3)
+                            insert_stat("OBP", obp_val)
+                            insert_stat("OPS", round(obp_val + total_bases / ab_val, 3))
+                        any_stat = True
 
             if any_stat:
                 rows_imported += 1
@@ -5606,11 +5825,16 @@ def upload_csv():
         if rows_skipped:
             msg += f" Skipped {rows_skipped} row(s) with unrecognized players: {', '.join(sorted(unmatched_players))}."
         flash(msg, "success" if rows_imported else "error")
-        return redirect(url_for("upload_csv"))
+        return redirect(url_for("upload_csv", domain=domain))
 
     conn.close()
+    view_domain = request.args.get("domain", "pitching").strip().lower()
+    if view_domain not in ("pitching", "hitting"):
+        view_domain = "pitching"
     return render_template(
-        "upload_csv.html", players=players, category_options=CATEGORY_OPTIONS, pitch_types=PITCH_TYPES
+        "upload_csv.html", players=players,
+        category_options=HITTING_CATEGORY_OPTIONS if view_domain == "hitting" else CATEGORY_OPTIONS,
+        pitch_types=PITCH_TYPES, domain=view_domain,
     )
 
 
@@ -5824,6 +6048,9 @@ def upload_video():
     if request.method == "POST":
         player_id = request.form.get("player_id")
         title = request.form.get("title", "").strip()
+        domain = request.form.get("domain", "pitching").strip().lower()
+        if domain not in ("pitching", "hitting"):
+            domain = "pitching"
         category = request.form.get("category", "").strip()
         if category == "Other":
             category = request.form.get("category_other", "").strip()
@@ -5838,7 +6065,7 @@ def upload_video():
         if not player_id:
             flash("Please choose a player.", "error")
             conn.close()
-            return redirect(url_for("upload_video"))
+            return redirect(url_for("upload_video", domain=domain))
 
         owned = conn.execute(
             "SELECT id FROM players WHERE id = ? AND organization_id = ?", (player_id, g.org["id"])
@@ -5846,12 +6073,12 @@ def upload_video():
         if not owned:
             flash("That player isn't part of this organization.", "error")
             conn.close()
-            return redirect(url_for("upload_video"))
+            return redirect(url_for("upload_video", domain=domain))
 
         if not files:
             flash("Please choose at least one video file.", "error")
             conn.close()
-            return redirect(url_for("upload_video"))
+            return redirect(url_for("upload_video", domain=domain))
 
         uploaded_count = 0
         skipped_names = []
@@ -5865,8 +6092,8 @@ def upload_video():
             upload_media(file.stream, f"uploads/videos/{stored_filename}", file.content_type)
 
             conn.execute(
-                "INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename) VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (g.org["id"], player_id, entry_date, title or safe_name, category, notes, stored_filename),
+                "INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename, domain) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (g.org["id"], player_id, entry_date, title or safe_name, category, notes, stored_filename, domain),
             )
             uploaded_count += 1
 
@@ -5883,10 +6110,17 @@ def upload_video():
                 f"Couldn't upload any of those files - unsupported video type: {', '.join(skipped_names)}.",
                 "error",
             )
-        return redirect(url_for("player_detail", player_id=player_id))
+        return redirect(url_for("player_detail", player_id=player_id, tab=domain))
 
     conn.close()
-    return render_template("upload_video.html", players=players, category_options=CATEGORY_OPTIONS)
+    view_domain = request.args.get("domain", "pitching").strip().lower()
+    if view_domain not in ("pitching", "hitting"):
+        view_domain = "pitching"
+    return render_template(
+        "upload_video.html", players=players,
+        category_options=HITTING_VIDEO_CATEGORY_OPTIONS if view_domain == "hitting" else CATEGORY_OPTIONS,
+        domain=view_domain,
+    )
 
 
 # Direct-to-R2 upload: instead of the browser sending the video through this
@@ -5950,6 +6184,9 @@ def finalize_video_upload():
     payload = request.get_json(silent=True) or {}
     player_id = payload.get("player_id")
     title = (payload.get("title") or "").strip()
+    domain = (payload.get("domain") or "pitching").strip().lower()
+    if domain not in ("pitching", "hitting"):
+        domain = "pitching"
     category = (payload.get("category") or "").strip()
     if category == "Other":
         category = (payload.get("category_other") or "").strip()
@@ -5975,14 +6212,14 @@ def finalize_video_upload():
     for f in files:
         safe_name = secure_filename(f.get("filename") or f["stored_filename"])
         conn.execute(
-            "INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (g.org["id"], player_id, entry_date, title or safe_name, category, notes, f["stored_filename"]),
+            "INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename, domain) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (g.org["id"], player_id, entry_date, title or safe_name, category, notes, f["stored_filename"], domain),
         )
     conn.commit()
     conn.close()
 
     flash(f"Uploaded {len(files)} video{'s' if len(files) != 1 else ''}.", "success")
-    return {"ok": True, "redirect": url_for("player_detail", player_id=player_id)}
+    return {"ok": True, "redirect": url_for("player_detail", player_id=player_id, tab=domain)}
 
 
 @app.route("/<org_slug>/videos/<int:video_id>/delete", methods=["POST"])

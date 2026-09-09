@@ -96,6 +96,15 @@
               {% if v['grad_year'] %} · Class of {{ v['grad_year'] }}{% endif %}
             </div>
             {% if v['title'] %}<div class="video-title">{{ v['title'] }}{% if v['category'] %} &middot; {{ v['category'] }}{% endif %}</div>{% endif %}
+            {% set day_stats = day_stats_by_video.get(v['player_id']|string ~ '|' ~ v['entry_date'] ~ '|' ~ (v['domain'] or 'pitching')) %}
+            {% if day_stats %}
+              <div class="feed-day-stats">
+                {% for cat, stat_list in day_stats.items() %}
+                  <span class="feed-day-stats-cat">{{ cat }}:</span>
+                  {% for s in stat_list %}<span class="feed-day-stats-item">{{ s.stat_name }} {{ s.stat_value | fmt_stat }}</span>{% if not loop.last %}<span class="feed-day-stats-sep">&middot;</span>{% endif %}{% endfor %}
+                {% endfor %}
+              </div>
+            {% endif %}
           </div>
           <div class="feed-item-actions">
             <button class="feed-avatar-btn {{ 'following' if v['is_followed'] }}" data-player-id="{{ v['player_id'] }}" type="button" aria-label="{{ 'Following ' ~ v['player_name'] if v['is_followed'] else 'Follow ' ~ v['player_name'] }}">

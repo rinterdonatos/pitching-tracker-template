@@ -1,7 +1,20 @@
-{# One shared tab bar for the three import pages. Set `active` before including:
-   'csv', 'trackman', or 'video'. #}
+{# Shared tab bar for every import page. Set before including:
+   `active` = 'csv', 'trackman', or 'video'.
+   `domain` = 'pitching' (default) or 'hitting' - which side of the ball.
+   A top-level Pitching/Hitting toggle always defaults to Pitching; the
+   sub-tabs underneath change based on which domain is selected, since
+   TrackMan only applies to pitching. #}
+{% set domain = domain or 'pitching' %}
+<div style="display:flex; gap:6px; margin-bottom:10px;">
+  <a class="btn {% if domain != 'pitching' %}secondary{% endif %}"
+     href="{{ url_for('upload_csv' if active == 'csv' else ('upload_trackman' if active == 'trackman' else 'upload_video'), domain='pitching') }}">Pitching</a>
+  <a class="btn {% if domain != 'hitting' %}secondary{% endif %}"
+     href="{{ url_for('upload_csv' if active == 'csv' else 'upload_video', domain='hitting') }}">Hitting</a>
+</div>
 <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:18px;">
-  <a class="btn {% if active != 'csv' %}secondary{% endif %}" href="{{ url_for('upload_csv') }}">CSV Stats</a>
-  <a class="btn {% if active != 'trackman' %}secondary{% endif %}" href="{{ url_for('upload_trackman') }}">TrackMan</a>
-  <a class="btn {% if active != 'video' %}secondary{% endif %}" href="{{ url_for('upload_video') }}">Video</a>
+  <a class="btn {% if active != 'csv' %}secondary{% endif %}" href="{{ url_for('upload_csv', domain=domain) }}">{{ 'CSV / Game Stats' if domain == 'hitting' else 'CSV Stats' }}</a>
+  {% if domain == 'pitching' %}
+    <a class="btn {% if active != 'trackman' %}secondary{% endif %}" href="{{ url_for('upload_trackman') }}">TrackMan</a>
+  {% endif %}
+  <a class="btn {% if active != 'video' %}secondary{% endif %}" href="{{ url_for('upload_video', domain=domain) }}">Video</a>
 </div>
