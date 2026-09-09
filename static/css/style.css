@@ -1997,7 +1997,7 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 .chart-mock .bar.peak { background: linear-gradient(180deg, var(--brand-cta-light), var(--brand-cta)); opacity: 1; }
 
 .video-mock-row { display: flex; align-items: center; gap: 12px; padding: 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.03); margin-bottom: 8px; }
-.video-mock-thumb { width: 52px; height: 38px; border-radius: 7px; background: linear-gradient(135deg, #233047, #141f33); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.video-mock-thumb { width: 52px; height: 38px; border-radius: 7px; background: linear-gradient(135deg, #233047, #141f33); background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; flex-shrink: 0; position: relative; }
 .video-mock-thumb svg { width: 14px; height: 14px; color: var(--phx-orange); }
 .video-mock-meta { min-width: 0; }
 .video-mock-meta .t { font-size: 0.82rem; font-weight: 600; color: #fff; }
@@ -2007,7 +2007,12 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
 .feed-mock-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
 .feed-mock-name { font-size: 0.85rem; font-weight: 700; color: #fff; }
 .feed-mock-tag { font-size: 0.68rem; font-weight: 700; color: var(--phx-orange); background: rgba(20, 184, 166, 0.14); padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
-.feed-mock-thumb { height: 64px; border-radius: 8px; background: linear-gradient(135deg, #233047, #141f33); }
+.feed-mock-thumb { height: 64px; border-radius: 8px; background: linear-gradient(135deg, #233047, #141f33); background-size: cover; background-position: center; position: relative; }
+
+.thumb-play { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); display: flex; align-items: center; justify-content: center; background: rgba(8, 14, 26, 0.55); border-radius: 50%; }
+.video-mock-thumb .thumb-play { width: 22px; height: 22px; }
+.feed-mock-thumb .thumb-play { width: 30px; height: 30px; }
+.thumb-play svg { width: 42%; height: 42%; color: #fff; margin-left: 2px; }
 
 @media (max-width: 900px) { .product-panels { grid-template-columns: 1fr; } }
 
