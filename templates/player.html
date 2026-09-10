@@ -19,6 +19,10 @@
         <div class="meta">
           {% if is_coach_view and player['org_name'] %}{{ player['org_name'] }} &middot; {% endif %}{{ player['position'] or 'Position not set' }}{% if player['grad_year'] %} &middot; Class of {{ player['grad_year'] }}{% endif %}{% if player['team_name'] %} &middot; {{ player['team_name'] }}{% endif %}
         </div>
+        <div class="section-tabs" role="tablist" style="margin-top:10px;">
+          <a class="section-tab {{ 'active' if active_tab == 'pitching' }}" href="{{ self_url }}?tab=pitching{{ other_qs }}">Pitching</a>
+          <a class="section-tab {{ 'active' if active_tab == 'hitting' }}" href="{{ self_url }}?tab=hitting{{ other_qs }}">Hitting</a>
+        </div>
       </div>
     </div>
     <div>
@@ -130,11 +134,6 @@
       </div>
     </div>
   {% endif %}
-
-  <div class="section-tabs" role="tablist" style="margin-bottom:10px;">
-    <a class="section-tab {{ 'active' if active_tab == 'pitching' }}" href="{{ self_url }}?tab=pitching{{ other_qs }}">Pitching</a>
-    <a class="section-tab {{ 'active' if active_tab == 'hitting' }}" href="{{ self_url }}?tab=hitting{{ other_qs }}">Hitting</a>
-  </div>
 
   <div class="section-title">Progress Over Time</div>
 
@@ -348,6 +347,21 @@
                     <button class="btn secondary" type="submit" style="padding:4px 10px; font-size:0.8rem;">Save</button>
                   </form>
                 </details>
+                <details style="display:inline-block; margin-left:6px;">
+                  <summary style="cursor:pointer; font-size:0.78rem; color:var(--phx-blue); display:inline;">{{ 'Edit speed' if v['velo'] else '+ Add speed' }}</summary>
+                  <form method="POST" action="{{ url_for('edit_video_velo', video_id=v['id']) }}" style="display:inline-flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:4px;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    {% if v['domain'] == 'hitting' %}
+                      <input type="number" name="velo" step="0.1" min="0" value="{{ v['velo'] or '' }}" placeholder="Exit velo (mph)" style="padding:4px 6px; font-size:16px; width:140px;">
+                    {% else %}
+                      <select name="pitch_type" style="padding:4px 6px; font-size:16px;">
+                        <option value="">Not specified</option>
+                        {% for abbr, full in pitch_types %}<option value="{{ abbr }}" {% if v['pitch_type'] == abbr %}selected{% endif %}>{{ full }} ({{ abbr }})</option>{% endfor %}
+                      </select>
+                      <input type="number" name="velo" step="0.1" min="0" value="{{ v['velo'] or '' }}" placeholder="Velocity (mph)" style="padding:4px 6px; font-size:16px; width:120px;">
+                    {% endif %}
+                    <button class="btn secondary" type="submit" style="padding:4px 10px; font-size:0.8rem;">Save</button>
+                  </form>
+                </details>
               {% endif %}
               {% if v['velo'] %}
                 <div class="video-velo-badge">
@@ -435,6 +449,21 @@
                     <summary style="cursor:pointer; font-size:0.78rem; color:var(--phx-blue); display:inline;">Edit date</summary>
                     <form method="POST" action="{{ url_for('edit_video_date', video_id=v['id']) }}" style="display:inline-flex; gap:6px; align-items:center; margin-top:4px;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                       <input type="date" name="entry_date" value="{{ v['entry_date'] }}" required style="padding:4px 6px; font-size:16px;">
+                      <button class="btn secondary" type="submit" style="padding:4px 10px; font-size:0.8rem;">Save</button>
+                    </form>
+                  </details>
+                  <details style="display:inline-block; margin-left:6px;">
+                    <summary style="cursor:pointer; font-size:0.78rem; color:var(--phx-blue); display:inline;">{{ 'Edit speed' if v['velo'] else '+ Add speed' }}</summary>
+                    <form method="POST" action="{{ url_for('edit_video_velo', video_id=v['id']) }}" style="display:inline-flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:4px;"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                      {% if v['domain'] == 'hitting' %}
+                        <input type="number" name="velo" step="0.1" min="0" value="{{ v['velo'] or '' }}" placeholder="Exit velo (mph)" style="padding:4px 6px; font-size:16px; width:140px;">
+                      {% else %}
+                        <select name="pitch_type" style="padding:4px 6px; font-size:16px;">
+                          <option value="">Not specified</option>
+                          {% for abbr, full in pitch_types %}<option value="{{ abbr }}" {% if v['pitch_type'] == abbr %}selected{% endif %}>{{ full }} ({{ abbr }})</option>{% endfor %}
+                        </select>
+                        <input type="number" name="velo" step="0.1" min="0" value="{{ v['velo'] or '' }}" placeholder="Velocity (mph)" style="padding:4px 6px; font-size:16px; width:120px;">
+                      {% endif %}
                       <button class="btn secondary" type="submit" style="padding:4px 10px; font-size:0.8rem;">Save</button>
                     </form>
                   </details>

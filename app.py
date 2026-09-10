@@ -5091,7 +5091,10 @@ def player_detail(player_id):
     date_from, date_to, is_default_range = _player_date_range_from_request()
     ctx = _build_player_profile_context(conn, player_id, date_from, date_to)
     conn.close()
-    return render_template("player.html", player=player, is_coach_view=False, is_default_range=is_default_range, **ctx)
+    return render_template(
+        "player.html", player=player, is_coach_view=False, is_default_range=is_default_range,
+        pitch_types=PITCH_TYPES, **ctx
+    )
 
 
 @app.route("/<org_slug>/players/<int:player_id>/report")
@@ -6340,6 +6343,48 @@ def edit_video_date(video_id):
     player_id = video["player_id"]
     conn.close()
     flash("Video date updated.", "success")
+    return redirect(url_for("player_detail", player_id=player_id) + f"#video-{video_id}")
+
+
+@app.route("/<org_slug>/videos/<int:video_id>/edit-velo", methods=["POST"])
+def edit_video_velo(video_id):
+    """Lets a clip's headline number (pitch velo + type, or exit velo for a
+    hitting clip) be added or corrected after the fact - a video uploaded
+    before this feature existed, or one where the number just got left
+    blank, doesn't need to be deleted and re-uploaded just to get tagged."""
+    conn = get_db()
+    video = conn.execute(
+        "SELECT * FROM videos WHERE id = ? AND organization_id = ?", (video_id, g.org["id"])
+    ).fetchone()
+    if not video:
+        conn.close()
+        abort(404)
+    # Same permission model as edit_video_date - admins/owners, or the
+    # account linked to this exact player, not any logged-in user.
+    if not session.get("is_admin") and session.get("player_id") != video["player_id"]:
+        conn.close()
+        abort(403)
+
+    velo_raw = (request.form.get("velo") or "").strip()
+    velo = None
+    if velo_raw:
+        try:
+            velo = float(velo_raw)
+        except ValueError:
+            velo = None
+
+    # Pitch type only applies to pitching clips - a hitting clip's number is
+    # always exit velo, so there's no type to store alongside it even if
+    # the form somehow submitted one.
+    pitch_type = None
+    if (video["domain"] or "pitching") != "hitting":
+        pitch_type = (request.form.get("pitch_type") or "").strip() or None
+
+    conn.execute("UPDATE videos SET velo = ?, pitch_type = ? WHERE id = ?", (velo, pitch_type, video_id))
+    conn.commit()
+    player_id = video["player_id"]
+    conn.close()
+    flash("Video speed updated.", "success")
     return redirect(url_for("player_detail", player_id=player_id) + f"#video-{video_id}")
 
 
