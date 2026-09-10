@@ -39,6 +39,26 @@
       <label for="category_other">Custom session type</label>
       <input type="text" id="category_other" name="category_other" placeholder="e.g. Weighted Ball, Long Toss">
     </div>
+    {% if domain == 'hitting' %}
+      <div class="field">
+        <label for="velo">Exit Velocity (mph)</label>
+        <input type="number" id="velo" name="velo" step="0.1" min="0" placeholder="e.g. 98.4">
+        <div class="hint">Optional - shown right on the clip and gives it a boost in the coach recruiting feed.</div>
+      </div>
+    {% else %}
+      <div class="field">
+        <label for="pitch_type">Pitch Type</label>
+        <select id="pitch_type" name="pitch_type">
+          <option value="">Not specified</option>
+          {% for abbr, full in pitch_types %}<option value="{{ abbr }}">{{ full }} ({{ abbr }})</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="velo">Velocity (mph)</label>
+        <input type="number" id="velo" name="velo" step="0.1" min="0" placeholder="e.g. 92.6">
+        <div class="hint">Optional - shown right on the clip and gives it a boost in the coach recruiting feed.</div>
+      </div>
+    {% endif %}
     <div class="field">
       <label for="notes">Notes</label>
       <textarea id="notes" name="notes" placeholder="What to look for, coaching cues, context"></textarea>
@@ -124,6 +144,8 @@
             category: document.getElementById('category').value,
             category_other: document.getElementById('category_other').value,
             domain: document.getElementById('video-domain').value,
+            pitch_type: document.getElementById('pitch_type') ? document.getElementById('pitch_type').value : '',
+            velo: document.getElementById('velo') ? document.getElementById('velo').value : '',
             notes: document.getElementById('notes').value,
             files: usable.map(function (u) {
               return {

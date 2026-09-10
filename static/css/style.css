@@ -847,6 +847,37 @@ table.spreadsheet-table tr.avg-row td.spreadsheet-date-col {
 }
 .video-item .info p { color: var(--phx-gray); font-size: 0.9rem; margin: 6px 0; }
 
+/* Headline velo/pitch-type badge shown on a clip that was tagged at
+   upload time (pitch velocity + type, or exit velo for hitting). Built as
+   a solid pill with its own opaque background rather than colored text,
+   so it reads the same whether it's sitting on a plain white video card
+   (player.html) or over a dark video-overlay gradient (coach_feed.html).
+   Sized to be noticeably bigger than the surrounding metadata text
+   without turning into a giant headline number. */
+.video-velo-badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  background: var(--phx-orange);
+  color: var(--phx-blue-dark);
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  box-shadow: var(--shadow-sm);
+}
+.video-velo-num { font-size: 1.15rem; line-height: 1; }
+.video-velo-unit { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.03em; opacity: 0.85; }
+.video-velo-tag {
+  background: var(--phx-blue-dark);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 6px;
+  margin-left: 2px;
+}
+
 /* Same-day stat snapshot shown alongside a video (see _day_stats.html). */
 .day-stats-card {
   background: var(--phx-bg);

@@ -349,6 +349,12 @@
                   </form>
                 </details>
               {% endif %}
+              {% if v['velo'] %}
+                <div class="video-velo-badge">
+                  <span class="video-velo-num">{{ v['velo'] | fmt_stat }}</span><span class="video-velo-unit">MPH</span>
+                  <span class="video-velo-tag">{{ v['pitch_type'] if v['pitch_type'] else 'EV' }}</span>
+                </div>
+              {% endif %}
               <h4>{{ v['title'] }}{% if v['category'] %} <span class="text-muted" style="font-weight:400;">&middot; {{ v['category'] }}</span>{% endif %}</h4>
               {% if v['notes'] %}<p>{{ v['notes'] }}</p>{% endif %}
               {% with day_stats = ctx.stats_by_date.get(v['entry_date']) %}{% include "_day_stats.html" %}{% endwith %}
@@ -432,6 +438,12 @@
                       <button class="btn secondary" type="submit" style="padding:4px 10px; font-size:0.8rem;">Save</button>
                     </form>
                   </details>
+                {% endif %}
+                {% if v['velo'] %}
+                  <div class="video-velo-badge">
+                    <span class="video-velo-num">{{ v['velo'] | fmt_stat }}</span><span class="video-velo-unit">MPH</span>
+                    <span class="video-velo-tag">{{ v['pitch_type'] if v['pitch_type'] else 'EV' }}</span>
+                  </div>
                 {% endif %}
                 <h4>{{ v['title'] }}{% if v['category'] %} <span class="text-muted" style="font-weight:400;">&middot; {{ v['category'] }}</span>{% endif %}</h4>
                 {% if v['notes'] %}<p>{{ v['notes'] }}</p>{% endif %}

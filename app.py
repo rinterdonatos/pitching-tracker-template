@@ -1359,6 +1359,19 @@ def init_db():
         conn.execute("ALTER TABLE videos ADD COLUMN recruiting_visible INTEGER DEFAULT 1")
         conn.commit()
 
+    # Migration: an optional headline number per clip - pitch type + velocity
+    # for a pitching video, exit velocity for a hitting video (pitch_type
+    # stays NULL there). Shown prominently on the clip itself, and factored
+    # into the coach feed's ranking so a tagged 96 mph fastball surfaces
+    # ahead of an untagged clip instead of relying only on the player's
+    # season-best velo from stat_entries.
+    if "pitch_type" not in video_cols:
+        conn.execute("ALTER TABLE videos ADD COLUMN pitch_type TEXT")
+        conn.commit()
+    if "velo" not in video_cols:
+        conn.execute("ALTER TABLE videos ADD COLUMN velo REAL")
+        conn.commit()
+
     # Migration: add group_number to a players table that existed before this column did.
     existing_cols = {row["name"] for row in conn.execute("PRAGMA table_info(players)")}
     if "group_number" not in existing_cols:
@@ -3303,11 +3316,13 @@ def _rank_feed_videos(videos):
     """Order the feed by a blended score instead of pure recency: harder
     velocity readings and bullpen/game reps are what a coach actually wants
     to evaluate first, recent uploads get a boost so the feed stays fresh,
-    popular players/clips (followers, favorites) get a nudge upward, clips
-    this coach has already watched get pushed way down (but not excluded
-    entirely), and a healthy random jitter keeps the order from going stale
-    on repeat visits and makes sure every video - not just the popular
-    ones - has a real shot at the top of the feed."""
+    popular players/clips (followers, favorites) get a nudge upward, a clip
+    tagged with its own pitch velo/exit velo at upload time gets a further
+    boost scaled to how hard that specific clip is, clips this coach has
+    already watched get pushed way down (but not excluded entirely), and a
+    healthy random jitter keeps the order from going stale on repeat visits
+    and makes sure every video - not just the popular ones - has a real
+    shot at the top of the feed."""
     if not videos:
         return videos
 
@@ -3315,6 +3330,25 @@ def _rank_feed_videos(videos):
     max_velo = max(velos) if velos else None
     min_velo = min(velos) if velos else None
     today = date.today()
+
+    # Per-clip velo/pitch-type tag - distinct from player_best_velo above,
+    # which is the player's season-best from stat_entries. This is the
+    # number tagged directly on this specific clip at upload time, so a
+    # clip tagged 96 mph (or 105 mph exit velo) gets some priority over an
+    # otherwise-identical untagged clip. Normalized separately per domain
+    # since pitching and hitting velocities live on very different scales,
+    # with a 0.5 floor for any tagged clip so simply being tagged is worth
+    # something even before comparing against the hardest clip in the batch.
+    pitching_clip_velos = [
+        v["velo"] for v in videos if v["velo"] is not None and (v["domain"] or "pitching") == "pitching"
+    ]
+    hitting_clip_velos = [
+        v["velo"] for v in videos if v["velo"] is not None and (v["domain"] or "pitching") == "hitting"
+    ]
+    max_pitch_clip_velo = max(pitching_clip_velos) if pitching_clip_velos else None
+    min_pitch_clip_velo = min(pitching_clip_velos) if pitching_clip_velos else None
+    max_hit_clip_velo = max(hitting_clip_velos) if hitting_clip_velos else None
+    min_hit_clip_velo = min(hitting_clip_velos) if hitting_clip_velos else None
 
     # Popularity is log-scaled before normalizing so one heavily-followed
     # player or one viral clip can't just run away with the feed by having
@@ -3351,11 +3385,27 @@ def _rank_feed_videos(videos):
         favorite_score = (math.log1p(v["favorite_count"] or 0) / log_max_favorites) if log_max_favorites else 0.0
         popularity_score = (0.5 * follower_score) + (0.5 * favorite_score)
 
+        clip_velo = v["velo"]
+        if clip_velo is None:
+            clip_velo_score = 0.0
+        else:
+            clip_domain = v["domain"] or "pitching"
+            lo, hi = (
+                (min_pitch_clip_velo, max_pitch_clip_velo)
+                if clip_domain == "pitching"
+                else (min_hit_clip_velo, max_hit_clip_velo)
+            )
+            if hi is not None and hi > lo:
+                clip_velo_score = 0.5 + 0.5 * ((clip_velo - lo) / (hi - lo))
+            else:
+                clip_velo_score = 1.0
+
         weighted = (
-            (0.20 * velo_score)
+            (0.15 * velo_score)
             + (0.15 * category_score)
-            + (0.20 * recency_score)
+            + (0.15 * recency_score)
             + (0.15 * popularity_score)
+            + (0.20 * clip_velo_score)
         )
         # A clip this coach has already watched takes a flat penalty - not
         # a big enough hit to make it mathematically impossible to resurface
@@ -3365,12 +3415,12 @@ def _rank_feed_videos(videos):
         # unseen clip wins the comparison the large majority of the time.
         if v["is_seen"]:
             weighted = max(0.0, weighted - 0.22)
-        # Max weighted score is 0.70 - a jitter of up to 0.30 is deliberately
+        # Max weighted score is 0.80 - a jitter of up to 0.20 is still
         # bigger than the entire popularity weight, so even a video from a
         # player with zero followers/favorites still has a real (if smaller)
         # chance of landing near the top against the most popular player on
         # any given load. Popularity shifts the odds, it doesn't decide them.
-        jitter = random.random() * 0.30
+        jitter = random.random() * 0.20
         scored.append((weighted + jitter, v))
 
     scored.sort(key=lambda pair: pair[0], reverse=True)
@@ -6056,6 +6106,18 @@ def upload_video():
             category = request.form.get("category_other", "").strip()
         notes = request.form.get("notes", "").strip()
         entry_date = parse_date(request.form.get("entry_date"))
+
+        # Optional headline number for the clip itself: pitch type + velo for
+        # a pitching video, exit velo only for a hitting video (pitch_type is
+        # meaningless there, so it's dropped even if somehow posted).
+        pitch_type = request.form.get("pitch_type", "").strip() if domain == "pitching" else ""
+        pitch_type = pitch_type or None
+        velo_raw = request.form.get("velo", "").strip()
+        try:
+            velo = float(velo_raw) if velo_raw else None
+        except ValueError:
+            velo = None
+
         # A lesson/session can produce more than one clip (different angles,
         # multiple reps, etc.), so the file input accepts multiple files and
         # every valid one becomes its own video row sharing the same player,
@@ -6092,8 +6154,9 @@ def upload_video():
             upload_media(file.stream, f"uploads/videos/{stored_filename}", file.content_type)
 
             conn.execute(
-                "INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename, domain) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (g.org["id"], player_id, entry_date, title or safe_name, category, notes, stored_filename, domain),
+                """INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename, domain, pitch_type, velo)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (g.org["id"], player_id, entry_date, title or safe_name, category, notes, stored_filename, domain, pitch_type, velo),
             )
             uploaded_count += 1
 
@@ -6119,7 +6182,7 @@ def upload_video():
     return render_template(
         "upload_video.html", players=players,
         category_options=HITTING_VIDEO_CATEGORY_OPTIONS if view_domain == "hitting" else CATEGORY_OPTIONS,
-        domain=view_domain,
+        domain=view_domain, pitch_types=PITCH_TYPES,
     )
 
 
@@ -6194,6 +6257,14 @@ def finalize_video_upload():
     entry_date = parse_date(payload.get("entry_date"))
     files = [f for f in (payload.get("files") or []) if f.get("stored_filename")]
 
+    pitch_type = (payload.get("pitch_type") or "").strip() if domain == "pitching" else ""
+    pitch_type = pitch_type or None
+    velo_raw = payload.get("velo")
+    try:
+        velo = float(velo_raw) if velo_raw not in (None, "") else None
+    except (TypeError, ValueError):
+        velo = None
+
     if not player_id:
         return {"ok": False, "error": "Choose a player."}, 400
 
@@ -6212,8 +6283,9 @@ def finalize_video_upload():
     for f in files:
         safe_name = secure_filename(f.get("filename") or f["stored_filename"])
         conn.execute(
-            "INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename, domain) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (g.org["id"], player_id, entry_date, title or safe_name, category, notes, f["stored_filename"], domain),
+            """INSERT INTO videos (organization_id, player_id, entry_date, title, category, notes, filename, domain, pitch_type, velo)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (g.org["id"], player_id, entry_date, title or safe_name, category, notes, f["stored_filename"], domain, pitch_type, velo),
         )
     conn.commit()
     conn.close()

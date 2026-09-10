@@ -95,6 +95,12 @@
               {% if v['position'] %} · {{ v['position'] }}{% endif %}
               {% if v['grad_year'] %} · Class of {{ v['grad_year'] }}{% endif %}
             </div>
+            {% if v['velo'] %}
+              <div class="video-velo-badge">
+                <span class="video-velo-num">{{ v['velo'] | fmt_stat }}</span><span class="video-velo-unit">MPH</span>
+                <span class="video-velo-tag">{{ v['pitch_type'] if v['pitch_type'] else 'EV' }}</span>
+              </div>
+            {% endif %}
             {% if v['title'] %}<div class="video-title">{{ v['title'] }}{% if v['category'] %} &middot; {{ v['category'] }}{% endif %}</div>{% endif %}
             {% set day_stats = day_stats_by_video.get(v['player_id']|string ~ '|' ~ v['entry_date'] ~ '|' ~ (v['domain'] or 'pitching')) %}
             {% if day_stats %}
