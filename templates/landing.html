@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ platform_name }} - Player Development & Recruiting Platform</title>
-  <meta name="description" content="Track pitching and hitting development, share video with recruiters, and run your program's leaderboards - all in one place.">
+  <meta name="description" content="Track pitching and hitting development, share video with recruiters, and run your program's leaderboards - all in one place. Free 30-day trial, no credit card required.">
   <meta property="og:title" content="{{ platform_name }} - Player Development & Recruiting">
-  <meta property="og:description" content="Track every stat and video session, then get discovered by college coaches. Built for pitching labs, travel programs, and training facilities.">
+  <meta property="og:description" content="Track every pitching and hitting session, then get discovered by college coaches. Built for pitching labs, travel programs, and training facilities. Free 30-day trial.">
   <meta property="og:image" content="{{ url_for('static', filename='img/og-image.png', _external=True) }}">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="1200">
@@ -15,7 +15,7 @@
   <meta property="og:url" content="{{ url_for('home', _external=True) }}">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="{{ platform_name }} - Player Development & Recruiting">
-  <meta name="twitter:description" content="Track every stat and video session, then get discovered by college coaches.">
+  <meta name="twitter:description" content="Track every pitching and hitting session, then get discovered by college coaches. Free 30-day trial.">
   <meta name="twitter:image" content="{{ url_for('static', filename='img/og-image.png', _external=True) }}">
   <meta name="theme-color" content="#0b1120">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -65,12 +65,12 @@
       <div class="landing-hero-copy">
         <span class="hero-chip">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 L14.5 9.5 L22 12 L14.5 14.5 L12 22 L9.5 14.5 L2 12 L9.5 9.5 Z"/></svg>
-          Player Development + College Recruiting
+          Pitching + Hitting Development &middot; College Recruiting
         </span>
         <h1>Track your progress.<br>Get <span>discovered</span>.</h1>
-        <p class="lead">{{ platform_name }} is where pitching programs log every stat and video session &mdash; and where college coaches come looking for the next arm worth recruiting.</p>
+        <p class="lead">{{ platform_name }} is where pitching and hitting programs log every stat and video session &mdash; and where college coaches come looking for the next player worth recruiting.</p>
         <div class="landing-hero-ctas">
-          <a class="btn-cta" href="{{ url_for('start') }}">Start Your Program &mdash; Free to Set Up</a>
+          <a class="btn-cta" href="{{ url_for('start') }}">Start Your Program &mdash; Free 30-Day Trial</a>
           <a class="btn-ghost" href="{{ url_for('coach_login') }}">College Coach? Log In</a>
         </div>
       </div>
@@ -165,7 +165,7 @@
         <div class="how-step">
           <span class="step-num">02</span>
           <h3>Log every session</h3>
-          <p>Import stats &mdash; including TrackMan data &mdash; and upload video from bullpens and games.</p>
+          <p>Import stats for both sides of the ball &mdash; TrackMan for pitching, HitTrax and Blast for hitting &mdash; and upload video from bullpens, cage work, and games.</p>
         </div>
         <div class="how-step">
           <span class="step-num">03</span>
@@ -187,6 +187,7 @@
       <div class="section-head on-dark center reveal">
         <span class="eyebrow on-dark">Inside the Platform</span>
         <h2>Built around how development actually happens.</h2>
+        <p>Pitching and hitting, tracked side by side &mdash; not bolted on.</p>
       </div>
       <div class="product-panels reveal-stagger">
         <div class="product-panel">
@@ -219,13 +220,13 @@
         </div>
         <div class="product-panel">
           <h4>Coach Recruiting Feed</h4>
-          <p class="panel-sub">What approved coaches see</p>
+          <p class="panel-sub">What approved coaches see &mdash; pitchers and hitters alike</p>
           <div class="feed-mock-card">
             <div class="feed-mock-top"><span class="feed-mock-name">J. Ramirez &middot; RHP &middot; 2027</span><span class="feed-mock-tag">94 MPH</span></div>
             <div class="feed-mock-thumb" style="background-image:url('{{ static_url('img/thumbs/thumb-mound-outdoor.jpg') }}');"><span class="thumb-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span></div>
           </div>
           <div class="feed-mock-card" style="margin-bottom:0;">
-            <div class="feed-mock-top"><span class="feed-mock-name">T. Alvarez &middot; LHP &middot; 2026</span><span class="feed-mock-tag">91 MPH</span></div>
+            <div class="feed-mock-top"><span class="feed-mock-name">T. Alvarez &middot; SS &middot; 2026</span><span class="feed-mock-tag">98 EV</span></div>
             <div class="feed-mock-thumb" style="background-image:url('{{ static_url('img/thumbs/thumb-game-action.jpg') }}');"><span class="thumb-play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span></div>
           </div>
         </div>
@@ -253,8 +254,8 @@
           <div class="icon-badge">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg>
           </div>
-          <h3>TrackMan-ready</h3>
-          <p>Import real TrackMan data instead of re-typing numbers by hand.</p>
+          <h3>TrackMan, HitTrax & Blast-ready</h3>
+          <p>Import real pitching and hitting data instead of re-typing numbers by hand.</p>
         </div>
         <div class="benefit-card">
           <div class="icon-badge">
@@ -303,7 +304,7 @@
   <!-- Final CTA -->
   <section class="final-cta">
     <h2>Ready to get to work?</h2>
-    <p>Set up your program in about a minute. No credit card required.</p>
+    <p>Set up your program in about a minute and get a free 30-day trial. No credit card required.</p>
     <div class="final-cta-ctas">
       <a class="btn-cta" href="{{ url_for('start') }}">Start Your Program</a>
       <a class="btn-ghost" href="{{ url_for('org_picker') }}">Log In</a>
