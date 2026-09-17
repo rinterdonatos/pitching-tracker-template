@@ -396,13 +396,19 @@ STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
 BILLING_ENABLED = bool(STRIPE_SECRET_KEY)
-# Off by default - trials here are something you grant by hand to specific
-# orgs (Platform Admin -> an org -> "Grant Free Trial"), not something every
-# signup gets automatically. Set STRIPE_TRIAL_DAYS to a positive number only
-# if you want every new subscription to include that many free days at
-# checkout instead (Stripe still collects a card, it just doesn't bill it
-# until the trial ends).
+# Off by default. Set STRIPE_TRIAL_DAYS to a positive number only if you
+# want every new *subscription* to include that many free days at checkout
+# instead (Stripe still collects a card, it just doesn't bill it until the
+# trial ends). This is separate from SIGNUP_TRIAL_DAYS below, which is the
+# no-card trial every new org gets just for signing up.
 TRIAL_DAYS = int(os.environ.get("STRIPE_TRIAL_DAYS", "0"))
+
+# Every new organization created through /start gets this many days of free
+# access automatically - no card required (see trial_ends_at). Platform
+# Admin can grant more of it, extend it, or end it early for any org from
+# that org's detail page. Set to 0 to turn off the automatic grant and go
+# back to trials being purely a manual, hand-granted thing.
+SIGNUP_TRIAL_DAYS = int(os.environ.get("SIGNUP_TRIAL_DAYS", "30"))
 
 if BILLING_ENABLED:
     import stripe
@@ -1676,10 +1682,10 @@ def init_db():
         conn.execute("ALTER TABLE organizations ADD COLUMN overage_item_id TEXT")
         conn.commit()
 
-    # A trial granted by hand (Platform Admin -> an org -> "Grant Free
-    # Trial"), separate from Stripe's own per-subscription trial support.
-    # This is how you comp a specific org - no card, no Stripe subscription
-    # required - rather than every signup getting a trial automatically.
+    # When each org's no-card trial ends. Set automatically on signup (see
+    # SIGNUP_TRIAL_DAYS) and adjustable by hand afterward from Platform
+    # Admin -> an org -> "Grant / Extend Free Trial" - separate from
+    # Stripe's own per-subscription trial support.
     if "trial_ends_at" not in org_billing_cols:
         conn.execute("ALTER TABLE organizations ADD COLUMN trial_ends_at TEXT")
         conn.commit()
@@ -2520,10 +2526,17 @@ def start():
                 else:
                     logo_filename = None
 
+            # Every new org starts on a no-card free trial (see
+            # SIGNUP_TRIAL_DAYS) rather than hitting the billing paywall
+            # immediately - Platform Admin can extend or end it later.
+            trial_ends_at = None
+            if SIGNUP_TRIAL_DAYS > 0:
+                trial_ends_at = (datetime.now() + timedelta(days=SIGNUP_TRIAL_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
+
             org_cur = conn.execute(
-                "INSERT INTO organizations (name, slug, logo_filename, theme_primary, theme_accent) "
-                "VALUES (?, ?, ?, ?, ?)",
-                (org_name, slug, logo_filename, theme_primary, theme_accent),
+                "INSERT INTO organizations (name, slug, logo_filename, theme_primary, theme_accent, trial_ends_at) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (org_name, slug, logo_filename, theme_primary, theme_accent, trial_ends_at),
             )
             org_id = org_cur.lastrowid
             cur = conn.execute(
@@ -3783,9 +3796,12 @@ def platform_org_detail(org_id):
 @app.route("/platform/organizations/<int:org_id>/trial/grant", methods=["POST"])
 @platform_admin_required
 def platform_grant_trial(org_id):
-    """Comp a specific org a free trial - no card, no Stripe subscription
-    needed. This is the manual, per-org alternative to every signup getting
-    a trial automatically (see TRIAL_DAYS)."""
+    """Grant or extend a specific org's no-card trial - always sets
+    trial_ends_at to `days` from right now, so running this again just
+    pushes the end date further out. Every org already gets
+    SIGNUP_TRIAL_DAYS of this automatically at signup; this is how you
+    extend it, restart it after it lapsed, or comp an org that predates
+    the automatic grant."""
     try:
         days = max(1, int(request.form.get("days", "30")))
     except ValueError:

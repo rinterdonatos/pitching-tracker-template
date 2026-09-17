@@ -1975,7 +1975,6 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   border-radius: 16px;
   padding: 22px;
   box-shadow: 0 30px 70px rgba(0, 0, 0, 0.5);
-  animation: floatY 6s ease-in-out infinite;
 }
 .hero-mock-card.card-2 {
   position: absolute;
@@ -1983,9 +1982,7 @@ table.data-table a:hover { color: var(--phx-blue-dark); }
   bottom: -14%;
   width: 62%;
   padding: 16px;
-  animation-delay: -3s;
 }
-@keyframes floatY { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
 .hero-mock-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .hero-mock-head .dot-row { display: flex; gap: 6px; }
 .hero-mock-head .dot-row span { width: 8px; height: 8px; border-radius: 50%; background: rgba(255, 255, 255, 0.18); display: block; }
